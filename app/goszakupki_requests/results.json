@@ -1,0 +1,578 @@
+[
+    {
+        "guid": "8b0de05e-3516-453e-8266-c8a6d570d65d",
+        "registration_number": "32615725660",
+        "name": "право заключения договора на выполнение СМР с поставкой бытовых помещений для персонала охраны по титулу: \"Техническое перевооружение ПС МЭС Центра в части установки средств пассивной защиты (55 комплектов)",
+        "publication_datetime": "2026-02-19T14:51:22",
+        "submission_close_datetime": "2026-02-27T12:00:00",
+        "customer": {
+            "full_name": "ПУБЛИЧНОЕ АКЦИОНЕРНОЕ ОБЩЕСТВО \"ФЕДЕРАЛЬНАЯ СЕТЕВАЯ КОМПАНИЯ - РОССЕТИ\"",
+            "inn": "4716016979",
+            "kpp": "773101001",
+            "ogrn": "1024701893336"
+        },
+        "contact": {
+            "last_name": "Первицких",
+            "first_name": "О.",
+            "middle_name": "А.",
+            "phone": "7 495 7109333  3042",
+            "email": "olgap@rosseti-zakupki.ru"
+        },
+        "apply_request": {
+            "submission_order": "В электронной форме",
+            "submission_place": "Электронная площадка РТС-тендер (http://www.rts-tender.ru)",
+            "submission_start_date": "2026-02-19"
+        },
+        "lots": [
+            {
+                "guid": "698e9334-cfd7-04eb-e100-80000a121a18",
+                "ordinal_number": "1",
+                "subject": "право заключения договора на выполнение СМР с поставкой бытовых помещений для персонала охраны по титулу: \"Техническое перевооружение ПС МЭС Центра в части установки средств пассивной защиты (55 комплектов)",
+                "initial_summ": 63861940.0,
+                "currency": "RUB",
+                "application_supply_summ": null,
+                "application_supply_extra": null,
+                "completing_supply_summ": "В соответствии с документацией о закупке",
+                "items": [
+                    {
+                        "guid": "7ee60769-2b13-4f7c-8507-7383bb300ee8",
+                        "okpd2_code": "42.22.11.110",
+                        "okpd2_name": "Линии (кабели) электропередачи высокого напряжения",
+                        "qty": "1",
+                        "additional_info": null
+                    }
+                ]
+            }
+        ],
+        "initial_summ": null,
+        "sourceFile": "purchaseNotice_32615725660_1_019C75BDA8C973BFAE09AC4403EE3131.xml"
+    },
+    {
+        "guid": "b6fcc175-8481-4d36-8664-759841335c26",
+        "registration_number": "32615726045",
+        "name": "Право на заключение Договора на выполнение работ \"под ключ\" для технологического присоединения потребителей (SAP – 8500016871/355, ДТП 42694800, 42696317) для нужд ПАО «Россети Центр» (филиала «Брянскэнерго») 0047-БР-26",
+        "publication_datetime": "2026-02-19T15:35:05",
+        "submission_close_datetime": "2026-02-27T12:00:00",
+        "customer": {
+            "full_name": "ПУБЛИЧНОЕ АКЦИОНЕРНОЕ ОБЩЕСТВО \"РОССЕТИ ЦЕНТР\"",
+            "inn": "6901067107",
+            "kpp": "770501001",
+            "ogrn": "1046900099498"
+        },
+        "contact": {
+            "last_name": "Миненок",
+            "first_name": "Е.",
+            "middle_name": "В.",
+            "phone": "+8 (4832) 672160",
+            "email": "Minenok.EV@mrsk-1.ru"
+        },
+        "apply_request": {
+            "submission_order": "В соответствии с Извещением запроса цен и правилами ЭТП РАД | «Закупки 223-ФЗ» https://tender.lot-online.ru",
+            "submission_place": null,
+            "submission_start_date": "2026-02-19"
+        },
+        "lots": [
+            {
+                "guid": "a6e068a5-94d6-41de-b776-043419fe9d5d",
+                "ordinal_number": "1",
+                "subject": "Выполнение работ \"под ключ\" для технологического присоединения потребителей. Свод № 355 (Г).",
+                "initial_summ": 4627653.98,
+                "currency": "RUB",
+                "application_supply_summ": null,
+                "application_supply_extra": null,
+                "completing_supply_summ": null,
+                "items": [
+                    {
+                        "guid": "4ab573de-193a-713e-e063-07548d0a1997",
+                        "okpd2_code": "43.21.10.290",
+                        "okpd2_name": "Работы электромонтажные прочие, не включенные в другие группировки",
+                        "qty": "1",
+                        "additional_info": null
+                    }
+                ]
+            }
+        ],
+        "initial_summ": null,
+        "sourceFile": "purchaseNotice_32615726045_1_019C75E596267B6F99402744F5B9FC1D.xml"
+    },
+    {
+        "guid": "1b92eeef-d755-42cb-89ae-b0f2606724e4",
+        "registration_number": "32615667716",
+        "name": "Определение поставщика на поставку ячеек КСО и ЗИП для нужд филиалов ПАО «Россети Московский регион».",
+        "publication_datetime": "2026-02-19T15:48:13",
+        "submission_close_datetime": "2026-03-02T10:00:00",
+        "customer": {
+            "full_name": "ПУБЛИЧНОЕ АКЦИОНЕРНОЕ ОБЩЕСТВО \"РОССЕТИ МОСКОВСКИЙ РЕГИОН\"",
+            "inn": "5036065113",
+            "kpp": "772501001",
+            "ogrn": "1057746555811"
+        },
+        "contact": {
+            "last_name": "Кутателадзе",
+            "first_name": "И.",
+            "middle_name": "Г.",
+            "phone": "+7 (495) 6624070, доб.: 4708",
+            "email": "KutateladzeIG@ROSSETIMR.RU"
+        },
+        "apply_request": {
+            "submission_order": "В соответствии с документацией о закупке",
+            "submission_place": null,
+            "submission_start_date": "2026-02-03"
+        },
+        "lots": [
+            {
+                "guid": "fc44eebf-23c0-4eb3-8944-26e76ab086b5",
+                "ordinal_number": "1",
+                "subject": "Определение поставщика на поставку ячеек КСО и ЗИП для нужд филиалов ПАО «Россети Московский регион».",
+                "initial_summ": 39443076.13,
+                "currency": "RUB",
+                "application_supply_summ": "1183292.28",
+                "application_supply_extra": "В соответствии с документацией о закупке.",
+                "completing_supply_summ": null,
+                "items": [
+                    {
+                        "guid": "8b51453a-6acf-4d8d-ae42-6551b91e72e8",
+                        "okpd2_code": "27.12.40.000",
+                        "okpd2_name": "Части электрической распределительной или регулирующей аппаратуры",
+                        "qty": "1",
+                        "additional_info": null
+                    }
+                ]
+            }
+        ],
+        "initial_summ": null,
+        "sourceFile": "purchaseNotice_32615667716_2_019C75F19EEF7E70B3BBBD1C51E293C8.xml"
+    },
+    {
+        "guid": "3f225947-7886-4bff-905e-45f04e276452",
+        "registration_number": "32615726208",
+        "name": "Определение подрядчика на выполнение ПИР, СМР, ПНР и материалы по титулу: Строительство КЛ-10 кВ от ПС-220 кВ №836 \"Слобода\" до РТП-10/0,4 кВ №157, КЛ-10 кВ от РТП -10/0,4 кВ №157 до КВЛ-10 кВ ф. Аносино, в т.ч. ПИР, МО, г.о. Истра, с. Павловская Слобода (6,1 км) для нужд ЗЭС - филиала ПАО «Россети Московский регион»",
+        "publication_datetime": "2026-02-19T15:53:09",
+        "submission_close_datetime": "2026-02-25T11:00:00",
+        "customer": {
+            "full_name": "ПУБЛИЧНОЕ АКЦИОНЕРНОЕ ОБЩЕСТВО \"РОССЕТИ МОСКОВСКИЙ РЕГИОН\"",
+            "inn": "5036065113",
+            "kpp": "772501001",
+            "ogrn": "1057746555811"
+        },
+        "contact": {
+            "last_name": "Огородникова",
+            "first_name": "Е.",
+            "middle_name": "А.",
+            "phone": "+7 (495) 6624070, доб.: 4773",
+            "email": "OgorodnikovaEA@ROSSETIMR.RU"
+        },
+        "apply_request": {
+            "submission_order": "В соответствии с документацией",
+            "submission_place": null,
+            "submission_start_date": "2026-02-19"
+        },
+        "lots": [
+            {
+                "guid": "bd0bca8e-defa-4d50-94c2-490789928660",
+                "ordinal_number": "1",
+                "subject": "Выполнение ПИР, СМР, ПНР и материалы по титулу: Строительство КЛ-10 кВ от ПС-220 кВ №836 \"Слобода\" до РТП-10/0,4 кВ №157, КЛ-10 кВ от РТП -10/0,4 кВ №157 до КВЛ-10 кВ ф. Аносино, в т.ч. ПИР, МО, г.о. Истра, с. Павловская Слобода (6,1 км)",
+                "initial_summ": 34810113.03,
+                "currency": "RUB",
+                "application_supply_summ": null,
+                "application_supply_extra": null,
+                "completing_supply_summ": null,
+                "items": [
+                    {
+                        "guid": "a4df6dc6-f4e6-4364-862c-48cb9d7c3431",
+                        "okpd2_code": "74.90.19.190",
+                        "okpd2_name": "Услуги, предоставляемые прочими научными и техническими консультантами, не включенными в другие группировки",
+                        "qty": "1",
+                        "additional_info": null
+                    }
+                ]
+            }
+        ],
+        "initial_summ": null,
+        "sourceFile": "purchaseNotice_32615726208_1_019C75F6204D759ABECF3E0433FE5B63.xml"
+    },
+    {
+        "guid": "80c04c45-08c1-4b17-b929-0e7338d3f1cf",
+        "registration_number": "32615726210",
+        "name": "Определение подрядчика на выполнение ПИР, СМР, ПНР, оборудование и материалы по титулу: Строительство КЛ-10 кВ от КВЛ-10 кВ фид. 404 ПС-220 кВ № 836 \"Слобода\", АСП-10 кВ, ячейки выключателя, 1 блок-трансформатор 6/10 кВ (3150 кВА), 4ХРЛР-10 кВ, в т.ч. ПИР, МО, г.о. Истра, с. Павловская Слобода (3,15 МВА; 0,3 км; 6 шт.(РУ); 4 шт.(прочие)) для нужд ЗЭС - филиала ПАО «Россети Московский регион»",
+        "publication_datetime": "2026-02-19T15:53:24",
+        "submission_close_datetime": "2026-02-25T11:00:00",
+        "customer": {
+            "full_name": "ПУБЛИЧНОЕ АКЦИОНЕРНОЕ ОБЩЕСТВО \"РОССЕТИ МОСКОВСКИЙ РЕГИОН\"",
+            "inn": "5036065113",
+            "kpp": "772501001",
+            "ogrn": "1057746555811"
+        },
+        "contact": {
+            "last_name": "Огородникова",
+            "first_name": "Е.",
+            "middle_name": "А.",
+            "phone": "+7 (495) 6624070, доб.: 4773",
+            "email": "OgorodnikovaEA@ROSSETIMR.RU"
+        },
+        "apply_request": {
+            "submission_order": "В соответствии с документацией",
+            "submission_place": null,
+            "submission_start_date": "2026-02-19"
+        },
+        "lots": [
+            {
+                "guid": "34d981aa-7e40-492a-8c72-dbd8661dc4ea",
+                "ordinal_number": "1",
+                "subject": "Выполнение ПИР, СМР, ПНР, оборудование и материалы по титулу: Строительство КЛ-10 кВ от КВЛ-10 кВ фид. 404 ПС-220 кВ № 836 \"Слобода\", АСП-10 кВ, ячейки выключателя, 1 блок-трансформатор 6/10 кВ (3150 кВА), 4ХРЛР-10 кВ, в т.ч. ПИР, МО, г.о. Истра, с. Павловская Слобода (3,15 МВА; 0,3 км; 6 шт.(РУ); 4 шт.(прочие))",
+                "initial_summ": 49737275.91,
+                "currency": "RUB",
+                "application_supply_summ": null,
+                "application_supply_extra": null,
+                "completing_supply_summ": null,
+                "items": [
+                    {
+                        "guid": "e65d96f8-e2fc-4ace-8040-4d68fb675bc1",
+                        "okpd2_code": "74.90.19.190",
+                        "okpd2_name": "Услуги, предоставляемые прочими научными и техническими консультантами, не включенными в другие группировки",
+                        "qty": "1",
+                        "additional_info": null
+                    }
+                ]
+            }
+        ],
+        "initial_summ": null,
+        "sourceFile": "purchaseNotice_32615726210_1_019C75F65B5A77528F8E3E45B4B2AC60.xml"
+    },
+    {
+        "guid": "272cb4fa-d764-45b4-a821-c745dcfd6da8",
+        "registration_number": "32615726213",
+        "name": "Определение подрядчика на выполнение ПИР, СМР, ПНР, оборудование и материалы по титулу: Строительство КЛ-10 кВ от ПС-220 кВ № 836 \"Слобода\", 1 блок-трансформатор 6/10 кВ, АСП-10 кВ, 2ХРЛР-10 кВ, КЛ-6 кВ, в т.ч. ПИР, МО, г.о. Истра, с. Павловская Слобода (3,15 МВА; 5,3 км; 3 шт.(РУ); 2 шт.(прочие)) для нужд ЗЭС - филиала ПАО «Россети Московский регион»",
+        "publication_datetime": "2026-02-19T15:53:43",
+        "submission_close_datetime": "2026-02-25T11:00:00",
+        "customer": {
+            "full_name": "ПУБЛИЧНОЕ АКЦИОНЕРНОЕ ОБЩЕСТВО \"РОССЕТИ МОСКОВСКИЙ РЕГИОН\"",
+            "inn": "5036065113",
+            "kpp": "772501001",
+            "ogrn": "1057746555811"
+        },
+        "contact": {
+            "last_name": "Огородникова",
+            "first_name": "Е.",
+            "middle_name": "А.",
+            "phone": "+7 (495) 6624070, доб.: 4773",
+            "email": "OgorodnikovaEA@ROSSETIMR.RU"
+        },
+        "apply_request": {
+            "submission_order": "В соответствии с документацией",
+            "submission_place": null,
+            "submission_start_date": "2026-02-19"
+        },
+        "lots": [
+            {
+                "guid": "03941546-1f78-4bc9-98f4-7711e24d891a",
+                "ordinal_number": "1",
+                "subject": "Выполнение ПИР, СМР, ПНР, оборудование и материалы по титулу: Строительство КЛ-10 кВ от ПС-220 кВ № 836 \"Слобода\", 1 блок-трансформатор 6/10 кВ, АСП-10 кВ, 2ХРЛР-10 кВ, КЛ-6 кВ, в т.ч. ПИР, МО, г.о. Истра, с. Павловская Слобода (3,15 МВА; 5,3 км; 3 шт.(РУ); 2 шт.(прочие))",
+                "initial_summ": 76574353.42,
+                "currency": "RUB",
+                "application_supply_summ": null,
+                "application_supply_extra": null,
+                "completing_supply_summ": null,
+                "items": [
+                    {
+                        "guid": "0f541073-4dd8-46cb-90af-1e70ee16bba5",
+                        "okpd2_code": "74.90.19.190",
+                        "okpd2_name": "Услуги, предоставляемые прочими научными и техническими консультантами, не включенными в другие группировки",
+                        "qty": "1",
+                        "additional_info": null
+                    }
+                ]
+            }
+        ],
+        "initial_summ": null,
+        "sourceFile": "purchaseNotice_32615726213_1_019C75F6A5DD79FC8BA2E00754467CA5.xml"
+    },
+    {
+        "guid": "9841619c-9114-4961-9b91-2aca0f55f74e",
+        "registration_number": "32615726217",
+        "name": "Определение подрядчика на выполнение ПИР, СМР, ПНР, оборудование и материалы по титулу: Модернизация РТП-10/0,4 кВ №157 с установкой 9 ячеек ВВк 10 кВ ПС-220 кВ №836 \"Слобода\", в т.ч. ПИР, МО, г.о. Истра, КП Русская деревня (9 шт.(РУ); 2 шт.(прочие)) для нужд ЗЭС - филиала ПАО «Россети Московский регион»",
+        "publication_datetime": "2026-02-19T15:53:57",
+        "submission_close_datetime": "2026-02-25T11:00:00",
+        "customer": {
+            "full_name": "ПУБЛИЧНОЕ АКЦИОНЕРНОЕ ОБЩЕСТВО \"РОССЕТИ МОСКОВСКИЙ РЕГИОН\"",
+            "inn": "5036065113",
+            "kpp": "772501001",
+            "ogrn": "1057746555811"
+        },
+        "contact": {
+            "last_name": "Огородникова",
+            "first_name": "Е.",
+            "middle_name": "А.",
+            "phone": "+7 (495) 6624070, доб.: 4773",
+            "email": "OgorodnikovaEA@ROSSETIMR.RU"
+        },
+        "apply_request": {
+            "submission_order": "В соответствии с документацией",
+            "submission_place": null,
+            "submission_start_date": "2026-02-19"
+        },
+        "lots": [
+            {
+                "guid": "586cc633-92a2-43d0-b5c0-2bdda9d14a04",
+                "ordinal_number": "1",
+                "subject": "Выполнение ПИР, СМР, ПНР, оборудование и материалы по титулу: Модернизация РТП-10/0,4 кВ №157 с установкой 9 ячеек ВВк 10 кВ ПС-220 кВ №836 \"Слобода\", в т.ч. ПИР, МО, г.о. Истра, КП Русская деревня (9 шт.(РУ); 2 шт.(прочие))",
+                "initial_summ": 38989229.26,
+                "currency": "RUB",
+                "application_supply_summ": null,
+                "application_supply_extra": null,
+                "completing_supply_summ": null,
+                "items": [
+                    {
+                        "guid": "9f34f0d7-5bcf-4cd2-b0c3-7f833d6e3424",
+                        "okpd2_code": "74.90.19.190",
+                        "okpd2_name": "Услуги, предоставляемые прочими научными и техническими консультантами, не включенными в другие группировки",
+                        "qty": "1",
+                        "additional_info": null
+                    }
+                ]
+            }
+        ],
+        "initial_summ": null,
+        "sourceFile": "purchaseNotice_32615726217_1_019C75F6DF7873AD825506B6B68229D9.xml"
+    },
+    {
+        "guid": "bcaf95ca-f7a6-41ec-b83d-dd96ed478724",
+        "registration_number": "32615726220",
+        "name": "Определение подрядчика на выполнение ПИР, СМР, ПНР и материалы по титулу: Строительство КЛ-10 кВ от ПС-110 кВ №483 \"Ивановская\" до РП-10/0,4 кВ №71, в т.ч. ПИР, МО, Истринский г.о., д. Петровское (7,5 км; 500 п.м.) для нужд ЗЭС - филиала ПАО «Россети Московский регион»",
+        "publication_datetime": "2026-02-19T15:54:19",
+        "submission_close_datetime": "2026-02-25T11:00:00",
+        "customer": {
+            "full_name": "ПУБЛИЧНОЕ АКЦИОНЕРНОЕ ОБЩЕСТВО \"РОССЕТИ МОСКОВСКИЙ РЕГИОН\"",
+            "inn": "5036065113",
+            "kpp": "772501001",
+            "ogrn": "1057746555811"
+        },
+        "contact": {
+            "last_name": "Огородникова",
+            "first_name": "Е.",
+            "middle_name": "А.",
+            "phone": "+7 (495) 6624070, доб.: 4773",
+            "email": "OgorodnikovaEA@ROSSETIMR.RU"
+        },
+        "apply_request": {
+            "submission_order": "В соответствии с документацией",
+            "submission_place": null,
+            "submission_start_date": "2026-02-19"
+        },
+        "lots": [
+            {
+                "guid": "18f4fdd5-0509-4478-9e3c-5d92b0e8399e",
+                "ordinal_number": "1",
+                "subject": "Выполнение ПИР, СМР, ПНР и материалы по титулу: Строительство КЛ-10 кВ от ПС-110 кВ №483 \"Ивановская\" до РП-10/0,4 кВ №71, в т.ч. ПИР, МО, Истринский г.о., д. Петровское (7,5 км; 500 п.м.)",
+                "initial_summ": 109399238.86,
+                "currency": "RUB",
+                "application_supply_summ": null,
+                "application_supply_extra": null,
+                "completing_supply_summ": null,
+                "items": [
+                    {
+                        "guid": "50639c72-65c8-4056-92c9-d9a3d24de1a7",
+                        "okpd2_code": "74.90.19.190",
+                        "okpd2_name": "Услуги, предоставляемые прочими научными и техническими консультантами, не включенными в другие группировки",
+                        "qty": "1",
+                        "additional_info": null
+                    }
+                ]
+            }
+        ],
+        "initial_summ": null,
+        "sourceFile": "purchaseNotice_32615726220_1_019C75F733D272799477BA3B03B92E36.xml"
+    },
+    {
+        "guid": "014cb7ed-314a-451a-b857-739402aee106",
+        "registration_number": "32615726227",
+        "name": "Определение подрядчика на выполнение ПИР, СМР, ПНР, оборудование и материалы по титулу: Строительство 2РП-10 кВ с 8 ячейками ВВк, КЛ 10 кВ ф.2, ф.Ананово от РП-10 кВ №58 до РП-10 кВ по схеме \"заход-вход\", РЛР-10 кВ, в т.ч. ПИР. МО, Истринский г.о., д. Ананьево (0,2 км; 8 шт.(РУ); 3 шт.(прочие)) для нужд ЗЭС - филиала ПАО «Россети Московский регион»",
+        "publication_datetime": "2026-02-19T15:54:58",
+        "submission_close_datetime": "2026-02-25T11:00:00",
+        "customer": {
+            "full_name": "ПУБЛИЧНОЕ АКЦИОНЕРНОЕ ОБЩЕСТВО \"РОССЕТИ МОСКОВСКИЙ РЕГИОН\"",
+            "inn": "5036065113",
+            "kpp": "772501001",
+            "ogrn": "1057746555811"
+        },
+        "contact": {
+            "last_name": "Огородникова",
+            "first_name": "Е.",
+            "middle_name": "А.",
+            "phone": "+7 (495) 6624070, доб.: 4773",
+            "email": "OgorodnikovaEA@ROSSETIMR.RU"
+        },
+        "apply_request": {
+            "submission_order": "В соответствии с документацией",
+            "submission_place": null,
+            "submission_start_date": "2026-02-19"
+        },
+        "lots": [
+            {
+                "guid": "07cba598-eb4c-457c-b6d6-1894b8dd594b",
+                "ordinal_number": "1",
+                "subject": "Выполнение ПИР, СМР, ПНР, оборудование и материалы по титулу: Строительство 2РП-10 кВ с 8 ячейками ВВк, КЛ 10 кВ ф.2, ф.Ананово от РП-10 кВ №58 до РП-10 кВ по схеме \"заход-вход\", РЛР-10 кВ, в т.ч. ПИР. МО, Истринский г.о., д. Ананьево (0,2 км; 8 шт.(РУ); 3 шт.(прочие))",
+                "initial_summ": 41399627.12,
+                "currency": "RUB",
+                "application_supply_summ": null,
+                "application_supply_extra": null,
+                "completing_supply_summ": null,
+                "items": [
+                    {
+                        "guid": "bc19fe53-25c8-48ba-817f-9ace1dde862b",
+                        "okpd2_code": "74.90.19.190",
+                        "okpd2_name": "Услуги, предоставляемые прочими научными и техническими консультантами, не включенными в другие группировки",
+                        "qty": "1",
+                        "additional_info": null
+                    }
+                ]
+            }
+        ],
+        "initial_summ": null,
+        "sourceFile": "purchaseNotice_32615726227_1_019C75F7CB8F7E368EB2A75702292645.xml"
+    },
+    {
+        "guid": "a96b5e25-1996-405c-a95c-18759a3589d2",
+        "registration_number": "32515564482",
+        "name": "Право заключения договора на выполнение работ «под ключ» для исполнения обязательств по технологическому присоединению в зоне №15-2026 (Г) для нужд ПАО «Россети Центр» (филиала «Ярэнерго»)",
+        "publication_datetime": "2026-02-19T15:56:37",
+        "submission_close_datetime": "2026-01-16T12:00:00",
+        "customer": {
+            "full_name": "ПУБЛИЧНОЕ АКЦИОНЕРНОЕ ОБЩЕСТВО \"РОССЕТИ ЦЕНТР\"",
+            "inn": "6901067107",
+            "kpp": "770501001",
+            "ogrn": "1046900099498"
+        },
+        "contact": {
+            "last_name": "Пилясова",
+            "first_name": "К.",
+            "middle_name": "П.",
+            "phone": "+7 (4852) 781486",
+            "email": "Pilyasova.KP@mrsk-1.ru"
+        },
+        "apply_request": {
+            "submission_order": "в соответствии с закупочной документацией",
+            "submission_place": null,
+            "submission_start_date": "2025-12-23"
+        },
+        "lots": [
+            {
+                "guid": "f421c725-c11f-44b4-9232-5fcc9c9918ac",
+                "ordinal_number": "1",
+                "subject": "Выполнение работ «под ключ» для исполнения обязательств по технологическому присоединению в зоне №15-2026 (Г)",
+                "initial_summ": 1331832.52,
+                "currency": "RUB",
+                "application_supply_summ": null,
+                "application_supply_extra": null,
+                "completing_supply_summ": null,
+                "items": [
+                    {
+                        "guid": "4685127a-63f4-e487-e063-06548d0a70f3",
+                        "okpd2_code": "43.21.10.290",
+                        "okpd2_name": "Работы электромонтажные прочие, не включенные в другие группировки",
+                        "qty": "1",
+                        "additional_info": null
+                    }
+                ]
+            }
+        ],
+        "initial_summ": null,
+        "sourceFile": "purchaseNotice_32515564482_6_019C75F957FE70F0A236F5F2B048D708.xml"
+    },
+    {
+        "guid": "13fc6855-9c81-49cb-9985-8eaf4a5e1282",
+        "registration_number": "32615667999",
+        "name": "(10391) Определение поставщика на поставку трансформаторов тока и напряжения до 35 кВ нужд ПАО «Россети Московский регион»",
+        "publication_datetime": "2026-02-19T16:03:07",
+        "submission_close_datetime": "2026-03-02T10:00:00",
+        "customer": {
+            "full_name": "ПУБЛИЧНОЕ АКЦИОНЕРНОЕ ОБЩЕСТВО \"РОССЕТИ МОСКОВСКИЙ РЕГИОН\"",
+            "inn": "5036065113",
+            "kpp": "772501001",
+            "ogrn": "1057746555811"
+        },
+        "contact": {
+            "last_name": "Лазарев",
+            "first_name": "А.",
+            "middle_name": "Д.",
+            "phone": "74956624070 4736",
+            "email": "LazarevAD@rossetimr.ru"
+        },
+        "apply_request": {
+            "submission_order": "В соответствии с документацией",
+            "submission_place": null,
+            "submission_start_date": "2026-02-03"
+        },
+        "lots": [
+            {
+                "guid": "1c31e6dd-8e27-428b-b706-b51ea68531aa",
+                "ordinal_number": "1",
+                "subject": "(10391) Определение поставщика на поставку трансформаторов тока и напряжения до 35 кВ нужд ПАО «Россети Московский регион»",
+                "initial_summ": 59204188.08,
+                "currency": "RUB",
+                "application_supply_summ": "1776125.64",
+                "application_supply_extra": "В соответствии с документацией о закупке.",
+                "completing_supply_summ": null,
+                "items": [
+                    {
+                        "guid": "30e06248-caa4-49d4-8cec-7596886aa57e",
+                        "okpd2_code": "27.12.40.000",
+                        "okpd2_name": "Части электрической распределительной или регулирующей аппаратуры",
+                        "qty": "848",
+                        "additional_info": null
+                    }
+                ]
+            }
+        ],
+        "initial_summ": null,
+        "sourceFile": "purchaseNotice_32615667999_4_019C75FF4D3D7AE8A4C9C7F55B470180.xml"
+    },
+    {
+        "guid": "462d10db-51a9-444e-b4e5-4624bbd4dbd4",
+        "registration_number": "32615632275",
+        "name": "Право заключения договора на выполнение работ «под ключ» для исполнения обязательств по технологическому присоединению в зоне №18-2026 (Г) для нужд ПАО «Россети Центр» (филиала «Ярэнерго»)",
+        "publication_datetime": "2026-02-19T16:22:25",
+        "submission_close_datetime": "2026-02-05T12:00:00",
+        "customer": {
+            "full_name": "ПУБЛИЧНОЕ АКЦИОНЕРНОЕ ОБЩЕСТВО \"РОССЕТИ ЦЕНТР\"",
+            "inn": "6901067107",
+            "kpp": "770501001",
+            "ogrn": "1046900099498"
+        },
+        "contact": {
+            "last_name": "Бакова",
+            "first_name": "А.",
+            "middle_name": "А.",
+            "phone": "+7 (4852) 781001",
+            "email": "Bakova.AA@mrsk-1.ru"
+        },
+        "apply_request": {
+            "submission_order": "В соответствии с требованиями закупочной документации",
+            "submission_place": null,
+            "submission_start_date": "2026-01-23"
+        },
+        "lots": [
+            {
+                "guid": "15b6f20a-8e93-497a-ab2d-3efe85f60468",
+                "ordinal_number": "1",
+                "subject": "Выполнение работ «под ключ» для исполнения обязательств по технологическому присоединению в зоне №18-2026 (Г)",
+                "initial_summ": 9457326.54,
+                "currency": "RUB",
+                "application_supply_summ": null,
+                "application_supply_extra": null,
+                "completing_supply_summ": null,
+                "items": [
+                    {
+                        "guid": "48b790bf-7994-b669-e063-07548d0a0627",
+                        "okpd2_code": "43.21.10.290",
+                        "okpd2_name": "Работы электромонтажные прочие, не включенные в другие группировки",
+                        "qty": "1",
+                        "additional_info": null
+                    }
+                ]
+            }
+        ],
+        "initial_summ": null,
+        "sourceFile": "purchaseNotice_32615632275_5_019C7610F2EF7C9EA5ABBA6CDA200EA7.xml"
+    }
+]
