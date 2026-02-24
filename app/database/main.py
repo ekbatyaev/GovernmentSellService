@@ -72,6 +72,10 @@ class GetPurchaseResponseModel(BaseModel):
     apply_request_json: json
     lot: json
 
+class GetAllPurchasesModel(BaseModel):
+    token: str
+
+
 # Зависимости
 def get_proceed_token(user_token):
     """
@@ -104,6 +108,7 @@ def put_purchase(
     """
     Создание новой заявки на закупку
     """
+
     new_purchase = Purchase(
         guid = purchase_data.guid,
         registration_number = purchase_data.registration_number,
@@ -165,10 +170,9 @@ def delete_purchase(
     return True
 
 
-@app.delete("/get_purchase", response_model=)
+@app.delete("/get_purchase", response_model = GetPurchaseResponseModel)
 def get_purchase(
         purchase_data: GetPurchaseModel,
-
         db: Session = Depends(get_db)
 
 ):
@@ -182,6 +186,7 @@ def get_purchase(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Purchase not found"
         )
+
     response_dict = \
         {
             "guid": purchase.guid,
@@ -200,8 +205,49 @@ def get_purchase(
 
     return GetPurchaseResponseModel(**response_dict)
 
+@app.get("/get_all_purchases", response_model=List[GetPurchaseResponseModel])
+def get_all_purchases(
+        purchase_data: GetAllPurchasesModel,
+        db: Session = Depends(get_db)
+):
 
+    """
+    Получение списка всех закупок с пагинацией и поиском
+    """
 
+    # Проверка токена
+    get_proceed_token(purchase_data.token)
+    query = select(Purchase)
+
+    # Сортировка по дате создания
+    query = query.order_by(Purchase.created_at.desc())
+
+    purchases = db.scalars(query).all()
+
+    # Формируем ответ с информацией о создателях
+    result = []
+
+    for purchase in purchases:
+        purchases_dict = {
+            "guid": purchase.guid,
+            "registration_number": purchase.registration_number,
+            "name": purchase.name,
+            "initial_sum": purchase.initial_sum,
+            "publication_datetime": purchase.publication_datetime,
+            "submission_close_datetime": purchase.submission_close_datetime,
+            "customer_json": purchase.customer_json,
+            "contact_json": purchase.contact_json,
+            "apply_request_json": purchase.apply_request_json,
+            "lot": purchase.lot,
+            "created_at": purchase.created_at,
+            "source_file": purchase.source_file
+        }
+
+        result.append(purchases_dict)
+
+    return result
+
+# TO DO: Поиск по формулировкам работ, обновление информации в топике, поиск по оплате
 
 @app.get("/users/{user_id}", response_model=UserInfoResponse)
 def get_user_by_id(
@@ -322,34 +368,6 @@ def get_all_topics(
     return result
 
 
-@app.get("/topics/get_info_{topic_id}", response_model=TopicResponse)
-def get_topic_by_id(topic_id: int, db: Session = Depends(get_db)):
-    """
-    Получение информации о конкретной теме по ID
-    """
-    topic = db.get(Topic, topic_id)
-
-    if not topic:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Topic not found"
-        )
-
-    topic_dict = {
-        "id": topic.id,
-        "title": topic.title,
-        "description": topic.description,
-        "data_json": topic.data_json,
-        "created_at": topic.created_at,
-        "creator_id": topic.creator_id,
-        "creator_username": None
-    }
-
-    if topic.creator:
-        topic_dict["creator_username"] = topic.creator.username
-
-    return topic_dict
-
 
 @app.put("/topics/update_{topic_id}", response_model=TopicResponse)
 def update_topic(
@@ -399,40 +417,6 @@ def update_topic(
 
 
 
-@app.get("/users/me/topics", response_model=List[TopicResponse])
-def get_my_topics(
-        current_user: User = Depends(get_current_user),
-        skip: int = 0,
-        limit: int = 100,
-        db: Session = Depends(get_db)
-):
-    """
-    Получение списка тем, созданных текущим пользователем
-    """
-    topics = db.scalars(
-        select(Topic)
-        .where(Topic.creator_id == current_user.id)
-        .order_by(Topic.created_at.desc())
-        .offset(skip)
-        .limit(limit)
-    ).all()
-
-    result = []
-    for topic in topics:
-        topic_dict = {
-            "id": topic.id,
-            "title": topic.title,
-            "description": topic.description,
-            "data_json": topic.data_json,
-            "created_at": topic.created_at,
-            "creator_id": topic.creator_id,
-            "creator_username": current_user.username
-        }
-        result.append(topic_dict)
-
-    return result
-
-
 # Статистика
 
 @app.get("/stats")
@@ -442,15 +426,11 @@ def get_statistics(db: Session = Depends(get_db)):
     """
     from sqlalchemy import func
 
-    # Количество пользователей
-    users_count = db.scalar(select(func.count()).select_from(User))
-
     # Количество тем
-    topics_count = db.scalar(select(func.count()).select_from(Topic))
+    purchases_count = db.scalar(select(func.count()).select_from(Purchase))
 
     return {
-        "users_count": users_count,
-        "topics_count": topics_count,
+        "purchases_count": purchases_count,
         "timestamp": datetime.utcnow().isoformat()
     }
 
