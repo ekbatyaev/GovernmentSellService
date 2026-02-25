@@ -3,7 +3,7 @@ from fastapi import FastAPI, HTTPException, Depends, status, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timedelta
 from sqlalchemy import select, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -74,7 +74,43 @@ class GetPurchaseResponseModel(BaseModel):
 
 class GetAllPurchasesModel(BaseModel):
     token: str
+    name: Optional[str] = None
+    initial_sum_from: Optional[float] = None
+    initial_sum_to: Optional[float] = None
+    publication_datetime_from: Optional[datetime ]= None
+    publication_datetime_to: Optional[datetime] = None
+    submission_close_datetime_from: Optional[datetime] = None
+    submission_close_datetime_to: Optional[datetime] = None
+    source_file: Optional[str] = None
 
+class UpdatePurchaseModel(BaseModel):
+    token: str
+    guid: str
+    registration_number: Optional[str]
+    name: Optional[str]
+    source_file: Optional[str]
+    initial_sum: Optional[float]
+    created_at: Optional[datetime]
+    publication_datetime: Optional[datetime]
+    submission_close_datetime: Optional[datetime]
+    customer_json: Optional[json]
+    contact_json: Optional[json]
+    apply_request_json: Optional[json]
+    lot: Optional[json]
+
+class UpdatePurchaseResponseModel(BaseModel):
+    guid: str
+    registration_number: str
+    name: str
+    source_file: str
+    initial_sum: float
+    created_at: datetime
+    publication_datetime: datetime
+    submission_close_datetime: datetime
+    customer_json: json
+    contact_json: json
+    apply_request_json: json
+    lot: json
 
 # Зависимости
 def get_proceed_token(user_token):
@@ -205,26 +241,157 @@ def get_purchase(
 
     return GetPurchaseResponseModel(**response_dict)
 
-@app.get("/get_all_purchases", response_model=List[GetPurchaseResponseModel])
-def get_all_purchases(
-        purchase_data: GetAllPurchasesModel,
+@app.put("/update_purchase", response_model=UpdatePurchaseModel)
+def update_purchase(
+        purchase_data: UpdatePurchaseModel,
         db: Session = Depends(get_db)
 ):
-
     """
-    Получение списка всех закупок с пагинацией и поиском
+    Обновление закупки
     """
 
     # Проверка токена
     get_proceed_token(purchase_data.token)
+
+    purchase = db.get(Purchase, purchase_data.guid)
+
+    if not purchase:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Topic not found"
+        )
+
+    # Обновляем только переданные поля
+    update_data = purchase_data.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(purchase, field, value)
+
+
+    try:
+        db.commit()
+        db.refresh(purchase)
+
+    except IntegrityError as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to update purchase: {str(e)}"
+        )
+
+    response_dict = \
+        {
+            "guid": purchase.guid,
+            "registration_number": purchase.registration_number,
+            "name": purchase.name,
+            "initial_sum": purchase.initial_sum,
+            "publication_datetime": purchase.publication_datetime,
+            "submission_close_datetime": purchase.submission_close_datetime,
+            "customer_json": purchase.customer_json,
+            "contact_json": purchase.contact_json,
+            "apply_request_json": purchase.apply_request_json,
+            "lot": purchase.lot,
+            "created_at": purchase.created_at,
+            "source_file": purchase.source_file
+        }
+
+    return UpdatePurchaseResponseModel(**response_dict)
+
+@app.post("/get_all_purchases", response_model=List[GetPurchaseResponseModel])
+def get_all_purchases(
+        purchase_data: GetAllPurchasesModel,
+        db: Session = Depends(get_db)
+):
+    """
+    Получение списка всех закупок с фильтрацией
+    """
+
+    get_proceed_token(purchase_data.token)
+
     query = select(Purchase)
 
-    # Сортировка по дате создания
+    # --- Поиск по названию ---
+    if purchase_data.name:
+        query = query.where(
+            Purchase.name.ilike(f"%{purchase_data.name}%")
+        )
+
+    # --- Фильтр по сумме ---
+    if purchase_data.initial_sum_from is not None:
+        query = query.where(
+            Purchase.initial_sum >= purchase_data.initial_sum_from
+        )
+
+    if purchase_data.initial_sum_to is not None:
+        query = query.where(
+            Purchase.initial_sum <= purchase_data.initial_sum_to
+        )
+
+    # --- Фильтр по дате публикации ---
+    pub_from = purchase_data.publication_datetime_from
+    pub_to = purchase_data.publication_datetime_to
+
+    if pub_from and pub_to:
+        if pub_from.date() == pub_to.date():
+            start = datetime.combine(pub_from.date(), datetime.min.time())
+            end = start + timedelta(days=1)
+
+            query = query.where(
+                Purchase.publication_datetime >= start,
+                Purchase.publication_datetime < end
+            )
+        else:
+            query = query.where(
+                Purchase.publication_datetime >= pub_from,
+                Purchase.publication_datetime <= pub_to
+            )
+    elif pub_from:
+        query = query.where(
+            Purchase.publication_datetime >= pub_from
+        )
+    elif pub_to:
+        query = query.where(
+            Purchase.publication_datetime <= pub_to
+        )
+
+    # --- Фильтр по дате окончания подачи ---
+    sub_from = purchase_data.submission_close_datetime_from
+    sub_to = purchase_data.submission_close_datetime_to
+
+    if sub_from and sub_to:
+        if sub_from.date() == sub_to.date():
+            start = datetime.combine(sub_from.date(), datetime.min.time())
+            end = start + timedelta(days=1)
+
+            query = query.where(
+                Purchase.submission_close_datetime >= start,
+                Purchase.submission_close_datetime < end
+            )
+        else:
+            query = query.where(
+                Purchase.submission_close_datetime >= sub_from,
+                Purchase.submission_close_datetime <= sub_to
+            )
+    elif sub_from:
+        query = query.where(
+            Purchase.submission_close_datetime >= sub_from
+        )
+    elif sub_to:
+        query = query.where(
+            Purchase.submission_close_datetime <= sub_to
+        )
+
+    # --- Поиск по source_file ---
+    if purchase_data.source_file:
+        query = query.where(
+            Purchase.source_file.ilike(f"%{purchase_data.source_file}%")
+        )
+
+    # --- Сортировка ---
     query = query.order_by(Purchase.created_at.desc())
 
     purchases = db.scalars(query).all()
 
-    # Формируем ответ с информацией о создателях
+    # --- Формирование ответа ---
     result = []
 
     for purchase in purchases:
@@ -246,175 +413,6 @@ def get_all_purchases(
         result.append(purchases_dict)
 
     return result
-
-# TO DO: Поиск по формулировкам работ, обновление информации в топике, поиск по оплате
-
-@app.get("/users/{user_id}", response_model=UserInfoResponse)
-def get_user_by_id(
-        user_id: int,
-        current_user: User = Depends(get_current_user),
-        db: Session = Depends(get_db)
-):
-    """
-    Получение информации о пользователе по ID
-    Только для аутентифицированных пользователей
-    """
-    user = db.get(User, user_id)
-
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
-
-    return UserInfoResponse(
-        id=user.id,
-        username=user.username,
-        achievements_count=user.achievements_count,
-        last_used=user.last_used
-    )
-
-# Ручки для тем
-
-@app.post("/get_final_theme_test", response_model=TopicFinalTestResponse, status_code=status.HTTP_201_CREATED)
-def get_final_test(
-        topic_data: TopicFinalTest,
-        current_user: User = Depends(get_current_user),
-        db: Session = Depends(get_db)
-):
-    current_user.last_used = datetime.utcnow()
-    db.commit()
-    db.refresh(current_user)
-
-    try:
-        model_response = final_theme_test(title = topic_data.title,
-                         description = topic_data.description)
-
-    except Exception as e:
-        print("Ошибка: ", e)
-        return {"model_response": True}
-
-    return TopicFinalTestResponse(**model_response)
-
-@app.post("/theme_learning", response_model=UserThemeLearningResponse, status_code=status.HTTP_201_CREATED)
-def get_theme_learning_conversation(
-        topic_data: UserThemeLearning,
-        current_user: User = Depends(get_current_user),
-        db: Session = Depends(get_db)
-):
-
-    current_user.last_used = datetime.utcnow()
-    db.commit()
-    db.refresh(current_user)
-
-    try:
-        model_response = learning_with_llm_request(user_request = topic_data.user_request, theme_name = topic_data.theme_name,
-                                  additional_info = topic_data.additional_info, old_context = topic_data.old_context)
-    except Exception as e:
-        print("Ошибка: ", e)
-        return {"model_response": True}
-
-    return UserThemeLearningResponse(**model_response)
-
-
-@app.get("/topics", response_model=List[TopicResponse])
-def get_all_topics(
-        skip: int = 0,
-        limit: int = 100,
-        search: Optional[str] = None,
-        db: Session = Depends(get_db)
-):
-    """
-    Получение списка всех тем с пагинацией и поиском
-    """
-
-    query = select(Topic)
-
-    # Добавляем поиск по названию или описанию
-    if search:
-        query = query.where(
-            or_(
-                Topic.title.ilike(f"%{search}%"),
-                Topic.description.ilike(f"%{search}%")
-            )
-        )
-
-    # Сортировка по дате создания
-    query = query.order_by(Topic.created_at.desc())
-
-    # Применяем пагинацию
-    query = query.offset(skip).limit(limit)
-
-    topics = db.scalars(query).all()
-
-    # Формируем ответ с информацией о создателях
-    result = []
-    for topic in topics:
-        topic_dict = {
-            "id": topic.id,
-            "title": topic.title,
-            "description": topic.description,
-            "data_json": topic.data_json,
-            "created_at": topic.created_at,
-            "creator_id": topic.creator_id,
-            "creator_username": None
-        }
-
-        if topic.creator:
-            topic_dict["creator_username"] = topic.creator.username
-
-        result.append(topic_dict)
-
-    return result
-
-
-
-@app.put("/topics/update_{topic_id}", response_model=TopicResponse)
-def update_topic(
-        topic_id: int,
-        topic_data: TopicUpdate,
-        current_user: User = Depends(get_current_user),
-        db: Session = Depends(get_db)
-):
-    """
-    Обновление темы (только создатель может обновлять)
-    """
-    topic = db.get(Topic, topic_id)
-
-    if not topic:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Topic not found"
-        )
-
-    # Проверяем права доступа
-    if topic.creator_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You can only update your own topics"
-        )
-
-    # Обновляем только переданные поля
-    update_data = topic_data.dict(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(topic, field, value)
-
-    db.commit()
-    db.refresh(topic)
-
-    # Обновляем словарь для ответа
-    topic_dict = {
-        "id": topic.id,
-        "title": topic.title,
-        "description": topic.description,
-        "data_json": topic.data_json,
-        "created_at": topic.created_at,
-        "creator_id": topic.creator_id,
-        "creator_username": current_user.username
-    }
-
-    return topic_dict
-
 
 
 # Статистика
