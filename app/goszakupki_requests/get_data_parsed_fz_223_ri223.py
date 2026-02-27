@@ -1,404 +1,10 @@
-# # import zipfile
-# # from lxml import etree
-# # from pprint import pprint
-# # from typing import Dict, List, Any
-# #
-# # # Namespace для 223-ФЗ TFF-16.0
-# # NS = {
-# #     "p": "http://zakupki.gov.ru/223fz/purchase/1",
-# #     "t": "http://zakupki.gov.ru/223fz/types/1",
-# #     "ns2": "http://zakupki.gov.ru/223fz/purchase/1",
-# # }
-# #
-# # FILTERS = ["РОССЕТИ"]
-# #
-# #
-# # def parse_lot(lot_elem) -> Dict[str, Any]:
-# #     lot_data = lot_elem.find("./{*}lotData")
-# #
-# #     lot = {
-# #         "guid": lot_elem.findtext("{*}guid"),
-# #         "ordinalNumber": lot_elem.findtext("{*}ordinalNumber"),
-# #         "cancelled": lot_elem.findtext("{*}cancelled") == "true",
-# #         "deliveryPlaceIndication": lot_elem.findtext("{*}deliveryPlaceIndication"),
-# #     }
-# #
-# #     if lot_data is None:
-# #         return lot
-# #
-# #     lot["subject"] = lot_data.findtext("{*}subject")
-# #     lot["initialSum"] = lot_data.findtext("{*}initialSum")
-# #
-# #     # Валюта
-# #     currency = lot_data.find("{*}currency")
-# #     if currency is not None:
-# #         lot["currency"] = {
-# #             "code": currency.findtext("{*}code"),
-# #             "digitalCode": currency.findtext("{*}digitalCode"),
-# #             "name": currency.findtext("{*}name"),
-# #         }
-# #
-# #     # Место поставки
-# #     delivery_place = lot_data.find("{*}deliveryPlace")
-# #     if delivery_place is not None:
-# #         lot["deliveryAddress"] = delivery_place.findtext("{*}address")
-# #
-# #     # Позиции
-# #     lot_items = []
-# #     for item in lot_data.findall(".//{*}lotItem"):
-# #         lot_items.append({
-# #             "guid": item.findtext("{*}guid"),
-# #             "ordinalNumber": item.findtext("{*}ordinalNumber"),
-# #             "okpd2_code": item.findtext("{*}okpd2/{*}code"),
-# #             "okpd2_name": item.findtext("{*}okpd2/{*}name"),
-# #             "okved2_code": item.findtext("{*}okved2/{*}code"),
-# #             "okved2_name": item.findtext("{*}okved2/{*}name"),
-# #             "okei_code": item.findtext("{*}okei/{*}code"),
-# #             "okei_name": item.findtext("{*}okei/{*}name"),
-# #             "qty": item.findtext("{*}qty"),
-# #             "additionalInfo": item.findtext("{*}additionalInfo"),
-# #         })
-# #     lot["lotItems"] = lot_items
-# #
-# #     # Обеспечение заявки
-# #     lot["applicationSupplyNeeded"] = lot_data.findtext("{*}applicationSupplyNeeded") == "true"
-# #     lot["applicationSupplySumm"] = lot_data.findtext("{*}applicationSupplySumm")
-# #     lot["applicationSupplyExtra"] = lot_data.findtext("{*}applicationSupplyExtra")
-# #
-# #     app_currency = lot_data.find("{*}applicationSupplyCurrency")
-# #     if app_currency is not None:
-# #         lot["applicationSupplyCurrency"] = {
-# #             "code": app_currency.findtext("{*}code"),
-# #             "digitalCode": app_currency.findtext("{*}digitalCode"),
-# #             "name": app_currency.findtext("{*}name"),
-# #         }
-# #
-# #     # Обеспечение исполнения
-# #     lot["completingSupplyNeeded"] = lot_data.findtext("{*}completingSupplyNeeded") == "true"
-# #
-# #     comp_info = lot_data.find("{*}completingSupplyInfo")
-# #     if comp_info is not None:
-# #         lot["completingSupply"] = {
-# #             "sum": comp_info.findtext("{*}sum"),
-# #             "extra": comp_info.findtext("{*}extra"),
-# #         }
-# #
-# #         comp_currency = comp_info.find("{*}currency")
-# #         if comp_currency is not None:
-# #             lot["completingSupply"]["currency"] = {
-# #                 "code": comp_currency.findtext("{*}code"),
-# #                 "digitalCode": comp_currency.findtext("{*}digitalCode"),
-# #                 "name": comp_currency.findtext("{*}name"),
-# #             }
-# #
-# #     # План
-# #     plan_info = lot_elem.find("{*}lotPlanInfo")
-# #     if plan_info is not None:
-# #         lot["planInfo"] = {
-# #             "planRegistrationNumber": plan_info.findtext("{*}planRegistrationNumber"),
-# #             "planGuid": plan_info.findtext("{*}planGuid"),
-# #             "positionNumber": plan_info.findtext("{*}positionNumber"),
-# #             "positionGuid": plan_info.findtext("{*}positionGuid"),
-# #         }
-# #
-# #     return lot
-# #
-# #
-# # def parse_notification(root) -> Dict[str, Any]:
-# #     data = {}
-# #
-# #     purchase_data = root.find(".//{*}purchaseNoticeData")
-# #
-# #     # Основная информация
-# #     data["guid"] = root.findtext(".//{*}guid")
-# #     data["createDateTime"] = root.findtext(".//{*}createDateTime")
-# #     data["registrationNumber"] = root.findtext(".//{*}registrationNumber")
-# #     data["name"] = root.findtext(".//{*}name")
-# #     data["publicationDateTime"] = root.findtext(".//{*}publicationDateTime")
-# #     data["urlEIS"] = root.findtext(".//{*}urlEIS")
-# #     data["urlVSRZ"] = root.findtext(".//{*}urlVSRZ")
-# #
-# #     if purchase_data is not None:
-# #         fields = [
-# #             "modificationDate",
-# #             "saveUserId",
-# #             "deliveryPlaceIndication",
-# #             "emergency",
-# #             "jointPurchase",
-# #             "hidePurchase",
-# #             "changeDecisionDate",
-# #             "antimonopolyDecisionTaken",
-# #             "applSubmisionStartDate",
-# #             "applSubmisionOrder",
-# #             "summingupOrder",
-# #             "submissionCloseDateTime",
-# #             "publicationPlannedDate",
-# #             "isLotOriented",
-# #         ]
-# #
-# #         for f in fields:
-# #             data[f] = purchase_data.findtext(f"{{*}}{f}")
-# #
-# #     # Электронная площадка
-# #     ep = purchase_data.find("{*}electronicPlaceInfo") if purchase_data is not None else None
-# #     if ep is not None:
-# #         data["electronicPlace"] = {
-# #             "name": ep.findtext("{*}name"),
-# #             "url": ep.findtext("{*}url"),
-# #             "electronicPlaceId": ep.findtext("{*}electronicPlaceId"),
-# #         }
-# #
-# #     # Заказчик
-# #     data["customerFullName"] = root.findtext(".//{*}customer/{*}mainInfo/{*}fullName")
-# #     data["customerINN"] = root.findtext(".//{*}customer/{*}mainInfo/{*}inn")
-# #     data["customerKPP"] = root.findtext(".//{*}customer/{*}mainInfo/{*}kpp")
-# #     data["customerOGRN"] = root.findtext(".//{*}customer/{*}mainInfo/{*}ogrn")
-# #
-# #     # Контакт
-# #     last = root.findtext(".//{*}contact/{*}lastName")
-# #     first = root.findtext(".//{*}contact/{*}firstName")
-# #     middle = root.findtext(".//{*}contact/{*}middleName")
-# #
-# #     if last or first:
-# #         data["contactPerson"] = f"{last or ''} {first or ''} {middle or ''}".strip()
-# #
-# #     data["contactPhone"] = root.findtext(".//{*}contact/{*}phone")
-# #     data["contactEmail"] = root.findtext(".//{*}contact/{*}email")
-# #
-# #     # Вложения
-# #     attachments = []
-# #     for doc in root.findall(".//{*}attachments/{*}document"):
-# #         attachments.append({
-# #             "guid": doc.findtext("{*}guid"),
-# #             "fileName": doc.findtext("{*}fileName"),
-# #             "description": doc.findtext("{*}description"),
-# #             "url": doc.findtext("{*}url"),
-# #             "contentUid": doc.findtext("{*}contentUid"),
-# #         })
-# #     data["attachments"] = attachments
-# #
-# #     # Лоты
-# #     lots = []
-# #     if purchase_data is not None:
-# #         for lot_elem in purchase_data.findall(".//{*}lot"):
-# #             lots.append(parse_lot(lot_elem))
-# #     data["lots"] = lots
-# #
-# #     return data
-# #
-# #
-# # def parse_zip_archive(zip_path: str) -> List[Dict[str, Any]]:
-# #     """Парсинг всех XML файлов в ZIP архиве"""
-# #     all_data = []
-# #
-# #     print(f"Открываем архив: {zip_path}")
-# #
-# #     with zipfile.ZipFile(zip_path, "r") as archive:
-# #         xml_files = [f for f in archive.namelist() if f.lower().endswith(".xml")]
-# #         print(f"Найдено XML файлов: {len(xml_files)}")
-# #
-# #         for file_name in xml_files:
-# #             print(f"Обработка: {file_name}")
-# #
-# #             with archive.open(file_name) as file:
-# #                 try:
-# #                     parser = etree.XMLParser(recover=True)
-# #                     tree = etree.parse(file, parser)
-# #                     root = tree.getroot()
-# #
-# #                     parsed = parse_notification(root)
-# #                     parsed["sourceFile"] = file_name
-# #
-# #                     # Применяем фильтры
-# #                     if parsed.get("customerFullName") and any(
-# #                             filter_name in parsed["customerFullName"] for filter_name in FILTERS
-# #                     ):
-# #                         all_data.append(parsed)
-# #                         print(f"  ✓ Добавлено (соответствует фильтру)")
-# #                     else:
-# #                         print(f"  ✗ Пропущено (не соответствует фильтру)")
-# #
-# #                 except Exception as e:
-# #                     print(f"Ошибка в файле {file_name}: {e}")
-# #
-# #     print("Парсинг завершён.")
-# #     return all_data
-# #
-# #
-# # def print_purchase_summary(data: List[Dict[str, Any]]) -> None:
-# #     """Вывод краткой информации о найденных закупках"""
-# #     print(f"\n{'=' * 80}")
-# #     print(f"НАЙДЕНО ЗАКУПОК: {len(data)}")
-# #     print(f"{'=' * 80}")
-# #
-# #     for i, purchase in enumerate(data, 1):
-# #         print(f"\n{i}. {purchase.get('name', 'Без названия')}")
-# #         print(f"   Рег. номер: {purchase.get('registrationNumber', 'Н/Д')}")
-# #         print(f"   Заказчик: {purchase.get('customerFullName', 'Н/Д')}")
-# #         print(f"   Дата публикации: {purchase.get('publicationDateTime', 'Н/Д')}")
-# #         print(f"   Лотов: {len(purchase.get('lots', []))}")
-# #
-# #         if purchase.get('lots'):
-# #             total_sum = sum(float(lot.get('initialSum', 0)) for lot in purchase['lots'] if lot.get('initialSum'))
-# #             print(f"   Общая сумма: {total_sum:,.2f} RUB")
-# #
-# #         print(f"   Файл: {purchase.get('sourceFile', 'Н/Д')}")
-# #
-# #
-# # if __name__ == "__main__":
-# #     zip_file_path = "019C77EE8318767AAB79CB88C90C110B.zip"
-# #
-# #     results = parse_zip_archive(zip_file_path)
-# #
-# #     print_purchase_summary(results)
-# #
-# #     # Если нужен подробный вывод
-# #     print("\n" + "=" * 80)
-# #     print("ИТОГ")
-# #     print("=" * 80)
-# #     pprint(results)
-#
-# import zipfile
-# import xmltodict
-# from pprint import pprint
-# from typing import Dict, List, Any
-#
-# FILTERS = ["РОССЕТИ"]
-#
-#
-# # ----------------------------
-# # Удаление namespace из ключей
-# # ----------------------------
-# def remove_ns(obj):
-#     if isinstance(obj, dict):
-#         new_dict = {}
-#         for k, v in obj.items():
-#             clean_key = k.split(":")[-1]
-#             new_dict[clean_key] = remove_ns(v)
-#         return new_dict
-#     elif isinstance(obj, list):
-#         return [remove_ns(item) for item in obj]
-#     else:
-#         return obj
-#
-#
-# # ----------------------------
-# # Рекурсивный поиск ключа
-# # ----------------------------
-# def find_all_keys(obj, key):
-#     results = []
-#
-#     if isinstance(obj, dict):
-#         for k, v in obj.items():
-#             if k == key:
-#                 results.append(v)
-#             results.extend(find_all_keys(v, key))
-#
-#     elif isinstance(obj, list):
-#         for item in obj:
-#             results.extend(find_all_keys(item, key))
-#
-#     return results
-#
-#
-# # ----------------------------
-# # Парсинг архива
-# # ----------------------------
-# def parse_zip_archive(zip_path: str) -> List[Dict[str, Any]]:
-#     all_data = []
-#
-#     print(f"Открываем архив: {zip_path}")
-#
-#     with zipfile.ZipFile(zip_path, "r") as archive:
-#         xml_files = [f for f in archive.namelist() if f.lower().endswith(".xml")]
-#         print(f"Найдено XML файлов: {len(xml_files)}")
-#
-#         for file_name in xml_files:
-#             print(f"Обработка: {file_name}")
-#
-#             with archive.open(file_name) as file:
-#                 try:
-#                     xml_content = file.read()
-#
-#                     # XML → dict
-#                     data = xmltodict.parse(xml_content)
-#
-#                     # Убираем namespace
-#                     data = remove_ns(data)
-#
-#                     # Добавляем имя файла
-#                     data["sourceFile"] = file_name
-#
-#                     # Фильтр по заказчику
-#                     customer_names = find_all_keys(data, "fullName")
-#
-#                     if any(
-#                         any(filter_name in str(name) for filter_name in FILTERS)
-#                         for name in customer_names
-#                     ):
-#                         all_data.append(data)
-#                         print("  ✓ Добавлено (соответствует фильтру)")
-#                     else:
-#                         print("  ✗ Пропущено (не соответствует фильтру)")
-#
-#                 except Exception as e:
-#                     print(f"Ошибка в файле {file_name}: {e}")
-#
-#     print("Парсинг завершён.")
-#     return all_data
-#
-#
-# # ----------------------------
-# # Краткий вывод
-# # ----------------------------
-# def print_purchase_summary(data: List[Dict[str, Any]]) -> None:
-#     print(f"\n{'=' * 80}")
-#     print(f"НАЙДЕНО ЗАКУПОК: {len(data)}")
-#     print(f"{'=' * 80}")
-#
-#     for i, purchase in enumerate(data, 1):
-#         names = find_all_keys(purchase, "name")
-#         reg_numbers = find_all_keys(purchase, "registrationNumber")
-#         customers = find_all_keys(purchase, "fullName")
-#         sums = find_all_keys(purchase, "initialSum")
-#
-#         print(f"\n{i}. {names[0] if names else 'Без названия'}")
-#         print(f"   Рег. номер: {reg_numbers[0] if reg_numbers else 'Н/Д'}")
-#         print(f"   Заказчик: {customers[0] if customers else 'Н/Д'}")
-#
-#         if sums:
-#             total = 0
-#             for s in sums:
-#                 try:
-#                     total += float(s)
-#                 except:
-#                     pass
-#             print(f"   Общая сумма: {total:,.2f} RUB")
-#
-#         print(f"   Файл: {purchase.get('sourceFile')}")
-#
-#
-# # ----------------------------
-# # MAIN
-# # ----------------------------
-# if __name__ == "__main__":
-#     zip_file_path = "019C77EE8318767AAB79CB88C90C110B.zip"
-#
-#     results = parse_zip_archive(zip_file_path)
-#
-#     print_purchase_summary(results)
-#
-#     print("\n" + "=" * 80)
-#     print("ИТОГ (первые 1 документ для примера)")
-#     print("=" * 80)
-#     if results:
-#         pprint(results[0].keys())
 import json
-import zipfile
-from pprint import pprint
-
 import xmltodict
 from typing import Dict, List, Any
+import os
+import zipfile
+import requests
+from pathlib import Path
 
 # Фильтр по заказчику
 FILTERS = ["РОССЕТИ"]
@@ -430,6 +36,115 @@ def ensure_list(value):
         return value
     return [value]
 
+# ----------------------------
+# Скачиваем прикрепленные файлы
+# ----------------------------
+
+# def download_file_or_zip(result: dict, out_file: str | None = None) -> str:
+#     archive_name = result.get("file_name")
+#     archive_url = result.get("download_link")
+#     print(archive_name, archive_url)
+#     if not out_file:
+#         out_file = f"tmp/{archive_name}"
+#
+#     # Минимально необходимые заголовки
+#     headers = {
+#         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+#         'Referer': 'https://zakupki.gov.ru/',
+#         'Accept': '*/*',
+#     }
+#
+#     with requests.get(archive_url, headers=headers, stream=True, timeout=15) as r:
+#         r.raise_for_status()
+#         with open(out_file, "wb") as f:
+#             for chunk in r.iter_content(chunk_size=1024 * 1024):
+#                 if chunk:
+#                     f.write(chunk)
+#
+#     return out_file
+
+
+def _fix_zip_filename(name: str) -> str:
+    """
+    Исправляет кодировку имени файла в ZIP (cp866/cp1251 -> utf-8)
+    """
+    try:
+        # Чаще всего в госархивах это cp866
+        return name.encode('cp437').decode('cp866')
+    except Exception:
+        try:
+            # Иногда бывает cp1251
+            return name.encode('cp437').decode('cp1251')
+        except Exception:
+            return name
+
+
+def download_and_extract(result: dict, out_file: str | None = None) -> str:
+    """
+    Скачивает файл и распаковывает его, если это ZIP архив.
+    Исправляет кодировку имен файлов.
+    """
+
+    archive_name = result.get("file_name")
+    archive_url = result.get("download_link")
+
+    if not archive_name or not archive_url:
+        raise ValueError("Missing fileName or url in result")
+
+    if not out_file:
+        out_file = f"tmp/{archive_name}"
+
+    Path("tmp").mkdir(exist_ok=True)
+
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Referer': 'https://zakupki.gov.ru/',
+        'Accept': '*/*',
+    }
+
+    print(f"📥 Скачиваю: {archive_name}")
+
+    with requests.get(archive_url, headers=headers, stream=True, timeout=30) as r:
+        r.raise_for_status()
+        with open(out_file, "wb") as f:
+            for chunk in r.iter_content(chunk_size=1024 * 1024):
+                if chunk:
+                    f.write(chunk)
+
+    print(f"✅ Скачано: {out_file}")
+    print(f"📊 Размер: {os.path.getsize(out_file)} байт")
+
+    if not zipfile.is_zipfile(out_file):
+        print("📄 Файл не является ZIP")
+        return out_file
+
+    extract_to = os.path.splitext(out_file)[0]
+    Path(extract_to).mkdir(exist_ok=True)
+
+    print(f"📦 Распаковываю ZIP в: {extract_to}")
+
+    try:
+        with zipfile.ZipFile(out_file, 'r') as zip_ref:
+            files = zip_ref.infolist()
+
+            for member in files:
+                fixed_name = _fix_zip_filename(member.filename)
+                member.filename = fixed_name  # заменяем имя
+
+                zip_ref.extract(member, extract_to)
+
+            print(f"✅ Распаковано файлов: {len(files)}")
+
+            if files:
+                print("📄 Файлы:")
+                for i, f in enumerate(files[:5]):
+                    print(f"   {i + 1}. {_fix_zip_filename(f.filename)}")
+
+        return extract_to
+
+    except Exception as e:
+        print(f"❌ Ошибка при распаковке: {e}")
+        return out_file
 
 # ----------------------------
 # Нормализация одной закупки
@@ -468,12 +183,37 @@ def normalize_purchase(data: dict) -> dict:
     }
 
     # -- Подача заявки --
-
     result["apply_request"] = {
         "submission_order": notice.get("applSubmisionOrder"),
         "submission_place": notice.get("applSubmisionPlace"),
         "submission_start_date": notice.get("applSubmisionStartDate"),
     }
+
+    # -- Закрепленные к заявке документы --
+    #
+
+
+    attached_files = notice.get("attachments", {})
+    document = attached_files.get("document")
+
+    # Если это строка — распарсить
+    if isinstance(document, str):
+        document = json.loads(document)
+
+    # Если это словарь — завернуть в список
+    if isinstance(document, dict):
+        document = [document]
+
+    doc_info = []
+    for doc in document:
+        if isinstance(doc, str):
+            doc = json.loads(doc)
+        doc_info.append({
+                "file_name": doc.get("fileName"),
+                "description": doc.get("description"),
+                "download_link": doc.get("url")
+            })
+    result["attached_files"] = doc_info
 
     # --- Лоты ---
     result["lots"] = []
@@ -537,16 +277,17 @@ def parse_zip_archive(zip_path: str) -> List[Dict[str, Any]]:
 
                     # Убираем namespace
                     data = remove_ns(data)
-                    pprint(data)
+                    # pprint(data)
 
                     # Нормализация
                     normalized = normalize_purchase(data)
                     normalized["sourceFile"] = file_name
-
-                    customer_name = normalized.get("customer", {}).get("full_name", "")
-
+                    customer_name = normalized.get("customer", {}).get("full_name")
                     if any(f in str(customer_name) for f in FILTERS):
                         all_data.append(normalized)
+                        attached_files = normalized.get("attached_files")
+                        for doc in attached_files:
+                            download_and_extract(doc)
                         print("  ✓ Добавлено (соответствует фильтру)")
                     else:
                         print("  ✗ Пропущено (не соответствует фильтру)")
@@ -584,10 +325,10 @@ def parse_zip_archive(zip_path: str) -> List[Dict[str, Any]]:
 # MAIN
 # ----------------------------
 if __name__ == "__main__":
-    zip_file_path = "019C77EE8318767AAB79CB88C90C110B.zip"
+    zip_file_path = "019C9BFF37917BE2BA361C2107B1534B.zip"
 
     results = parse_zip_archive(zip_file_path)
     with open("results.json", 'w', encoding = 'utf-8') as file:
         json.dump(results, file, ensure_ascii = False, indent = 4)
 
-    pprint(results)
+    # pprint(results)

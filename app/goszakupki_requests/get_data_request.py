@@ -16,8 +16,7 @@ load_dotenv()
 BASE_URL = os.getenv("BASE_URL")  # SOAP endpoint
 TOKEN = os.getenv("TOKEN")        # individualPerson_token
 DOWNLOAD_URL = os.getenv(
-    "DOWNLOAD_URL",
-    "https://int.zakupki.gov.ru/dstore/common/download/compound"
+    "DOWNLOAD_URL"
 )
 
 SOAP_TIMEOUT = int(os.getenv("SOAP_TIMEOUT", "30"))
