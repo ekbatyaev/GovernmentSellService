@@ -1,0 +1,972 @@
+[
+    {
+        "guid": "a26daef8-78a2-4d4e-b4e2-99fcfbbab972",
+        "registration_number": "32515463610",
+        "name": "Определение поставщика на поставку трансформаторов силовых для нужд МВС - филиала ПАО «Россети Московский регион».",
+        "publication_datetime": "2025-12-15T09:51:16",
+        "submission_close_datetime": "2025-12-24T10:00:00",
+        "customer": {
+            "full_name": "ПУБЛИЧНОЕ АКЦИОНЕРНОЕ ОБЩЕСТВО \"РОССЕТИ МОСКОВСКИЙ РЕГИОН\"",
+            "inn": "5036065113",
+            "kpp": "772501001",
+            "ogrn": "1057746555811"
+        },
+        "contact": {
+            "last_name": "Кутателадзе",
+            "first_name": "И.",
+            "middle_name": "Г.",
+            "phone": "+7 (495) 6624070, доб.: 4708",
+            "email": "KutateladzeIG@ROSSETIMR.RU"
+        },
+        "apply_request": {
+            "submission_order": "В соответствии с документацией о закупке",
+            "submission_place": null,
+            "submission_start_date": "2025-11-28"
+        },
+        "attached_files": [
+            {
+                "file_name": "10312 - Поставка трансформаторов силовых.rar",
+                "description": "10312 - Поставка трансформаторов силовых.rar",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107472306"
+            }
+        ],
+        "lots": [
+            {
+                "guid": "d7c59710-0c40-4a88-8797-6deb19cb03dc",
+                "ordinal_number": "1",
+                "subject": "Определение поставщика на поставку трансформаторов силовых для нужд МВС - филиала ПАО «Россети Московский регион».",
+                "initial_summ": 759525000.0,
+                "currency": "RUB",
+                "application_supply_summ": "22785750",
+                "application_supply_extra": "В соответствии с документацией о закупке.",
+                "completing_supply_summ": null,
+                "items": [
+                    {
+                        "guid": "a4f893df-9853-4914-874c-25c847a2107c",
+                        "okpd2_code": "27.12.40.000",
+                        "okpd2_name": "Части электрической распределительной или регулирующей аппаратуры",
+                        "qty": "3",
+                        "additional_info": null
+                    }
+                ]
+            }
+        ],
+        "initial_summ": null,
+        "sourceFile": "purchaseNotice_32515463610_2_019B20C718C37E75BAD08E587E056368.xml"
+    },
+    {
+        "guid": "ab608b6f-7c0a-44a9-9ec6-377862da0217",
+        "registration_number": "32515464637",
+        "name": "Определение поставщика на поставку высоковольтного электротехнического оборудования для формирования аварийного запаса для нужд МВС - филиала ПАО «Россети Московский регион»",
+        "publication_datetime": "2025-12-15T09:52:28",
+        "submission_close_datetime": "2025-12-24T10:00:00",
+        "customer": {
+            "full_name": "ПУБЛИЧНОЕ АКЦИОНЕРНОЕ ОБЩЕСТВО \"РОССЕТИ МОСКОВСКИЙ РЕГИОН\"",
+            "inn": "5036065113",
+            "kpp": "772501001",
+            "ogrn": "1057746555811"
+        },
+        "contact": {
+            "last_name": "Федотычева",
+            "first_name": "В.",
+            "middle_name": "С.",
+            "phone": "+7 (495) 3634070, доб.: 4716",
+            "email": "FedotychevaVS@rossetimr.ru"
+        },
+        "apply_request": {
+            "submission_order": "В соответствии с документацией о закупке.",
+            "submission_place": null,
+            "submission_start_date": "2025-11-28"
+        },
+        "attached_files": [
+            {
+                "file_name": "10286 - Поставка высоковольтного электротехнического оборудования для формирования АЗ.zip",
+                "description": "10286 - Поставка высоковольтного электротехнического оборудования для формирования АЗ.zip",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107472434"
+            },
+            {
+                "file_name": "5508.zip",
+                "description": "5508.zip",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107472449"
+            }
+        ],
+        "lots": [
+            {
+                "guid": "ed2c81a2-e0e8-49db-9310-c0cef861516c",
+                "ordinal_number": "1",
+                "subject": "Определение поставщика на поставку высоковольтного электротехнического оборудования для формирования аварийного запаса для нужд МВС - филиала ПАО «Россети Московский регион»",
+                "initial_summ": 253081800.0,
+                "currency": "RUB",
+                "application_supply_summ": "7592454",
+                "application_supply_extra": "В соответствии с документацией о закупке.",
+                "completing_supply_summ": null,
+                "items": [
+                    {
+                        "guid": "b2c37ecf-0996-4ccb-a9f8-de20333070a5",
+                        "okpd2_code": "27.12.40.000",
+                        "okpd2_name": "Части электрической распределительной или регулирующей аппаратуры",
+                        "qty": "50",
+                        "additional_info": null
+                    }
+                ]
+            }
+        ],
+        "initial_summ": null,
+        "sourceFile": "purchaseNotice_32515464637_3_019B20C8327E78959C81636999C5BC38.xml"
+    },
+    {
+        "guid": "1ea085e2-8acf-40db-b7d5-1c707e5e99d1",
+        "registration_number": "32515463610",
+        "name": "Определение поставщика на поставку трансформаторов силовых для нужд МВС - филиала ПАО «Россети Московский регион».",
+        "publication_datetime": "2025-12-15T09:58:22",
+        "submission_close_datetime": "2025-12-24T10:00:00",
+        "customer": {
+            "full_name": "ПУБЛИЧНОЕ АКЦИОНЕРНОЕ ОБЩЕСТВО \"РОССЕТИ МОСКОВСКИЙ РЕГИОН\"",
+            "inn": "5036065113",
+            "kpp": "772501001",
+            "ogrn": "1057746555811"
+        },
+        "contact": {
+            "last_name": "Кутателадзе",
+            "first_name": "И.",
+            "middle_name": "Г.",
+            "phone": "+7 (495) 6624070, доб.: 4708",
+            "email": "KutateladzeIG@ROSSETIMR.RU"
+        },
+        "apply_request": {
+            "submission_order": "В соответствии с документацией о закупке",
+            "submission_place": null,
+            "submission_start_date": "2025-11-28"
+        },
+        "attached_files": [
+            {
+                "file_name": "Уведомление о внесении изменений от 15.12.2025.doc",
+                "description": "Уведомление о внесении изменений от 15.12.2025.doc",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107472787"
+            },
+            {
+                "file_name": "10312 - Поставка трансформаторов силовых.rar",
+                "description": "10312 - Поставка трансформаторов силовых.rar",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107472786"
+            }
+        ],
+        "lots": [
+            {
+                "guid": "d7c59710-0c40-4a88-8797-6deb19cb03dc",
+                "ordinal_number": "1",
+                "subject": "Определение поставщика на поставку трансформаторов силовых для нужд МВС - филиала ПАО «Россети Московский регион».",
+                "initial_summ": 759525000.0,
+                "currency": "RUB",
+                "application_supply_summ": "22785750",
+                "application_supply_extra": "В соответствии с документацией о закупке.",
+                "completing_supply_summ": null,
+                "items": [
+                    {
+                        "guid": "a4f893df-9853-4914-874c-25c847a2107c",
+                        "okpd2_code": "27.12.40.000",
+                        "okpd2_name": "Части электрической распределительной или регулирующей аппаратуры",
+                        "qty": "3",
+                        "additional_info": null
+                    }
+                ]
+            }
+        ],
+        "initial_summ": null,
+        "sourceFile": "purchaseNotice_32515463610_3_019B20CD9BEF78F982D7D3FA7190082E.xml"
+    },
+    {
+        "guid": "74ec5155-44f1-4aeb-8ab6-469d678294c9",
+        "registration_number": "32515482193",
+        "name": "Определение подрядчика на выполнение СМР, ПНР, оборудование по титулу: Модернизация ПС 110/6 кВ № 387 «Подрезково» с установкой автоматической пожарной сигнализации на ХПУВЭС, МО, г.Химки, мкр. Сходня, ул. Горная, для нужд СЭС – филиала ПАО «Россети Московский регион».",
+        "publication_datetime": "2025-12-15T10:40:46",
+        "submission_close_datetime": "2026-01-13T11:00:00",
+        "customer": {
+            "full_name": "ПУБЛИЧНОЕ АКЦИОНЕРНОЕ ОБЩЕСТВО \"РОССЕТИ МОСКОВСКИЙ РЕГИОН\"",
+            "inn": "5036065113",
+            "kpp": "772501001",
+            "ogrn": "1057746555811"
+        },
+        "contact": {
+            "last_name": "Солоненкова",
+            "first_name": "М.",
+            "middle_name": "В.",
+            "phone": "+7 (495) 6624070, доб.: 4704",
+            "email": "SolonenkovaMV@ROSSETIMR.RU"
+        },
+        "apply_request": {
+            "submission_order": "В соответствии с документацией",
+            "submission_place": null,
+            "submission_start_date": "2025-12-03"
+        },
+        "attached_files": [
+            {
+                "file_name": "081-0024661.rar",
+                "description": "081-0024661.rar",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107475324"
+            }
+        ],
+        "lots": [
+            {
+                "guid": "316bd8f7-a528-4b5b-a940-cfea95b2a81f",
+                "ordinal_number": "1",
+                "subject": "Выполнение СМР, ПНР, оборудование по титулу: Модернизация ПС 110/6 кВ № 387 «Подрезково» с установкой автоматической пожарной сигнализации на ХПУВЭС, МО, г.Химки, мкр. Сходня, ул. Горная, для нужд СЭС – филиала ПАО «Россети Московский регион».",
+                "initial_summ": 785278.25,
+                "currency": "RUB",
+                "application_supply_summ": null,
+                "application_supply_extra": null,
+                "completing_supply_summ": null,
+                "items": [
+                    {
+                        "guid": "4d157250-b679-4b18-b9cd-eafe28434298",
+                        "okpd2_code": "42.22.22.120",
+                        "okpd2_name": "Работы строительные по строительству трансформаторных станций и подстанций для распределения электричества в пределах какого-либо района",
+                        "qty": "1",
+                        "additional_info": null
+                    }
+                ]
+            }
+        ],
+        "initial_summ": null,
+        "sourceFile": "purchaseNotice_32515482193_2_019B20F46B3E7D53853CF14156DD0BC2.xml"
+    },
+    {
+        "guid": "a30f0a12-d583-43f8-a132-3d3525655b71",
+        "registration_number": "32515421006",
+        "name": "Выполнение ПИР, СМР, ПНР полным иждивением Подрядчика по титулу: Строительство КТП-63-10/0,4 кВ (прох. типа), ЛЭП-10 кВ от ЛР-666 на сущ. ВЛ-10 кВ ф.126 ПС №684 \"Видное\", КРН, ГНБ, РЩ-0,4 кВ, ЛЭП-0,4 кВ, в т.ч. ПИР, МО, городской округ Ленинский, рп. Горки Ленинские, промзона \"Технопарк\". Ю8-24-302-210850(323039) для нужд ЮЭС - филиала ПАО «Россети Московский регион»",
+        "publication_datetime": "2025-12-15T10:48:30",
+        "submission_close_datetime": "2025-12-18T11:00:00",
+        "customer": {
+            "full_name": "ПУБЛИЧНОЕ АКЦИОНЕРНОЕ ОБЩЕСТВО \"РОССЕТИ МОСКОВСКИЙ РЕГИОН\"",
+            "inn": "5036065113",
+            "kpp": "772501001",
+            "ogrn": "1057746555811"
+        },
+        "contact": {
+            "last_name": "Тимонин",
+            "first_name": "В.",
+            "middle_name": "Н.",
+            "phone": "+7 (495) 6624070, доб.: 4756",
+            "email": "TimoninVN@ROSSETIMR.RU"
+        },
+        "apply_request": {
+            "submission_order": "В соответствии с документацией",
+            "submission_place": null,
+            "submission_start_date": "2025-11-19"
+        },
+        "attached_files": [
+            {
+                "file_name": "Уведомление о внесении изменений ЗЦ 32515421006 - 2.doc",
+                "description": "Уведомление о внесении изменений ЗЦ 32515421006 - 2.doc",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107474768"
+            },
+            {
+                "file_name": "Уведомление о внесении изменений ЗЦ 32515421006 - 3.doc",
+                "description": "Уведомление о внесении изменений ЗЦ 32515421006 - 3.doc",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107474767"
+            },
+            {
+                "file_name": "Уведомление о внесении изменений ЗЦ 32515421006 - 5.doc",
+                "description": "Уведомление о внесении изменений ЗЦ 32515421006 - 5.doc",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107474780"
+            },
+            {
+                "file_name": "Уведомление о внесении изменений ЗЦ 32515421006 - 4.doc",
+                "description": "Уведомление о внесении изменений ЗЦ 32515421006 - 4.doc",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107474779"
+            },
+            {
+                "file_name": "Уведомление о внесении изменений ЗЦ 32515421006.doc",
+                "description": "Уведомление о внесении изменений ЗЦ 32515421006.doc",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107474778"
+            },
+            {
+                "file_name": "_Технопарк мсп.rar",
+                "description": "_Технопарк мсп.rar",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107474777"
+            }
+        ],
+        "lots": [
+            {
+                "guid": "2fc2e473-32d0-437b-a5fa-a82d45406d65",
+                "ordinal_number": "1",
+                "subject": "Выполнение ПИР, СМР, ПНР полным иждивением Подрядчика по титулу: Строительство КТП-63-10/0,4 кВ (прох. типа), ЛЭП-10 кВ от ЛР-666 на сущ. ВЛ-10 кВ ф.126 ПС №684 \"Видное\", КРН, ГНБ, РЩ-0,4 кВ, ЛЭП-0,4 кВ, в т.ч. ПИР, МО, городской округ Ленинский, рп. Горки Ленинские, промзона \"Технопарк\". Ю8-24-302-210850(323039) для нужд ЮЭС - филиала ПАО «Россети Московский регион»",
+                "initial_summ": 21625143.62,
+                "currency": "RUB",
+                "application_supply_summ": null,
+                "application_supply_extra": null,
+                "completing_supply_summ": null,
+                "items": [
+                    {
+                        "guid": "8ba0225d-dbc5-442d-800f-8bf069b669ee",
+                        "okpd2_code": "71.12.13.000",
+                        "okpd2_name": "Услуги по инженерно-техническому проектированию систем энергоснабжения",
+                        "qty": "1",
+                        "additional_info": null
+                    }
+                ]
+            }
+        ],
+        "initial_summ": null,
+        "sourceFile": "purchaseNotice_32515421006_6_019B20FB88FD73F4A440E978F98ECD3E.xml"
+    },
+    {
+        "guid": "091fd55c-fa38-43f3-84d4-5e8210de070a",
+        "registration_number": "32515421018",
+        "name": "Выполнение ПИР, СМР, ПНР полным иждивением Подрядчика по титулу: Строительство КТП-160-10/0,4 кВ (прох. типа), ЛЭП-10 кВ от ВЛ-10 кВ ф.312 с РТП-7, ПС №755 \"Молоково\", ГНБ, КРН-10 кВ, ЛР-10 кВ, ЛЭП-0,4 кВ, РЩ-0,4 кВ, в т.ч. ПИР, МО, г.о. Ленинский, п.г.т. Молоково, ул. Революционная, д. 154 стр. 1 Ю8-25-303-270241(427734) для нужд ЮЭС - филиала ПАО «Россети Московский регион»",
+        "publication_datetime": "2025-12-15T10:48:50",
+        "submission_close_datetime": "2025-12-18T11:00:00",
+        "customer": {
+            "full_name": "ПУБЛИЧНОЕ АКЦИОНЕРНОЕ ОБЩЕСТВО \"РОССЕТИ МОСКОВСКИЙ РЕГИОН\"",
+            "inn": "5036065113",
+            "kpp": "772501001",
+            "ogrn": "1057746555811"
+        },
+        "contact": {
+            "last_name": "Тимонин",
+            "first_name": "В.",
+            "middle_name": "Н.",
+            "phone": "+7 (495) 6624070, доб.: 4756",
+            "email": "TimoninVN@ROSSETIMR.RU"
+        },
+        "apply_request": {
+            "submission_order": "В соответствии с документацией",
+            "submission_place": null,
+            "submission_start_date": "2025-11-19"
+        },
+        "attached_files": [
+            {
+                "file_name": "Уведомление о внесении изменений ЗЦ 32515421018 - 3.doc",
+                "description": "Уведомление о внесении изменений ЗЦ 32515421018 - 3.doc",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107474806"
+            },
+            {
+                "file_name": "Уведомление о внесении изменений ЗЦ 32515421018 - 4.doc",
+                "description": "Уведомление о внесении изменений ЗЦ 32515421018 - 4.doc",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107474805"
+            },
+            {
+                "file_name": "_Ленинский мсп.rar",
+                "description": "_Ленинский мсп.rar",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107474804"
+            },
+            {
+                "file_name": "Уведомление о внесении изменений ЗЦ 32515421018 - 2.doc",
+                "description": "Уведомление о внесении изменений ЗЦ 32515421018 - 2.doc",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107474787"
+            },
+            {
+                "file_name": "Уведомление о внесении изменений ЗЦ 32515421018 - 5.doc",
+                "description": "Уведомление о внесении изменений ЗЦ 32515421018 - 5.doc",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107474809"
+            },
+            {
+                "file_name": "Уведомление о внесении изменений ЗЦ 32515421018.doc",
+                "description": "Уведомление о внесении изменений ЗЦ 32515421018.doc",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107474808"
+            }
+        ],
+        "lots": [
+            {
+                "guid": "3b807f5f-be66-476f-beb1-2a04672ad6fa",
+                "ordinal_number": "1",
+                "subject": "Выполнение ПИР, СМР, ПНР полным иждивением Подрядчика по титулу: Строительство КТП-160-10/0,4 кВ (прох. типа), ЛЭП-10 кВ от ВЛ-10 кВ ф.312 с РТП-7, ПС №755 \"Молоково\", ГНБ, КРН-10 кВ, ЛР-10 кВ, ЛЭП-0,4 кВ, РЩ-0,4 кВ, в т.ч. ПИР, МО, г.о. Ленинский, п.г.т. Молоково, ул. Революционная, д. 154 стр. 1 Ю8-25-303-270241(427734) для нужд ЮЭС - филиала ПАО «Россети Московский регион»",
+                "initial_summ": 8387550.96,
+                "currency": "RUB",
+                "application_supply_summ": null,
+                "application_supply_extra": null,
+                "completing_supply_summ": null,
+                "items": [
+                    {
+                        "guid": "7be949f2-38d1-4eac-b757-0ba99397f0d4",
+                        "okpd2_code": "71.12.13.000",
+                        "okpd2_name": "Услуги по инженерно-техническому проектированию систем энергоснабжения",
+                        "qty": "1",
+                        "additional_info": null
+                    }
+                ]
+            }
+        ],
+        "initial_summ": null,
+        "sourceFile": "purchaseNotice_32515421018_6_019B20FBDCC677A38883D39F14F8200F.xml"
+    },
+    {
+        "guid": "503d4021-7144-46a4-af49-064a31e92acd",
+        "registration_number": "32515421021",
+        "name": "Выполнение ПИР, СМР, ПНР полным иждивением Подрядчика по титулу: Строительство КТП-63-6/0,4 кВ, ЛЭП-6 кВ от ВЛ-6 кВ ф.318 с РП-9, ПС №680 \"Дзержинская\", ГНБ, ПРВТ-6 кВ, ЛЭП-0,4 кВ, РЩ-0,4 кВ, в т.ч. ПИР, МО, г.о. Люберцы, г. Дзержинский, д.9, уч.9 Ю8-25-302-274215(470806) для нужд ЮЭС - филиала ПАО «Россети Московский регион»",
+        "publication_datetime": "2025-12-15T10:49:14",
+        "submission_close_datetime": "2025-12-18T11:00:00",
+        "customer": {
+            "full_name": "ПУБЛИЧНОЕ АКЦИОНЕРНОЕ ОБЩЕСТВО \"РОССЕТИ МОСКОВСКИЙ РЕГИОН\"",
+            "inn": "5036065113",
+            "kpp": "772501001",
+            "ogrn": "1057746555811"
+        },
+        "contact": {
+            "last_name": "Тимонин",
+            "first_name": "В.",
+            "middle_name": "Н.",
+            "phone": "+7 (495) 6624070, доб.: 4756",
+            "email": "TimoninVN@ROSSETIMR.RU"
+        },
+        "apply_request": {
+            "submission_order": "В соответствии с документацией",
+            "submission_place": null,
+            "submission_start_date": "2025-11-19"
+        },
+        "attached_files": [
+            {
+                "file_name": "Уведомление о внесении изменений ЗЦ 32515421021 - 5.doc",
+                "description": "Уведомление о внесении изменений ЗЦ 32515421021 - 5.doc",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107474821"
+            },
+            {
+                "file_name": "Уведомление о внесении изменений ЗЦ 32515421021 - 4.doc",
+                "description": "Уведомление о внесении изменений ЗЦ 32515421021 - 4.doc",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107474820"
+            },
+            {
+                "file_name": "Уведомление о внесении изменений ЗЦ 32515421021.doc",
+                "description": "Уведомление о внесении изменений ЗЦ 32515421021.doc",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107474803"
+            },
+            {
+                "file_name": "Уведомление о внесении изменений ЗЦ 32515421021 - 3.doc",
+                "description": "Уведомление о внесении изменений ЗЦ 32515421021 - 3.doc",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107474819"
+            },
+            {
+                "file_name": "Уведомление о внесении изменений ЗЦ 32515421021 - 2.doc",
+                "description": "Уведомление о внесении изменений ЗЦ 32515421021 - 2.doc",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107474818"
+            },
+            {
+                "file_name": "_Дзержинский мсп.rar",
+                "description": "_Дзержинский мсп.rar",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107474817"
+            }
+        ],
+        "lots": [
+            {
+                "guid": "b1b8507e-036d-4090-ad17-712c26ce552c",
+                "ordinal_number": "1",
+                "subject": "Выполнение ПИР, СМР, ПНР полным иждивением Подрядчика по титулу: Строительство КТП-63-6/0,4 кВ, ЛЭП-6 кВ от ВЛ-6 кВ ф.318 с РП-9, ПС №680 \"Дзержинская\", ГНБ, ПРВТ-6 кВ, ЛЭП-0,4 кВ, РЩ-0,4 кВ, в т.ч. ПИР, МО, г.о. Люберцы, г. Дзержинский, д.9, уч.9 Ю8-25-302-274215(470806) для нужд ЮЭС - филиала ПАО «Россети Московский регион»",
+                "initial_summ": 8715652.09,
+                "currency": "RUB",
+                "application_supply_summ": null,
+                "application_supply_extra": null,
+                "completing_supply_summ": null,
+                "items": [
+                    {
+                        "guid": "1829e0f2-3436-4053-a932-f2d891c82adc",
+                        "okpd2_code": "71.12.13.000",
+                        "okpd2_name": "Услуги по инженерно-техническому проектированию систем энергоснабжения",
+                        "qty": "1",
+                        "additional_info": null
+                    }
+                ]
+            }
+        ],
+        "initial_summ": null,
+        "sourceFile": "purchaseNotice_32515421021_6_019B20FC37E77926A25D58BE919C162F.xml"
+    },
+    {
+        "guid": "0bfdd989-00e2-401a-a474-d7ed29554453",
+        "registration_number": "32515421060",
+        "name": "Выполнение ПИР, СМР, ПНР полным иждивением Подрядчика по титулу: Модернизация ПС 110 кВ №698 \"Ситня\" с установкой ТОР, ПС №698 \"Ситня\", в т.ч. ПИР, МО, р-н Ступинский, с/п Семеновское, д Бекетово Ю8-24-302-195691(153066) для нужд ЮЭС - филиала ПАО «Россети Московский регион»",
+        "publication_datetime": "2025-12-15T10:49:41",
+        "submission_close_datetime": "2025-12-18T11:00:00",
+        "customer": {
+            "full_name": "ПУБЛИЧНОЕ АКЦИОНЕРНОЕ ОБЩЕСТВО \"РОССЕТИ МОСКОВСКИЙ РЕГИОН\"",
+            "inn": "5036065113",
+            "kpp": "772501001",
+            "ogrn": "1057746555811"
+        },
+        "contact": {
+            "last_name": "Тимонин",
+            "first_name": "В.",
+            "middle_name": "Н.",
+            "phone": "+7 (495) 6624070, доб.: 4756",
+            "email": "TimoninVN@ROSSETIMR.RU"
+        },
+        "apply_request": {
+            "submission_order": "В соответствии с документацией",
+            "submission_place": null,
+            "submission_start_date": "2025-11-19"
+        },
+        "attached_files": [
+            {
+                "file_name": "Уведомление о внесении изменений ЗЦ 32515421060 - 5.doc",
+                "description": "Уведомление о внесении изменений ЗЦ 32515421060 - 5.doc",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107474834"
+            },
+            {
+                "file_name": "Уведомление о внесении изменений ЗЦ 32515421060 - 4.doc",
+                "description": "Уведомление о внесении изменений ЗЦ 32515421060 - 4.doc",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107474833"
+            },
+            {
+                "file_name": "Уведомление о внесении изменений ЗЦ 32515421060 - 2.doc",
+                "description": "Уведомление о внесении изменений ЗЦ 32515421060 - 2.doc",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107474832"
+            },
+            {
+                "file_name": "Уведомление о внесении изменений ЗЦ 32515421060.doc",
+                "description": "Уведомление о внесении изменений ЗЦ 32515421060.doc",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107474831"
+            },
+            {
+                "file_name": "_Бекетово мсп.rar",
+                "description": "_Бекетово мсп.rar",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107474830"
+            },
+            {
+                "file_name": "Уведомление о внесении изменений ЗЦ 32515421060 - 3.doc",
+                "description": "Уведомление о внесении изменений ЗЦ 32515421060 - 3.doc",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107474829"
+            }
+        ],
+        "lots": [
+            {
+                "guid": "1c813611-c0e2-4173-a17a-0f4571e520c3",
+                "ordinal_number": "1",
+                "subject": "Выполнение ПИР, СМР, ПНР полным иждивением Подрядчика по титулу: Модернизация ПС 110 кВ №698 \"Ситня\" с установкой ТОР, ПС №698 \"Ситня\", в т.ч. ПИР, МО, р-н Ступинский, с/п Семеновское, д Бекетово Ю8-24-302-195691(153066) для нужд ЮЭС - филиала ПАО «Россети Московский регион»",
+                "initial_summ": 8730562.66,
+                "currency": "RUB",
+                "application_supply_summ": null,
+                "application_supply_extra": null,
+                "completing_supply_summ": null,
+                "items": [
+                    {
+                        "guid": "96776f71-7bc8-4a73-a50c-ed716c2421c2",
+                        "okpd2_code": "71.12.13.000",
+                        "okpd2_name": "Услуги по инженерно-техническому проектированию систем энергоснабжения",
+                        "qty": "1",
+                        "additional_info": null
+                    }
+                ]
+            }
+        ],
+        "initial_summ": null,
+        "sourceFile": "purchaseNotice_32515421060_6_019B20FC9DD670BC96BCC17946BEED2C.xml"
+    },
+    {
+        "guid": "f0857368-90df-4f5c-8c9a-e72d355c702d",
+        "registration_number": "32515501970",
+        "name": "Оказание услуг по независимому строительному контролю по титулу: Реконструкция ПС-110 кВ № 696 \"Прогресс\" установка Т-3 40000/110/20, секции КРУН-20 кВ на 5 ячеек: МО, г. Железнодорожный, мкрн. Павлино (40 МВА; 6 шт.(РУ); 933 кв.м.; 9 шт.(прочие)) для нужд ВЭС - филиала ПАО «Россети Московский регион»",
+        "publication_datetime": "2025-12-15T10:50:03",
+        "submission_close_datetime": "2025-12-18T11:00:00",
+        "customer": {
+            "full_name": "ПУБЛИЧНОЕ АКЦИОНЕРНОЕ ОБЩЕСТВО \"РОССЕТИ МОСКОВСКИЙ РЕГИОН\"",
+            "inn": "5036065113",
+            "kpp": "772501001",
+            "ogrn": "1057746555811"
+        },
+        "contact": {
+            "last_name": "Тимонин",
+            "first_name": "В.",
+            "middle_name": "Н.",
+            "phone": "+7 (495) 6624070, доб.: 4756",
+            "email": "TimoninVN@ROSSETIMR.RU"
+        },
+        "apply_request": {
+            "submission_order": "В соответствии с документацией",
+            "submission_place": null,
+            "submission_start_date": "2025-12-08"
+        },
+        "attached_files": [
+            {
+                "file_name": "Уведомление о внесении изменений ЗЦ 32515501970.doc",
+                "description": "Уведомление о внесении изменений ЗЦ 32515501970.doc",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107474869"
+            },
+            {
+                "file_name": "_НСК Павлино.part2.rar",
+                "description": "_НСК Павлино.part2.rar",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107474867"
+            },
+            {
+                "file_name": "_НСК Павлино.part1.rar",
+                "description": "_НСК Павлино.part1.rar",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107474842"
+            }
+        ],
+        "lots": [
+            {
+                "guid": "3341d70b-c5bd-498c-bd74-0ab40bb354d7",
+                "ordinal_number": "1",
+                "subject": "Оказание услуг по независимому строительному контролю по титулу: Реконструкция ПС-110 кВ № 696 \"Прогресс\" установка Т-3 40000/110/20, секции КРУН-20 кВ на 5 ячеек: МО, г. Железнодорожный, мкрн. Павлино (40 МВА; 6 шт.(РУ); 933 кв.м.; 9 шт.(прочие)) для нужд ВЭС - филиала ПАО «Россети Московский регион»",
+                "initial_summ": 2763698.56,
+                "currency": "RUB",
+                "application_supply_summ": null,
+                "application_supply_extra": null,
+                "completing_supply_summ": null,
+                "items": [
+                    {
+                        "guid": "f625815e-bb96-4b96-aeba-ad15405e8fc6",
+                        "okpd2_code": "42.22.12.110",
+                        "okpd2_name": "Линии электропередачи местные",
+                        "qty": "1",
+                        "additional_info": null
+                    }
+                ]
+            }
+        ],
+        "initial_summ": null,
+        "sourceFile": "purchaseNotice_32515501970_2_019B20FCEDB47AC8A0D05151CAB6B053.xml"
+    },
+    {
+        "guid": "faa1275b-2427-422f-add6-8704cdf9317a",
+        "registration_number": "32515467952",
+        "name": "Определение подрядчика на выполнение СМР, ПНР, оборудование по титулу: Реконструкция ПС-35/6 кВ № 185 Воробьево с заменой силовых трансформаторов 2х1 МВА на 2х6,3 МВА, реконструкция ОРУ-35 кВ по схеме «мостик» с элегазовыми выключателями, в т.ч. ПИР, МО, Солнечногорский район д. Литвиново для нужд СЭС- филиала ПАО «Россети Московский регион»",
+        "publication_datetime": "2025-12-15T10:55:20",
+        "submission_close_datetime": "2025-12-24T11:00:00",
+        "customer": {
+            "full_name": "ПУБЛИЧНОЕ АКЦИОНЕРНОЕ ОБЩЕСТВО \"РОССЕТИ МОСКОВСКИЙ РЕГИОН\"",
+            "inn": "5036065113",
+            "kpp": "772501001",
+            "ogrn": "1057746555811"
+        },
+        "contact": {
+            "last_name": "Решетова",
+            "first_name": "Е.",
+            "middle_name": "С.",
+            "phone": "+7 (495) 6624070, доб.: 4764",
+            "email": "ReshetovaES@ROSSETIMR.RU"
+        },
+        "apply_request": {
+            "submission_order": "В соответствии с документацией",
+            "submission_place": null,
+            "submission_start_date": "2025-11-28"
+        },
+        "attached_files": [
+            {
+                "file_name": "081-0024543_СМР,ПНР_Воробьево_ д. Литвиново_К не МСП_АС.part4.rar",
+                "description": "081-0024543_СМР,ПНР_Воробьево_ д. Литвиново_К не МСП_АС.part4.rar",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107476100"
+            },
+            {
+                "file_name": "081-0024543_СМР,ПНР_Воробьево_ д. Литвиново_К не МСП_АС.part5.rar",
+                "description": "081-0024543_СМР,ПНР_Воробьево_ д. Литвиново_К не МСП_АС.part5.rar",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107475667"
+            },
+            {
+                "file_name": "081-0024543_СМР,ПНР_Воробьево_ д. Литвиново_К не МСП_АС.part6.rar",
+                "description": "081-0024543_СМР,ПНР_Воробьево_ д. Литвиново_К не МСП_АС.part6.rar",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107476193"
+            },
+            {
+                "file_name": "081-0024543_СМР,ПНР_Воробьево_ д. Литвиново_К не МСП_АС.part2.rar",
+                "description": "081-0024543_СМР,ПНР_Воробьево_ д. Литвиново_К не МСП_АС.part2.rar",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107475870"
+            },
+            {
+                "file_name": "081-0024543_СМР,ПНР_Воробьево_ д. Литвиново_К не МСП_АС.part1.rar",
+                "description": "081-0024543_СМР,ПНР_Воробьево_ д. Литвиново_К не МСП_АС.part1.rar",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107475773"
+            },
+            {
+                "file_name": "081-0024543_СМР,ПНР_Воробьево_ д. Литвиново_К не МСП_АС.part8.rar",
+                "description": "081-0024543_СМР,ПНР_Воробьево_ д. Литвиново_К не МСП_АС.part8.rar",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107476269"
+            },
+            {
+                "file_name": "081-0024543_СМР,ПНР_Воробьево_ д. Литвиново_К не МСП_АС.part7.rar",
+                "description": "081-0024543_СМР,ПНР_Воробьево_ д. Литвиново_К не МСП_АС.part7.rar",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107476251"
+            },
+            {
+                "file_name": "081-0024543_СМР,ПНР_Воробьево_ д. Литвиново_К не МСП_АС.part3.rar",
+                "description": "081-0024543_СМР,ПНР_Воробьево_ д. Литвиново_К не МСП_АС.part3.rar",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107476024"
+            }
+        ],
+        "lots": [
+            {
+                "guid": "d35df603-6ebb-4c6e-ae8b-c9a9a21cc762",
+                "ordinal_number": "1",
+                "subject": "Выполнение СМР, ПНР, оборудование по титулу: Реконструкция ПС-35/6 кВ № 185 Воробьево с заменой силовых трансформаторов 2х1 МВА на 2х6,3 МВА, реконструкция ОРУ-35 кВ по схеме «мостик» с элегазовыми выключателями, в т.ч. ПИР, МО, Солнечногорский район д. Литвиново для нужд СЭС- филиала ПАО «Россети Московский регион»",
+                "initial_summ": 695893324.09,
+                "currency": "RUB",
+                "application_supply_summ": "20876799.72",
+                "application_supply_extra": "В соответствии с документацией о закупке.",
+                "completing_supply_summ": null,
+                "items": [
+                    {
+                        "guid": "4957dfc7-0eb2-4812-9d97-27a334495193",
+                        "okpd2_code": "42.22.22.120",
+                        "okpd2_name": "Работы строительные по строительству трансформаторных станций и подстанций для распределения электричества в пределах какого-либо района",
+                        "qty": "1",
+                        "additional_info": null
+                    }
+                ]
+            }
+        ],
+        "initial_summ": null,
+        "sourceFile": "purchaseNotice_32515467952_2_019B2101D1D07B3A8FF83AE95F62B15E.xml"
+    },
+    {
+        "guid": "45f13e45-bf34-4c88-a496-5a2eaf7ab9a0",
+        "registration_number": "32515530437",
+        "name": "Определение подрядчика на выполнение ПИР, СМР, ПНР, оборудование по титулу: Строительство КТП-160 10/0,4 кВ, КРН-10 кВ (4шт.), КЛ-10 кВ от сооружаемого КРН-10 кВ  ПС Горелово № 226, МО, Пушкинский р-н, Московское у/о лесничество, Красноармейское уч. лесничество, кварталы с  99 по 111, со 114 по 116, кв-л 1, 50:13:0060330:2004 для нужд ВЭС - филиала ПАО «Россети Московский регион»",
+        "publication_datetime": "2025-12-15T11:10:45",
+        "submission_close_datetime": "2025-12-19T11:00:00",
+        "customer": {
+            "full_name": "ПУБЛИЧНОЕ АКЦИОНЕРНОЕ ОБЩЕСТВО \"РОССЕТИ МОСКОВСКИЙ РЕГИОН\"",
+            "inn": "5036065113",
+            "kpp": "772501001",
+            "ogrn": "1057746555811"
+        },
+        "contact": {
+            "last_name": "Огородникова",
+            "first_name": "Е.",
+            "middle_name": "А.",
+            "phone": "+7 (495) 6624070, доб.: 4773",
+            "email": "OgorodnikovaEA@ROSSETIMR.RU"
+        },
+        "apply_request": {
+            "submission_order": "В соответствии с документацией",
+            "submission_place": null,
+            "submission_start_date": "2025-12-15"
+        },
+        "attached_files": [
+            {
+                "file_name": "Красноармейское уч. лесничество.rar",
+                "description": "Красноармейское уч. лесничество.rar",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107476993"
+            }
+        ],
+        "lots": [
+            {
+                "guid": "48916ba0-44ee-475e-8537-cf7109e360fd",
+                "ordinal_number": "1",
+                "subject": "Выполнение ПИР, СМР, ПНР, оборудование по титулу: Строительство КТП-160 10/0,4 кВ, КРН-10 кВ (4шт.), КЛ-10 кВ от сооружаемого КРН-10 кВ ПС Горелово № 226, МО, Пушкинский р-н, Московское у/о лесничество, Красноармейское уч. лесничество, кварталы с 99 по 111, со 114 по 116, кв-л 1, 50:13:0060330:2004",
+                "initial_summ": 26897417.69,
+                "currency": "RUB",
+                "application_supply_summ": null,
+                "application_supply_extra": null,
+                "completing_supply_summ": null,
+                "items": [
+                    {
+                        "guid": "9f866901-e781-4174-882e-01b3af7bc218",
+                        "okpd2_code": "74.90.19.190",
+                        "okpd2_name": "Услуги, предоставляемые прочими научными и техническими консультантами, не включенными в другие группировки",
+                        "qty": "1",
+                        "additional_info": null
+                    }
+                ]
+            }
+        ],
+        "initial_summ": null,
+        "sourceFile": "purchaseNotice_32515530437_1_019B210FDEE67CD3BCE47FA40591D75C.xml"
+    },
+    {
+        "guid": "1e7ba7c0-3317-46fd-ae0c-7ab936b1adb0",
+        "registration_number": "32515467952",
+        "name": "Определение подрядчика на выполнение СМР, ПНР, оборудование по титулу: Реконструкция ПС-35/6 кВ № 185 Воробьево с заменой силовых трансформаторов 2х1 МВА на 2х6,3 МВА, реконструкция ОРУ-35 кВ по схеме «мостик» с элегазовыми выключателями, в т.ч. ПИР, МО, Солнечногорский район д. Литвиново для нужд СЭС- филиала ПАО «Россети Московский регион»",
+        "publication_datetime": "2025-12-15T11:10:56",
+        "submission_close_datetime": "2025-12-24T11:00:00",
+        "customer": {
+            "full_name": "ПУБЛИЧНОЕ АКЦИОНЕРНОЕ ОБЩЕСТВО \"РОССЕТИ МОСКОВСКИЙ РЕГИОН\"",
+            "inn": "5036065113",
+            "kpp": "772501001",
+            "ogrn": "1057746555811"
+        },
+        "contact": {
+            "last_name": "Решетова",
+            "first_name": "Е.",
+            "middle_name": "С.",
+            "phone": "+7 (495) 6624070, доб.: 4764",
+            "email": "ReshetovaES@ROSSETIMR.RU"
+        },
+        "apply_request": {
+            "submission_order": "В соответствии с документацией",
+            "submission_place": null,
+            "submission_start_date": "2025-11-28"
+        },
+        "attached_files": [
+            {
+                "file_name": "081-0024543_СМР,ПНР_Воробьево_ д. Литвиново_К не МСП_АС.part3.rar",
+                "description": "081-0024543_СМР,ПНР_Воробьево_ д. Литвиново_К не МСП_АС.part3.rar",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107477062"
+            },
+            {
+                "file_name": "081-0024543_СМР,ПНР_Воробьево_ д. Литвиново_К не МСП_АС.part2.rar",
+                "description": "081-0024543_СМР,ПНР_Воробьево_ д. Литвиново_К не МСП_АС.part2.rar",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107476982"
+            },
+            {
+                "file_name": "081-0024543_СМР,ПНР_Воробьево_ д. Литвиново_К не МСП_АС.part5.rar",
+                "description": "081-0024543_СМР,ПНР_Воробьево_ д. Литвиново_К не МСП_АС.part5.rar",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107476806"
+            },
+            {
+                "file_name": "081-0024543_СМР,ПНР_Воробьево_ д. Литвиново_К не МСП_АС.part1.rar",
+                "description": "081-0024543_СМР,ПНР_Воробьево_ д. Литвиново_К не МСП_АС.part1.rar",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107476885"
+            },
+            {
+                "file_name": "081-0024543_СМР,ПНР_Воробьево_ д. Литвиново_К не МСП_АС.part4.rar",
+                "description": "081-0024543_СМР,ПНР_Воробьево_ д. Литвиново_К не МСП_АС.part4.rar",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107477107"
+            },
+            {
+                "file_name": "Уведомление о внесении изменений К (№RAD250020871) не МСП.doc",
+                "description": "Уведомление о внесении изменений К (№RAD250020871) не МСП.doc",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107477279"
+            },
+            {
+                "file_name": "081-0024543_СМР,ПНР_Воробьево_ д. Литвиново_К не МСП_АС.part7.rar",
+                "description": "081-0024543_СМР,ПНР_Воробьево_ д. Литвиново_К не МСП_АС.part7.rar",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107477263"
+            },
+            {
+                "file_name": "081-0024543_СМР,ПНР_Воробьево_ д. Литвиново_К не МСП_АС.part6.rar",
+                "description": "081-0024543_СМР,ПНР_Воробьево_ д. Литвиново_К не МСП_АС.part6.rar",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107477182"
+            },
+            {
+                "file_name": "081-0024543_СМР,ПНР_Воробьево_ д. Литвиново_К не МСП_АС.part8.rar",
+                "description": "081-0024543_СМР,ПНР_Воробьево_ д. Литвиново_К не МСП_АС.part8.rar",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107477276"
+            }
+        ],
+        "lots": [
+            {
+                "guid": "d35df603-6ebb-4c6e-ae8b-c9a9a21cc762",
+                "ordinal_number": "1",
+                "subject": "Выполнение СМР, ПНР, оборудование по титулу: Реконструкция ПС-35/6 кВ № 185 Воробьево с заменой силовых трансформаторов 2х1 МВА на 2х6,3 МВА, реконструкция ОРУ-35 кВ по схеме «мостик» с элегазовыми выключателями, в т.ч. ПИР, МО, Солнечногорский район д. Литвиново для нужд СЭС- филиала ПАО «Россети Московский регион»",
+                "initial_summ": 695893324.09,
+                "currency": "RUB",
+                "application_supply_summ": "20876799.72",
+                "application_supply_extra": "В соответствии с документацией о закупке.",
+                "completing_supply_summ": null,
+                "items": [
+                    {
+                        "guid": "4957dfc7-0eb2-4812-9d97-27a334495193",
+                        "okpd2_code": "42.22.22.120",
+                        "okpd2_name": "Работы строительные по строительству трансформаторных станций и подстанций для распределения электричества в пределах какого-либо района",
+                        "qty": "1",
+                        "additional_info": null
+                    }
+                ]
+            }
+        ],
+        "initial_summ": null,
+        "sourceFile": "purchaseNotice_32515467952_3_019B211016DC7141AED60BFF7185ADAD.xml"
+    },
+    {
+        "guid": "f25120b2-aa9f-41b8-96ba-6cb088ff651e",
+        "registration_number": "32515530439",
+        "name": "Определение подрядчика на выполнение ПИР, СМР, ПНР полным иждивением Подрядчика  по титулу: Строительство 2КЛ-0,4кВ от ТП-10/0,4кВ № 30558 до ВРЩ-0,4кВ Заявителя, с монтажом концевой муфты, в т.ч. ПИР: г.Москва, ул.Большая Новодмитровская, д.28 для нужд МКС - филиала ПАО «Россети Московский регион»",
+        "publication_datetime": "2025-12-15T11:10:59",
+        "submission_close_datetime": "2025-12-19T11:00:00",
+        "customer": {
+            "full_name": "ПУБЛИЧНОЕ АКЦИОНЕРНОЕ ОБЩЕСТВО \"РОССЕТИ МОСКОВСКИЙ РЕГИОН\"",
+            "inn": "5036065113",
+            "kpp": "772501001",
+            "ogrn": "1057746555811"
+        },
+        "contact": {
+            "last_name": "Огородникова",
+            "first_name": "Е.",
+            "middle_name": "А.",
+            "phone": "+7 (495) 6624070, доб.: 4773",
+            "email": "OgorodnikovaEA@ROSSETIMR.RU"
+        },
+        "apply_request": {
+            "submission_order": "В соответствии с документацией",
+            "submission_place": null,
+            "submission_start_date": "2025-12-15"
+        },
+        "attached_files": [
+            {
+                "file_name": "ул. Большая Новодмитровская, д.28.rar",
+                "description": "ул. Большая Новодмитровская, д.28.rar",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107477061"
+            }
+        ],
+        "lots": [
+            {
+                "guid": "6fe9b294-ec35-4c17-b84b-8c5efb5391ff",
+                "ordinal_number": "1",
+                "subject": "Выполнение ПИР, СМР, ПНР полным иждивением Подрядчика по титулу: Строительство 2КЛ-0,4кВ от ТП-10/0,4кВ № 30558 до ВРЩ-0,4кВ Заявителя, с монтажом концевой муфты, в т.ч. ПИР: г.Москва, ул.Большая Новодмитровская, д.28",
+                "initial_summ": 11012905.58,
+                "currency": "RUB",
+                "application_supply_summ": null,
+                "application_supply_extra": null,
+                "completing_supply_summ": null,
+                "items": [
+                    {
+                        "guid": "a649597f-736c-4e4b-b539-e010d5ed78e5",
+                        "okpd2_code": "71.12.13.000",
+                        "okpd2_name": "Услуги по инженерно-техническому проектированию систем энергоснабжения",
+                        "qty": "1",
+                        "additional_info": null
+                    }
+                ]
+            }
+        ],
+        "initial_summ": null,
+        "sourceFile": "purchaseNotice_32515530439_1_019B21102121795280943ED78545D5E5.xml"
+    },
+    {
+        "guid": "b267eb3d-fcdc-4127-9513-09781b7e2610",
+        "registration_number": "32515482193",
+        "name": "Определение подрядчика на выполнение СМР, ПНР, оборудование по титулу: Модернизация ПС 110/6 кВ № 387 «Подрезково» с установкой автоматической пожарной сигнализации на ХПУВЭС, МО, г.Химки, мкр. Сходня, ул. Горная, для нужд СЭС – филиала ПАО «Россети Московский регион».",
+        "publication_datetime": "2025-12-15T11:16:34",
+        "submission_close_datetime": "2026-01-13T11:00:00",
+        "customer": {
+            "full_name": "ПУБЛИЧНОЕ АКЦИОНЕРНОЕ ОБЩЕСТВО \"РОССЕТИ МОСКОВСКИЙ РЕГИОН\"",
+            "inn": "5036065113",
+            "kpp": "772501001",
+            "ogrn": "1057746555811"
+        },
+        "contact": {
+            "last_name": "Солоненкова",
+            "first_name": "М.",
+            "middle_name": "В.",
+            "phone": "+7 (495) 6624070, доб.: 4704",
+            "email": "SolonenkovaMV@ROSSETIMR.RU"
+        },
+        "apply_request": {
+            "submission_order": "В соответствии с документацией",
+            "submission_place": null,
+            "submission_start_date": "2025-12-03"
+        },
+        "attached_files": [
+            {
+                "file_name": "Уведомление о внесении изменений от 15.12.2025.doc",
+                "description": "Уведомление о внесении изменений от 15.12.2025.doc",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107477513"
+            },
+            {
+                "file_name": "081-0024661.rar",
+                "description": "081-0024661.rar",
+                "download_link": "https://zakupki.gov.ru/223/purchase/public/download/download.html?id=107477512"
+            }
+        ],
+        "lots": [
+            {
+                "guid": "316bd8f7-a528-4b5b-a940-cfea95b2a81f",
+                "ordinal_number": "1",
+                "subject": "Выполнение СМР, ПНР, оборудование по титулу: Модернизация ПС 110/6 кВ № 387 «Подрезково» с установкой автоматической пожарной сигнализации на ХПУВЭС, МО, г.Химки, мкр. Сходня, ул. Горная, для нужд СЭС – филиала ПАО «Россети Московский регион».",
+                "initial_summ": 785278.25,
+                "currency": "RUB",
+                "application_supply_summ": null,
+                "application_supply_extra": null,
+                "completing_supply_summ": null,
+                "items": [
+                    {
+                        "guid": "4d157250-b679-4b18-b9cd-eafe28434298",
+                        "okpd2_code": "42.22.22.120",
+                        "okpd2_name": "Работы строительные по строительству трансформаторных станций и подстанций для распределения электричества в пределах какого-либо района",
+                        "qty": "1",
+                        "additional_info": null
+                    }
+                ]
+            }
+        ],
+        "initial_summ": null,
+        "sourceFile": "purchaseNotice_32515482193_3_019B2115338B7DAFB10353CDDF04F429.xml"
+    }
+]

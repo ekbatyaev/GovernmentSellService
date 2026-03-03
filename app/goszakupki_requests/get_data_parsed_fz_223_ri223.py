@@ -1,4 +1,6 @@
 import json
+import re
+
 import xmltodict
 from typing import Dict, List, Any
 import os
@@ -7,8 +9,27 @@ import requests
 from pathlib import Path
 
 # Фильтр по заказчику
-FILTERS = ["РОССЕТИ"]
 
+FILTERS_CUSTOMER = ["РОССЕТИ МОСКОВСКИЙ РЕГИОН"]
+
+FILTERS_JOB_NAME = [
+    r'РТП-10/0,4кВ',
+    r'ТП-10/0,4кВ',
+    r'РП 10 кВ',
+    r'строительств[а-я]*\s+РТП',
+    r'реконструкци[а-я]*\s+ТП',
+    r'ПИР',
+    r'СМР',
+    r'ПНР',
+    r'право\s+заключени[а-я]*\s+рамочн[а-я]*\s+соглашени[а-я]*',
+    r'определени[а-я]*\s+поставщик[а-я]*\s+на\s+поставк[а-я]*',
+    r'замен[а-я]*\s+оборудовани[а-я]*',
+    r'проектировани[а-я]*\s+сет[а-я]*',
+    r'для нужд МКС',
+    r'РТП-20/0,4кВ',
+    r'ТП-20/0,4кВ',
+    r'РП 20 кВ'
+]
 
 # ----------------------------
 # Удаление namespace
@@ -283,7 +304,8 @@ def parse_zip_archive(zip_path: str) -> List[Dict[str, Any]]:
                     normalized = normalize_purchase(data)
                     normalized["sourceFile"] = file_name
                     customer_name = normalized.get("customer", {}).get("full_name")
-                    if any(f in str(customer_name) for f in FILTERS):
+                    work_name = normalized.get("name", "")
+                    if any(f in str(customer_name) for f in FILTERS_CUSTOMER) and any(re.search(pattern, work_name, re.IGNORECASE) for pattern in FILTERS_JOB_NAME):
                         all_data.append(normalized)
                         attached_files = normalized.get("attached_files")
                         for doc in attached_files:
@@ -325,7 +347,7 @@ def parse_zip_archive(zip_path: str) -> List[Dict[str, Any]]:
 # MAIN
 # ----------------------------
 if __name__ == "__main__":
-    zip_file_path = "019C9BFF37917BE2BA361C2107B1534B.zip"
+    zip_file_path = "019B240C77FE78FF976E981DAED8E4FE.zip"
 
     results = parse_zip_archive(zip_file_path)
     with open("results.json", 'w', encoding = 'utf-8') as file:

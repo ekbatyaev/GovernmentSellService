@@ -261,7 +261,7 @@ if __name__ == "__main__":
     region_result = get_docs_by_region(
         org_region="77",
         document_type = "purchaseNotice",
-        exact_date=None,
+        exact_date="2025-12-16",
         subsystem_type="RI223",
     )
 
