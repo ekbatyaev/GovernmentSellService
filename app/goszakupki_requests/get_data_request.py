@@ -2,7 +2,7 @@ import os
 import uuid
 from datetime import datetime, timedelta
 from urllib.parse import urlparse, parse_qs
-
+from get_data_parsed_fz_223_ri223 import parse_zip_archive
 import requests
 from dotenv import load_dotenv
 from lxml import etree
@@ -243,7 +243,7 @@ def download_archive_from_result(result: dict, out_file: str | None = None) -> s
 
     with requests.get(url, params=params, headers=headers, timeout=DOWNLOAD_TIMEOUT, stream=True) as r:
         r.raise_for_status()
-        with open(out_file, "wb") as f:
+        with open("tmp" + f"\\{out_file}", "wb") as f:
             for chunk in r.iter_content(chunk_size=1024 * 1024):
                 if chunk:
                     f.write(chunk)
@@ -261,7 +261,7 @@ if __name__ == "__main__":
     region_result = get_docs_by_region(
         org_region="77",
         document_type = "purchaseNotice",
-        exact_date="2025-12-16",
+        exact_date="2025-02-16",
         subsystem_type="RI223",
     )
 

@@ -1,7 +1,10 @@
 from sqlalchemy import (
-    Column, Integer, String,
-    DateTime, CheckConstraint, Float, JSONB
+    Column, String,
+    DateTime, Float
 )
+
+from sqlalchemy.dialects.postgresql import JSONB
+
 from datetime import datetime
 from .connection_to_database import Base
 
@@ -31,7 +34,3 @@ class Purchase(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     source_file = Column(String(255))
-
-    __table_args__ = (
-        CheckConstraint("length(name) > 0", name="purchase_name_not_empty")
-    )

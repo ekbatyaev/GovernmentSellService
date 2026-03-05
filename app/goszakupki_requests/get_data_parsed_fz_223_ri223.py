@@ -308,8 +308,8 @@ def parse_zip_archive(zip_path: str) -> List[Dict[str, Any]]:
                     if any(f in str(customer_name) for f in FILTERS_CUSTOMER) and any(re.search(pattern, work_name, re.IGNORECASE) for pattern in FILTERS_JOB_NAME):
                         all_data.append(normalized)
                         attached_files = normalized.get("attached_files")
-                        for doc in attached_files:
-                            download_and_extract(doc)
+                        # for doc in attached_files:
+                        #     download_and_extract(doc)
                         print("  ✓ Добавлено (соответствует фильтру)")
                     else:
                         print("  ✗ Пропущено (не соответствует фильтру)")
@@ -347,7 +347,7 @@ def parse_zip_archive(zip_path: str) -> List[Dict[str, Any]]:
 # MAIN
 # ----------------------------
 if __name__ == "__main__":
-    zip_file_path = "019B240C77FE78FF976E981DAED8E4FE.zip"
+    zip_file_path = "tmp\\019B240C77FE78FF976E981DAED8E4FE.zip"
 
     results = parse_zip_archive(zip_file_path)
     with open("results.json", 'w', encoding = 'utf-8') as file:
