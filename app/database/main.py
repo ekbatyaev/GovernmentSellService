@@ -8,8 +8,10 @@ from sqlalchemy import select, func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from .table_models import Purchase
+from fastapi.responses import FileResponse
 from .connection_to_database import init_db, get_db
 import os
+from fastapi.staticfiles import StaticFiles
 
 # Инициализация переменных окружения
 load_dotenv()
@@ -21,6 +23,9 @@ app = FastAPI(
     description="API для управления госзакупками",
     version="1.0.0"
 )
+
+# Монтируем index.html
+app.mount("/static", StaticFiles(directory="static", html=True), name="static")
 
 # Настройка CORS
 app.add_middleware(
@@ -138,6 +143,9 @@ def startup_event():
     init_db()
     print("Database initialized")
 
+@app.get("/")
+async def root():
+    return FileResponse("static/index.html")
 
 # Ручки для пользователей
 @app.post("/put_purchase",
@@ -423,6 +431,11 @@ def get_all_purchases(
         data=purchases_list
     )
 
+@app.get("/dfwerjewbfd")
+async def get_config():
+    return {
+        "system_token": SYSTEM_TOKEN
+    }
 
 @app.get("/stats",
          response_model=SuccessResponseModel,

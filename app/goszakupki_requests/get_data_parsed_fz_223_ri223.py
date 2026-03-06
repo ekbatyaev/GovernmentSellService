@@ -210,9 +210,6 @@ def normalize_purchase(data: dict) -> dict:
         "submission_start_date": notice.get("applSubmisionStartDate"),
     }
 
-    # -- Закрепленные к заявке документы --
-    #
-
 
     attached_files = notice.get("attachments", {})
     document = attached_files.get("document")
