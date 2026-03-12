@@ -4,7 +4,7 @@ let SYSTEM_TOKEN = null;
 
 async function fetchToken() {
     try {
-        const res = await fetch("/dfwerjewbfd");
+        const res = await fetch("/config");
         const data = await res.json();
         SYSTEM_TOKEN = data.system_token;
 
@@ -69,8 +69,8 @@ function render() {
     document.getElementById("count").innerText = `${purchases.length} закупок`;
 
     purchases.forEach(p => {
-        const customer = p.customer_json || {};
-        const contact = p.contact_json || {};
+        const customer = p.customer || {};
+        const contact = p.contact || {};
 
         const card = document.createElement("div");
         card.className = "card";

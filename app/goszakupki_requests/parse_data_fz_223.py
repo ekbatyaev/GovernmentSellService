@@ -231,7 +231,7 @@ def normalize_purchase(data: dict) -> dict:
                 "description": doc.get("description"),
                 "download_link": doc.get("url")
             })
-    result["attached_files"] = doc_info
+    # result["attached_files"] = doc_info
 
     # --- Лоты ---
     result["lots"] = []
@@ -245,7 +245,7 @@ def normalize_purchase(data: dict) -> dict:
             "guid": lot.get("guid"),
             "ordinal_number": lot.get("ordinalNumber"),
             "subject": lot_data.get("subject"),
-            "initial_summ": float(lot_data.get("initialSum", 0) or 0),
+            "initial_sum": float(lot_data.get("initialSum", 0) or 0),
             "currency": lot_data.get("currency", {}).get("code"),
             "application_supply_summ": lot_data.get("applicationSupplySumm"),
             "application_supply_extra": lot_data.get("applicationSupplyExtra"),
@@ -267,14 +267,20 @@ def normalize_purchase(data: dict) -> dict:
             })
 
         result["lots"].append(lot_result)
-    result["initial_summ"] = result.get("lots")[0].get("initialSum")
+    result["initial_sum"] = sum(
+        float(lot.get("initial_sum") or 0) for lot in result.get("lots", []))
     return result
 
 
 # ----------------------------
 # Парсинг ZIP архива
 # ----------------------------
-def parse_zip_archive(zip_path: str) -> List[Dict[str, Any]]:
+def parse_zip_archive(out_file_path: str) -> List[Dict[str, Any]]:
+
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+    zip_path = os.path.join(BASE_DIR, out_file_path)
+
     all_data = []
 
     print(f"Открываем архив: {zip_path}")
@@ -299,12 +305,12 @@ def parse_zip_archive(zip_path: str) -> List[Dict[str, Any]]:
 
                     # Нормализация
                     normalized = normalize_purchase(data)
-                    normalized["sourceFile"] = file_name
+                    normalized["source_file"] = file_name
                     customer_name = normalized.get("customer", {}).get("full_name")
                     work_name = normalized.get("name", "")
                     if any(f in str(customer_name) for f in FILTERS_CUSTOMER) and any(re.search(pattern, work_name, re.IGNORECASE) for pattern in FILTERS_JOB_NAME):
                         all_data.append(normalized)
-                        attached_files = normalized.get("attached_files")
+                        # attached_files = normalized.get("attached_files")
                         # for doc in attached_files:
                         #     download_and_extract(doc)
                         print("  ✓ Добавлено (соответствует фильтру)")
@@ -344,9 +350,12 @@ def parse_zip_archive(zip_path: str) -> List[Dict[str, Any]]:
 # MAIN
 # ----------------------------
 if __name__ == "__main__":
-    zip_file_path = "tmp\\019B240C77FE78FF976E981DAED8E4FE.zip"
+
+
+    zip_file_path = "tmp/019C6DA34097784B831FDE378E908FF2.zip"
 
     results = parse_zip_archive(zip_file_path)
+
     with open("results.json", 'w', encoding = 'utf-8') as file:
         json.dump(results, file, ensure_ascii = False, indent = 4)
 

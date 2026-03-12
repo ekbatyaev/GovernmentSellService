@@ -3,7 +3,7 @@ from sqlalchemy import (
     DateTime, Float
 )
 
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB, ARRAY
 
 from datetime import datetime
 from .connection_to_database import Base
@@ -20,16 +20,16 @@ class Purchase(Base):
     submission_close_datetime = Column(DateTime)
 
     # --- Заказчик ---
-    customer_json = Column(JSONB, nullable=False)
+    customer = Column(JSONB, nullable=False)
 
     # --- Контакт ---
-    contact_json = Column(JSONB, nullable=False)
+    contact = Column(JSONB, nullable=False)
 
     # --- Заявка ---
-    apply_request_json = Column(JSONB, nullable=False)
+    apply_request = Column(JSONB, nullable=False)
 
-    # --- Лот (он один) ---
-    lot = Column(JSONB, nullable=False)
+    # --- Лот ---
+    lots = Column(ARRAY(JSONB), nullable=False, default=list)
 
     created_at = Column(DateTime, default=datetime.utcnow)
 

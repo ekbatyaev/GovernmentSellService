@@ -45,13 +45,12 @@ class PutPurchaseModel(BaseModel):
     name: str
     source_file: str
     initial_sum: float
-    created_at: datetime
     publication_datetime: datetime
     submission_close_datetime: datetime
-    customer_json: Any
-    contact_json: Any
-    apply_request_json: Any
-    lot: Any
+    customer: Any
+    contact: Any
+    apply_request: Any
+    lots: List[Any]
 
 
 class DeletePurchaseModel(BaseModel):
@@ -83,13 +82,12 @@ class UpdatePurchaseModel(BaseModel):
     name: Optional[str] = None
     source_file: Optional[str] = None
     initial_sum: Optional[float] = None
-    created_at: Optional[datetime] = None
     publication_datetime: Optional[datetime] = None
     submission_close_datetime: Optional[datetime] = None
-    customer_json: Optional[Any] = None
-    contact_json: Optional[Any] = None
-    apply_request_json: Optional[Any] = None
-    lot: Optional[Any] = None
+    customer: Optional[Any] = None
+    contact: Optional[Any] = None
+    apply_request: Optional[Any] = None
+    lots: Optional[Any] = None
 
 
 # Pydantic модели для ответов
@@ -99,13 +97,12 @@ class PurchaseResponseModel(BaseModel):
     name: str
     source_file: str
     initial_sum: float
-    created_at: datetime
     publication_datetime: datetime
     submission_close_datetime: datetime
-    customer_json: Any
-    contact_json: Any
-    apply_request_json: Any
-    lot: Any
+    customer: Any
+    contact: Any
+    apply_request: Any
+    lots: List[Any]
 
     class Config:
         from_attributes = True
@@ -172,11 +169,10 @@ def put_purchase(
         initial_sum=purchase_data.initial_sum,
         publication_datetime=purchase_data.publication_datetime,
         submission_close_datetime=purchase_data.submission_close_datetime,
-        customer_json=purchase_data.customer_json,
-        contact_json=purchase_data.contact_json,
-        apply_request_json=purchase_data.apply_request_json,
-        lot=purchase_data.lot,
-        created_at=purchase_data.created_at,
+        customer=purchase_data.customer,
+        contact=purchase_data.contact,
+        apply_request=purchase_data.apply_request,
+        lots=purchase_data.lots,
         source_file=purchase_data.source_file
     )
 
@@ -418,7 +414,7 @@ def get_all_purchases(
         )
 
     # Сортировка
-    query = query.order_by(Purchase.created_at.desc())
+    query = query.order_by(Purchase.publication_datetime.desc())
 
     purchases = db.scalars(query).all()
 
@@ -431,7 +427,7 @@ def get_all_purchases(
         data=purchases_list
     )
 
-@app.get("/dfwerjewbfd")
+@app.get("/config")
 async def get_config():
     return {
         "system_token": SYSTEM_TOKEN
