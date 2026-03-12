@@ -1,116 +1,579 @@
-let purchases = [];
 let SYSTEM_TOKEN = null;
 
+let rawPurchases = [];
+let filteredPurchases = [];
+let viewMode = "table";
+let page = 1;
 
-async function fetchToken() {
-    try {
-        const res = await fetch("/config");
-        const data = await res.json();
-        SYSTEM_TOKEN = data.system_token;
+const SOON_HOURS = 48;
 
-        await search();
-    } catch (e) {
-        console.error("Не удалось получить token:", e);
-    }
+function $(id){ return document.getElementById(id); }
+
+function setStatus(text, type="info"){
+  const el = $("statusBox");
+  if (!el) return;
+  el.textContent = text;
+  el.style.color = (type === "error") ? "var(--danger)" : (type === "ok" ? "var(--ok)" : "var(--muted)");
 }
 
-// Вызываем при загрузке страницы
-fetchToken();
-
-async function search() {
-    if (!SYSTEM_TOKEN) {
-        alert("Системный токен не получен");
-        return;
-    }
-
-    const body = {
-        token: SYSTEM_TOKEN,
-        name: val("name"),
-        initial_sum_from: num("initial_sum_from"),
-        initial_sum_to: num("initial_sum_to"),
-        publication_datetime_from: dateVal("publication_datetime_from"),
-        publication_datetime_to: dateVal("publication_datetime_to"),
-        submission_close_datetime_from: dateVal("submission_close_datetime_from"),
-        submission_close_datetime_to: dateVal("submission_close_datetime_to"),
-        source_file: val("source_file")
-    };
-
-    try {
-        const res = await fetch("/get_all_purchases", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body)
-        });
-
-        const data = await res.json();
-        purchases = data.data || [];
-        applySort();
-    } catch (e) {
-        console.error("Ошибка запроса:", e);
-    }
+function lockBodyScroll(){
+  document.body.style.overflow = "hidden";
+  document.body.style.touchAction = "none";
 }
 
-function applySort() {
-    const type = document.getElementById("sort")?.value;
-
-    if (type === "sum_desc")
-        purchases.sort((a, b) => b.initial_sum - a.initial_sum);
-
-    if (type === "sum_asc")
-        purchases.sort((a, b) => a.initial_sum - b.initial_sum);
-
-    render();
+function unlockBodyScroll(){
+  document.body.style.overflow = "";
+  document.body.style.touchAction = "";
 }
 
-function render() {
-    const container = document.getElementById("cards");
-    container.innerHTML = "";
+function fmtMoney(v){
+  const n = Number(v);
+  if (!Number.isFinite(n)) return "—";
+  return n.toLocaleString("ru-RU") + " ₽";
+}
 
-    document.getElementById("count").innerText = `${purchases.length} закупок`;
+function fmtDateOnly(iso){
+  if (!iso) return "—";
+  try{
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return String(iso).slice(0,10);
+    return d.toLocaleDateString("ru-RU");
+  }catch{
+    return String(iso).slice(0,10);
+  }
+}
 
-    purchases.forEach(p => {
-        const customer = p.customer || {};
-        const contact = p.contact || {};
+function val(id){
+  const v = $(id)?.value;
+  return v && String(v).trim().length ? String(v).trim() : null;
+}
 
-        const card = document.createElement("div");
-        card.className = "card";
-        card.onclick = () => card.classList.toggle("open");
+function num(id){
+  const v = $(id)?.value;
+  if (v === "" || v === null || v === undefined) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
 
-        card.innerHTML = `
-            <div class="title">${p.name}</div>
-            <div class="number">${p.registration_number}</div>
-            <div class="sum">${Number(p.initial_sum).toLocaleString()} ₽</div>
-            <div class="meta">📅 Публикация: ${p.publication_datetime?.slice(0,10) || "-"}</div>
-            <div class="meta">⏳ Подача: ${p.submission_close_datetime?.slice(0,10) || "-"}</div>
-            <div class="details">
-                <div><b>Заказчик:</b> ${customer.full_name || "-"}</div>
-                <div><b>ИНН:</b> ${customer.inn || "-"}</div>
-                <br>
-                <div><b>Контакт:</b></div>
-                <div>${contact.last_name || ""} ${contact.first_name || ""}</div>
-                <div>${contact.phone || "-"}</div>
-                <div>${contact.email || "-"}</div>
-                <br>
-                <div><b>Источник:</b> ${p.source_file || "-"}</div>
-            </div>
-        `;
+// input[type=date] -> ISO start/end
+function dateToIsoRangeStart(id){
+  const v = $(id)?.value; // YYYY-MM-DD
+  if (!v) return null;
+  return new Date(v + "T00:00:00").toISOString();
+}
+function dateToIsoRangeEnd(id){
+  const v = $(id)?.value; // YYYY-MM-DD
+  if (!v) return null;
+  return new Date(v + "T23:59:59.999").toISOString();
+}
 
-        container.appendChild(card);
+function getDeadlineStatus(p){
+  const dl = p.submission_close_datetime;
+  if (!dl) return {key:"active", label:"Без дедлайна", cls:"badge--ok"};
+
+  const d = new Date(dl);
+  if (Number.isNaN(d.getTime())) return {key:"active", label:"Дедлайн", cls:"badge--ok"};
+
+  const now = new Date();
+  const diffMs = d - now;
+  if (diffMs < 0) return {key:"expired", label:"Просрочена", cls:"badge--danger"};
+
+  const diffHours = diffMs / 1000 / 60 / 60;
+  if (diffHours <= SOON_HOURS) return {key:"soon", label:`Скоро (${Math.ceil(diffHours)}ч)`, cls:"badge--warn"};
+  return {key:"active", label:"Активна", cls:"badge--ok"};
+}
+
+function normalizeText(s){
+  return (s ?? "").toString().toLowerCase();
+}
+
+function purchaseSearchBlob(p){
+  const c = p.customer || {};
+  return [
+    p.name,
+    p.registration_number,
+    p.guid,
+    c.full_name,
+    c.inn,
+  ].map(normalizeText).join(" | ");
+}
+
+function applyClientFilters(){
+  const q = normalizeText(val("q"));
+  const statusFilter = val("statusFilter") || "all";
+
+  filteredPurchases = rawPurchases.filter(p => {
+    const st = getDeadlineStatus(p).key;
+    if (statusFilter !== "all" && st !== statusFilter) return false;
+
+    if (q){
+      const blob = purchaseSearchBlob(p);
+      if (!blob.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function applySort(){
+  const sortType = val("sort") || "pub_desc";
+  const safeDate = (x) => {
+    const d = new Date(x || 0);
+    return Number.isNaN(d.getTime()) ? 0 : d.getTime();
+  };
+
+  filteredPurchases.sort((a,b) => {
+    if (sortType === "sum_desc") return (Number(b.initial_sum)||0) - (Number(a.initial_sum)||0);
+    if (sortType === "sum_asc") return (Number(a.initial_sum)||0) - (Number(b.initial_sum)||0);
+    if (sortType === "name_asc") return String(a.name||"").localeCompare(String(b.name||""), "ru");
+    if (sortType === "deadline_asc") return safeDate(a.submission_close_datetime) - safeDate(b.submission_close_datetime);
+    if (sortType === "pub_asc") return safeDate(a.publication_datetime) - safeDate(b.publication_datetime);
+    return safeDate(b.publication_datetime) - safeDate(a.publication_datetime);
+  });
+}
+
+function paginate(list){
+  const size = Number(val("pageSize")) || 20;
+  const total = list.length;
+  const pages = Math.max(1, Math.ceil(total / size));
+  page = Math.min(Math.max(1, page), pages);
+
+  const start = (page - 1) * size;
+  const end = start + size;
+  return {items: list.slice(start, end), total, pages, size};
+}
+
+function renderPagination(pages){
+  const wrap = $("pagination");
+  if (!wrap) return;
+  wrap.innerHTML = "";
+
+  const makeBtn = (label, p, active=false) => {
+    const b = document.createElement("button");
+    b.className = "pageBtn" + (active ? " pageBtn--active" : "");
+    b.textContent = label;
+    b.onclick = () => { page = p; render(); };
+    return b;
+  };
+
+  if (pages <= 1) return;
+
+  wrap.appendChild(makeBtn("←", Math.max(1, page-1)));
+
+  const windowSize = 5;
+  const start = Math.max(1, page - Math.floor(windowSize/2));
+  const end = Math.min(pages, start + windowSize - 1);
+
+  for (let i=start; i<=end; i++){
+    wrap.appendChild(makeBtn(String(i), i, i === page));
+  }
+
+  wrap.appendChild(makeBtn("→", Math.min(pages, page+1)));
+}
+
+function updateKPIs(shownItems){
+  $("kpiFound").textContent = String(rawPurchases.length);
+  $("kpiShown").textContent = String(shownItems.length);
+
+  const sum = shownItems.reduce((acc, p) => acc + (Number(p.initial_sum) || 0), 0);
+  $("kpiSum").textContent = fmtMoney(sum).replace(" ₽", "");
+}
+
+function openModal(p){
+  $("modalTitle").textContent = p.name || "Детали";
+  const c = p.customer || {};
+  const contact = p.contact || {};
+  const st = getDeadlineStatus(p);
+
+  $("modalContent").innerHTML = `
+    <div class="kv"><div class="kv__k">Статус</div><div class="kv__v">${st.label}</div></div>
+    <div class="kv"><div class="kv__k">GUID</div><div class="kv__v"><span class="cellMono">${p.guid || "—"}</span></div></div>
+    <div class="kv"><div class="kv__k">Рег. номер</div><div class="kv__v"><span class="cellMono">${p.registration_number || "—"}</span></div></div>
+    <div class="kv"><div class="kv__k">Сумма</div><div class="kv__v">${fmtMoney(p.initial_sum)}</div></div>
+    <div class="kv"><div class="kv__k">Публикация</div><div class="kv__v">${fmtDateOnly(p.publication_datetime)}</div></div>
+    <div class="kv"><div class="kv__k">Дедлайн</div><div class="kv__v">${fmtDateOnly(p.submission_close_datetime)}</div></div>
+
+    <div class="kv"><div class="kv__k">Заказчик</div><div class="kv__v">${c.full_name || "—"}</div></div>
+    <div class="kv"><div class="kv__k">ИНН / КПП</div><div class="kv__v">${c.inn || "—"} / ${c.kpp || "—"}</div></div>
+
+    <div class="kv"><div class="kv__k">Контакт</div><div class="kv__v">${[contact.last_name, contact.first_name, contact.middle_name].filter(Boolean).join(" ") || "—"}</div></div>
+    <div class="kv"><div class="kv__k">Телефон</div><div class="kv__v">${contact.phone || "—"}</div></div>
+    <div class="kv"><div class="kv__k">Email</div><div class="kv__v">${contact.email || "—"}</div></div>
+
+    <div class="kv"><div class="kv__k">Лоты</div><div class="kv__v">${Array.isArray(p.lots) ? p.lots.length : "—"}</div></div>
+  `;
+
+  $("btnCopyGuid").onclick = async () => {
+    await navigator.clipboard.writeText(p.guid || "");
+    setStatus("GUID скопирован", "ok");
+  };
+  $("btnCopyReg").onclick = async () => {
+    await navigator.clipboard.writeText(p.registration_number || "");
+    setStatus("Рег. номер скопирован", "ok");
+  };
+
+  $("modal").classList.remove("hidden");
+  lockBodyScroll();
+}
+
+function closeModal(){
+  $("modal").classList.add("hidden");
+  unlockBodyScroll();
+}
+
+function renderTable(items){
+  const body = $("tableBody");
+  body.innerHTML = "";
+
+  items.forEach(p => {
+    const c = p.customer || {};
+    const st = getDeadlineStatus(p);
+
+    const row = document.createElement("div");
+    row.className = "rowItem";
+    row.onclick = () => openModal(p);
+
+    row.innerHTML = `
+      <div>
+        <span class="badge ${st.cls}">
+          <span class="badge__dot"></span>
+          ${st.label}
+        </span>
+      </div>
+
+      <div>
+        <div class="cellTitle">${fmtMoney(p.initial_sum)}</div>
+        <div class="cellSmall">GUID: <span class="cellMono">${(p.guid || "—").slice(0,8)}…</span></div>
+      </div>
+
+      <div>
+        <div class="cellTitle">${fmtDateOnly(p.submission_close_datetime)}</div>
+        <div class="cellSmall">до даты</div>
+      </div>
+
+      <div>
+        <div class="cellTitle">${fmtDateOnly(p.publication_datetime)}</div>
+        <div class="cellSmall">дата</div>
+      </div>
+
+      <div>
+        <div class="cellTitle cellMono">${p.registration_number || "—"}</div>
+      </div>
+
+      <div>
+        <div class="cellTitle">${p.name || "—"}</div>
+      </div>
+
+      <div>
+        <div class="cellTitle">${c.full_name || "—"}</div>
+        <div class="cellSmall">ИНН: <span class="cellMono">${c.inn || "—"}</span></div>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;align-items:center">
+        <button class="pageBtn" onclick="event.stopPropagation(); openModal(window.__pmap['${p.guid}'])">Открыть</button>
+      </div>
+    `;
+
+    body.appendChild(row);
+  });
+}
+
+function renderCards(items){
+  const wrap = $("cards");
+  wrap.innerHTML = "";
+
+  items.forEach(p => {
+    const c = p.customer || {};
+    const st = getDeadlineStatus(p);
+
+    const card = document.createElement("div");
+    card.className = "card";
+    card.onclick = () => openModal(p);
+
+    card.innerHTML = `
+      <div class="row" style="justify-content:space-between">
+        <div class="card__title">${p.name || "—"}</div>
+        <span class="badge ${st.cls}">
+          <span class="badge__dot"></span>
+          ${st.label}
+        </span>
+      </div>
+
+      <div class="card__sum">${fmtMoney(p.initial_sum)}</div>
+
+      <div class="card__grid">
+        <div class="card__meta"><b>Рег.№:</b> <span class="cellMono">${p.registration_number || "—"}</span></div>
+        <div class="card__meta"><b>Публикация:</b> ${fmtDateOnly(p.publication_datetime)}</div>
+        <div class="card__meta"><b>Дедлайн:</b> ${fmtDateOnly(p.submission_close_datetime)}</div>
+        <div class="card__meta" style="grid-column:1 / -1"><b>Заказчик:</b> ${c.full_name || "—"}</div>
+      </div>
+    `;
+
+    wrap.appendChild(card);
+  });
+}
+
+function render(){
+  applyClientFilters();
+  applySort();
+
+  window.__pmap = Object.fromEntries(filteredPurchases.filter(p=>p.guid).map(p=>[p.guid,p]));
+
+  const {items, total, pages, size} = paginate(filteredPurchases);
+
+  $("resultInfo").textContent = `Показано ${items.length} из ${total} • Страница ${page}/${pages} • Размер ${size}`;
+  renderPagination(pages);
+  updateKPIs(items);
+
+  if (viewMode === "table"){
+    $("tableWrap").classList.remove("hidden");
+    $("cardsWrap").classList.add("hidden");
+    renderTable(items);
+  }else{
+    $("cardsWrap").classList.remove("hidden");
+    $("tableWrap").classList.add("hidden");
+    renderCards(items);
+  }
+}
+
+function saveStateToUrl(){
+  const params = new URLSearchParams();
+
+  ["name","initial_sum_from","initial_sum_to",
+   "publication_datetime_from","publication_datetime_to",
+   "submission_close_datetime_from","submission_close_datetime_to"
+  ].forEach(id => {
+    const el = $(id);
+    if (!el) return;
+    if (el.value) params.set(id, el.value);
+  });
+
+  if (val("q")) params.set("q", val("q"));
+  params.set("sort", val("sort") || "pub_desc");
+  params.set("pageSize", val("pageSize") || "20");
+  params.set("statusFilter", val("statusFilter") || "all");
+  params.set("view", viewMode);
+
+  history.replaceState(null, "", "?" + params.toString());
+}
+
+function loadStateFromUrl(){
+  const params = new URLSearchParams(location.search);
+
+  const setIf = (id) => {
+    const v = params.get(id);
+    if (v !== null && $(id)) $(id).value = v;
+  };
+
+  ["name","initial_sum_from","initial_sum_to",
+   "publication_datetime_from","publication_datetime_to",
+   "submission_close_datetime_from","submission_close_datetime_to",
+   "q","sort","pageSize","statusFilter"
+  ].forEach(setIf);
+
+  const v = params.get("view");
+  if (v === "cards") setView("cards");
+  else setView("table");
+}
+
+function setView(mode){
+  viewMode = mode;
+  const t = $("viewTable");
+  const c = $("viewCards");
+
+  if (mode === "cards"){
+    c.classList.add("segmented__btn--active");
+    t.classList.remove("segmented__btn--active");
+  }else{
+    t.classList.add("segmented__btn--active");
+    c.classList.remove("segmented__btn--active");
+  }
+  render();
+  saveStateToUrl();
+}
+
+async function fetchToken(){
+  try{
+    setStatus("Получаю токен…");
+    const res = await fetch("/config");
+    const data = await res.json();
+    SYSTEM_TOKEN = data.system_token;
+    setStatus("Токен получен", "ok");
+  }catch(e){
+    console.error(e);
+    setStatus("Не удалось получить токен (/config)", "error");
+  }
+}
+
+async function apiSearch(){
+  if (!SYSTEM_TOKEN){
+    setStatus("Нет SYSTEM_TOKEN", "error");
+    return;
+  }
+
+  const body = {
+    token: SYSTEM_TOKEN,
+    name: val("name"),
+    initial_sum_from: num("initial_sum_from"),
+    initial_sum_to: num("initial_sum_to"),
+
+    publication_datetime_from: dateToIsoRangeStart("publication_datetime_from"),
+    publication_datetime_to: dateToIsoRangeEnd("publication_datetime_to"),
+
+    submission_close_datetime_from: dateToIsoRangeStart("submission_close_datetime_from"),
+    submission_close_datetime_to: dateToIsoRangeEnd("submission_close_datetime_to"),
+  };
+
+  try{
+    setStatus("Загружаю данные…");
+    const res = await fetch("/get_all_purchases", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify(body)
     });
+    const json = await res.json();
+    rawPurchases = json.data || [];
+    page = 1;
+    setStatus(`Готово: получено ${rawPurchases.length}`, "ok");
+    render();
+    saveStateToUrl();
+  }catch(e){
+    console.error(e);
+    setStatus("Ошибка запроса /get_all_purchases", "error");
+  }
 }
 
-// Вспомогательные функции
-function val(id) {
-    const v = document.getElementById(id)?.value;
-    return v ? v : null;
+async function adminPost(url, payload = null){
+  if (!SYSTEM_TOKEN){
+    setStatus("Нет SYSTEM_TOKEN", "error");
+    return;
+  }
+  try{
+    setStatus(`Выполняю ${url}…`);
+    const res = await fetch(url, {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify(payload || {token: SYSTEM_TOKEN})
+    });
+    if (!res.ok){
+      const t = await res.text();
+      throw new Error(`HTTP ${res.status}: ${t}`);
+    }
+    const json = await res.json();
+    const info = json.data ? JSON.stringify(json.data) : (json.message || "Готово");
+    setStatus(`${json.message || "OK"} | ${info}`.slice(0, 180), "ok");
+    await apiSearch();
+  }catch(e){
+    console.error(e);
+    setStatus(`Ошибка ${url}: ${e.message}`, "error");
+  }
 }
 
-function num(id) {
-    const v = document.getElementById(id)?.value;
-    return v ? Number(v) : null;
+function exportJson(){
+  const blob = new Blob([JSON.stringify(filteredPurchases, null, 2)], {type:"application/json;charset=utf-8"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "purchases.json";
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
-function dateVal(id) {
-    const v = document.getElementById(id)?.value;
-    return v ? new Date(v).toISOString() : null;
+function exportCsv(){
+  const cols = [
+    "guid","registration_number","name","initial_sum",
+    "publication_datetime","submission_close_datetime",
+    "customer.full_name","customer.inn"
+  ];
+
+  const get = (obj, path) => {
+    const parts = path.split(".");
+    let cur = obj;
+    for (const p of parts){
+      cur = (cur && typeof cur === "object") ? cur[p] : null;
+    }
+    return cur ?? "";
+  };
+
+  const escape = (v) => `"${String(v).replaceAll('"','""')}"`;
+
+  const lines = [];
+  lines.push(cols.map(escape).join(","));
+  for (const p of filteredPurchases){
+    lines.push(cols.map(c => escape(get(p,c))).join(","));
+  }
+
+  const blob = new Blob([lines.join("\n")], {type:"text/csv;charset=utf-8"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "purchases.csv";
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
+
+function resetFilters(){
+  ["name","q",
+   "initial_sum_from","initial_sum_to",
+   "publication_datetime_from","publication_datetime_to",
+   "submission_close_datetime_from","submission_close_datetime_to"
+  ].forEach(id => { if ($(id)) $(id).value = ""; });
+
+  $("sort").value = "pub_desc";
+  $("pageSize").value = "20";
+  $("statusFilter").value = "all";
+  page = 1;
+
+  saveStateToUrl();
+  render();
+}
+
+function loadTheme(){
+  const t = localStorage.getItem("theme") || "dark";
+  document.documentElement.setAttribute("data-theme", t);
+}
+
+function toggleTheme(){
+  const cur = document.documentElement.getAttribute("data-theme") || "dark";
+  const next = (cur === "light") ? "dark" : "light";
+  document.documentElement.setAttribute("data-theme", next);
+  localStorage.setItem("theme", next);
+}
+
+function bindEvents(){
+  $("btnTheme").onclick = toggleTheme;
+  $("btnRefresh").onclick = apiSearch;
+  $("btnSearch").onclick = apiSearch;
+  $("btnReset").onclick = () => { resetFilters(); apiSearch(); };
+
+  $("sort").onchange = () => { page = 1; render(); saveStateToUrl(); };
+  $("pageSize").onchange = () => { page = 1; render(); saveStateToUrl(); };
+  $("statusFilter").onchange = () => { page = 1; render(); saveStateToUrl(); };
+
+  $("q").addEventListener("input", () => { page = 1; render(); saveStateToUrl(); });
+
+  $("viewTable").onclick = () => setView("table");
+  $("viewCards").onclick = () => setView("cards");
+
+  $("btnExportJson").onclick = exportJson;
+  $("btnExportCsv").onclick = exportCsv;
+
+  $("btnDeleteExpired").onclick = () => adminPost("/admin/delete_expired");
+  $("btnRunDaily").onclick = () => adminPost("/admin/run_daily");
+  $("btnRunBackfill").onclick = () => adminPost("/admin/run_backfill", {token: SYSTEM_TOKEN, days: 10});
+
+  $("modalBackdrop").onclick = closeModal;
+  $("modalClose").onclick = closeModal;
+  $("btnModalOk").onclick = closeModal;
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeModal();
+  });
+}
+
+async function init(){
+  loadTheme();
+  bindEvents();
+  loadStateFromUrl();
+  await fetchToken();
+  await apiSearch();
+}
+
+init();

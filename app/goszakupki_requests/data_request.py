@@ -8,7 +8,6 @@ import requests
 from dotenv import load_dotenv
 from lxml import etree
 
-
 load_dotenv()
 
 BASE_URL = os.getenv("BASE_URL")
@@ -18,31 +17,21 @@ DOWNLOAD_URL = os.getenv("DOWNLOAD_URL")
 SOAP_TIMEOUT = int(os.getenv("SOAP_TIMEOUT", "30"))
 DOWNLOAD_TIMEOUT = int(os.getenv("DOWNLOAD_TIMEOUT", "60"))
 
-TMP_DIR = "tmp"
-
+TMP_DIR = os.getenv("TMP_DIR", "tmp")
 os.makedirs(TMP_DIR, exist_ok=True)
 
-# ------------------------------------------------
-# Logging
-# ------------------------------------------------
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(message)s"
-)
-
+logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
 logger = logging.getLogger(__name__)
-
-# ------------------------------------------------
-# HTTP session (reuse connection)
-# ------------------------------------------------
 
 session = requests.Session()
 
 
-# ============================================================
-# Utils
-# ============================================================
+def _require_env(name: str) -> str:
+    value = os.getenv(name)
+    if not value:
+        raise RuntimeError(f"Environment variable {name} is required")
+    return value
+
 
 def generate_uid() -> str:
     return str(uuid.uuid4())
@@ -56,21 +45,14 @@ def iso_date_today_minus(days: int = 1) -> str:
     return (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
 
 
-# ============================================================
-# SOAP Response parsing
-# ============================================================
-
 def parse_soap_response(xml_text: str) -> dict:
-
-    root = etree.fromstring(xml_text.encode())
+    root = etree.fromstring(xml_text.encode("utf-8"))
 
     namespaces = {"soap": "http://schemas.xmlsoap.org/soap/envelope/"}
-
     fault = root.xpath("//soap:Fault", namespaces=namespaces)
-
     if fault:
         fault_string = fault[0].xpath("faultstring/text()")
-        raise Exception(f"SOAP Fault: {fault_string[0] if fault_string else 'Unknown'}")
+        raise RuntimeError(f"SOAP Fault: {fault_string[0] if fault_string else 'Unknown'}")
 
     doc_uid = root.xpath("//*[local-name()='docRequestUid']/text()")
     compound_uid = root.xpath("//*[local-name()='compoundUid']/text()")
@@ -82,58 +64,32 @@ def parse_soap_response(xml_text: str) -> dict:
     compound_uid = compound_uid[0] if compound_uid else None
 
     if archive_url and (not doc_request_uid or not compound_uid):
-
         qs = parse_qs(urlparse(archive_url).query)
-
         doc_request_uid = doc_request_uid or (qs.get("docRequestUid") or [None])[0]
         compound_uid = compound_uid or (qs.get("compoundUid") or [None])[0]
 
-    return {
-        "archiveUrl": archive_url,
-        "docRequestUid": doc_request_uid,
-        "compoundUid": compound_uid
-    }
+    return {"archiveUrl": archive_url, "docRequestUid": doc_request_uid, "compoundUid": compound_uid}
 
-
-# ============================================================
-# SOAP request
-# ============================================================
 
 def soap_post(envelope_xml: str) -> dict:
+    _require_env("BASE_URL")
+    _require_env("TOKEN")
 
-    headers = {
-        "Content-Type": "text/xml; charset=utf-8",
-        "individualPerson_token": TOKEN
-    }
+    headers = {"Content-Type": "text/xml; charset=utf-8", "individualPerson_token": TOKEN}
 
-    response = session.post(
-        BASE_URL,
-        data=envelope_xml,
-        headers=headers,
-        timeout=SOAP_TIMEOUT
-    )
-
+    response = session.post(BASE_URL, data=envelope_xml, headers=headers, timeout=SOAP_TIMEOUT)
     response.raise_for_status()
 
     parsed = parse_soap_response(response.text)
+    return {"httpStatus": response.status_code, **parsed}
 
-    return {
-        "httpStatus": response.status_code,
-        **parsed
-    }
-
-
-# ============================================================
-# Get docs by region
-# ============================================================
 
 def get_docs_by_region(
     org_region: str,
     document_type: str,
     exact_date: str | None = None,
-    subsystem_type: str = "RI223"
+    subsystem_type: str = "RI223",
 ) -> dict:
-
     exact_date = exact_date or iso_date_today_minus()
 
     envelope = f"""
@@ -159,18 +115,15 @@ def get_docs_by_region(
       </ws:getDocsByOrgRegionRequest>
    </soapenv:Body>
 </soapenv:Envelope>
-"""
+""".strip()
 
     logger.info("Запрос закупок | region=%s date=%s", org_region, exact_date)
-
     return soap_post(envelope)
 
 
-# ============================================================
-# Download archive
-# ============================================================
-
 def download_archive_from_result(result: dict, out_file: str | None = None) -> str:
+    _require_env("TOKEN")
+    _require_env("DOWNLOAD_URL")
 
     archive_url = result.get("archiveUrl")
     doc_request_uid = result.get("docRequestUid")
@@ -182,57 +135,24 @@ def download_archive_from_result(result: dict, out_file: str | None = None) -> s
         url = archive_url
         params = None
     else:
-
         if not doc_request_uid or not compound_uid:
-            raise ValueError("Archive info missing")
-
+            raise ValueError("Archive info missing (docRequestUid/compoundUid)")
         url = DOWNLOAD_URL
-        params = {
-            "docRequestUid": doc_request_uid,
-            "compoundUid": compound_uid
-        }
+        params = {"docRequestUid": doc_request_uid, "compoundUid": compound_uid}
 
-    out_file = out_file or f"{compound_uid}.zip"
+    if not out_file:
+        out_file = f"{compound_uid or generate_uid()}.zip"
 
-    tmp_path = os.path.join(TMP_DIR, out_file)
-
-    path = os.path.join(os.path.abspath(os.getcwd()), tmp_path)
+    path = os.path.abspath(os.path.join(TMP_DIR, out_file))
 
     logger.info("Скачивание архива %s", out_file)
 
-    with session.get(
-        url,
-        params=params,
-        headers=headers,
-        stream=True,
-        timeout=DOWNLOAD_TIMEOUT
-    ) as r:
-
+    with session.get(url, params=params, headers=headers, stream=True, timeout=DOWNLOAD_TIMEOUT) as r:
         r.raise_for_status()
-
         with open(path, "wb") as f:
             for chunk in r.iter_content(1024 * 1024):
-                f.write(chunk)
+                if chunk:
+                    f.write(chunk)
 
     logger.info("Архив сохранён: %s", path)
-
     return path
-
-
-# ============================================================
-# Example
-# ============================================================
-
-if __name__ == "__main__":
-
-    result = get_docs_by_region(
-        org_region="77",
-        document_type="purchaseNotice",
-        exact_date="2025-02-16"
-    )
-
-    logger.info("HTTP статус: %s", result["httpStatus"])
-
-    archive = download_archive_from_result(result)
-
-    logger.info("Архив скачан: %s", archive)

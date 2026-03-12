@@ -1,36 +1,31 @@
-from sqlalchemy import (
-    Column, String,
-    DateTime, Float
-)
+from datetime import datetime
 
+from sqlalchemy import Column, String, DateTime, Numeric
 from sqlalchemy.dialects.postgresql import JSONB, ARRAY
 
-from datetime import datetime
 from .connection_to_database import Base
 
 
 class Purchase(Base):
     __tablename__ = "purchases"
-    # --- Закупка ---
+
     guid = Column(String(64), unique=True, primary_key=True, nullable=False, index=True)
-    registration_number = Column(String(50), index=True)
+
+    registration_number = Column(String(50), index=True, nullable=True)
     name = Column(String(2000), nullable=False)
-    initial_sum = Column(Float(50))
-    publication_datetime = Column(DateTime)
-    submission_close_datetime = Column(DateTime)
 
-    # --- Заказчик ---
-    customer = Column(JSONB, nullable=False)
+    # для денег предпочтительнее Numeric, чем Float
+    initial_sum = Column(Numeric(18, 2), nullable=True)
 
-    # --- Контакт ---
-    contact = Column(JSONB, nullable=False)
+    publication_datetime = Column(DateTime, nullable=True)
+    submission_close_datetime = Column(DateTime, nullable=True)
 
-    # --- Заявка ---
-    apply_request = Column(JSONB, nullable=False)
+    customer = Column(JSONB, nullable=False, default=dict)
+    contact = Column(JSONB, nullable=False, default=dict)
+    apply_request = Column(JSONB, nullable=False, default=dict)
 
-    # --- Лот ---
     lots = Column(ARRAY(JSONB), nullable=False, default=list)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
-    source_file = Column(String(255))
+    source_file = Column(String(255), nullable=True)

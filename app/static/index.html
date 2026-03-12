@@ -1,81 +1,241 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ru">
-
 <head>
-<meta charset="UTF-8">
-<title>Закупки</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Госзакупки — мониторинг</title>
 
-<link rel="stylesheet" href="static/style.css">
-
+  <link rel="stylesheet" href="/static/style.css" />
 </head>
 
 <body>
+  <div class="app">
+    <header class="header">
+      <div class="header__left">
+        <div class="brand">
+          <div class="brand__logo">G</div>
+          <div class="brand__text">
+            <div class="brand__title">Госзакупки</div>
+            <div class="brand__subtitle">Мониторинг и фильтрация</div>
+          </div>
+        </div>
+      </div>
 
-<div class="layout">
+      <div class="header__right">
+        <div class="header__kpis">
+          <div class="kpi">
+            <div class="kpi__label">Найдено</div>
+            <div class="kpi__value" id="kpiFound">—</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi__label">На странице</div>
+            <div class="kpi__value" id="kpiShown">—</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi__label">Сумма (стр.)</div>
+            <div class="kpi__value" id="kpiSum">—</div>
+          </div>
+        </div>
 
-<!-- ФИЛЬТРЫ -->
+        <div class="header__actions">
+          <button class="btn btn--ghost" id="btnTheme" title="Светлая/тёмная тема">Тема</button>
+          <button class="btn btn--primary" id="btnRefresh">Обновить</button>
+        </div>
+      </div>
+    </header>
 
-<div class="sidebar">
+    <div class="content">
+      <aside class="sidebar">
+        <div class="panel">
+          <div class="panel__title">Фильтры</div>
 
-<h2>Фильтры</h2>
+          <div class="field">
+            <label class="field__label">Быстрый поиск</label>
+            <input id="q" class="input" placeholder="Название, заказчик, ИНН, рег. номер…" />
+            <div class="field__hint">Ищет по загруженным данным на странице</div>
+          </div>
 
-<label>Название</label>
-<input id="name" placeholder="Введите название">
+          <div class="grid2">
+            <div class="field">
+              <label class="field__label">Сумма от</label>
+              <input id="initial_sum_from" class="input" type="number" placeholder="0" />
+            </div>
+            <div class="field">
+              <label class="field__label">Сумма до</label>
+              <input id="initial_sum_to" class="input" type="number" placeholder="∞" />
+            </div>
+          </div>
 
-<label>Сумма от</label>
-<input id="initial_sum_from" type="number">
+          <div class="field">
+            <label class="field__label">Название</label>
+            <input id="name" class="input" placeholder="Фильтр по названию" />
+          </div>
 
-<label>Сумма до</label>
-<input id="initial_sum_to" type="number">
+          <div class="grid2">
+            <div class="field">
+              <label class="field__label">Публикация от</label>
+              <input id="publication_datetime_from" class="input" type="date" />
+            </div>
+            <div class="field">
+              <label class="field__label">Публикация до</label>
+              <input id="publication_datetime_to" class="input" type="date" />
+            </div>
+          </div>
 
-<label>Публикация от</label>
-<input id="publication_datetime_from" type="datetime-local">
+          <div class="grid2">
+            <div class="field">
+              <label class="field__label">Подача заявок от</label>
+              <input id="submission_close_datetime_from" class="input" type="date" />
+            </div>
+            <div class="field">
+              <label class="field__label">Подача заявок до</label>
+              <input id="submission_close_datetime_to" class="input" type="date" />
+            </div>
+          </div>
 
-<label>Публикация до</label>
-<input id="publication_datetime_to" type="datetime-local">
+          <div class="sidebar__buttons">
+            <button class="btn btn--primary" id="btnSearch">Поиск</button>
+            <button class="btn btn--ghost" id="btnReset">Сброс</button>
+          </div>
+        </div>
 
-<label>Подача заявок от</label>
-<input id="submission_close_datetime_from" type="datetime-local">
+        <div class="panel">
+          <div class="panel__title">Отображение</div>
 
-<label>Подача заявок до</label>
-<input id="submission_close_datetime_to" type="datetime-local">
+          <div class="field">
+            <label class="field__label">Режим</label>
+            <div class="segmented">
+              <button class="segmented__btn segmented__btn--active" id="viewTable">Таблица</button>
+              <button class="segmented__btn" id="viewCards">Карточки</button>
+            </div>
+          </div>
 
-<label>Источник</label>
-<input id="source_file">
+          <div class="field">
+            <label class="field__label">Сортировка</label>
+            <select id="sort" class="select">
+              <option value="pub_desc">Публикация ↓</option>
+              <option value="pub_asc">Публикация ↑</option>
+              <option value="deadline_asc">Дедлайн ↑</option>
+              <option value="sum_desc">Сумма ↓</option>
+              <option value="sum_asc">Сумма ↑</option>
+              <option value="name_asc">Название A→Z</option>
+            </select>
+          </div>
 
-<button onclick="search()">Поиск</button>
+          <div class="grid2">
+            <div class="field">
+              <label class="field__label">На странице</label>
+              <select id="pageSize" class="select">
+                <option value="10">10</option>
+                <option value="20" selected>20</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+            </div>
 
-</div>
+            <div class="field">
+              <label class="field__label">Показ</label>
+              <select id="statusFilter" class="select">
+                <option value="all" selected>Все</option>
+                <option value="active">Активные</option>
+                <option value="soon">Скоро дедлайн</option>
+                <option value="expired">Просроченные</option>
+              </select>
+            </div>
+          </div>
 
-<!-- ОСНОВНОЙ БЛОК -->
+          <div class="field">
+            <label class="field__label">Экспорт</label>
+            <div class="row">
+              <button class="btn btn--ghost" id="btnExportJson">JSON</button>
+              <button class="btn btn--ghost" id="btnExportCsv">CSV</button>
+            </div>
+          </div>
+        </div>
 
-<div class="main">
+        <div class="panel">
+          <div class="panel__title">Администрирование</div>
+          <div class="field__hint">
+            Эти кнопки требуют SYSTEM_TOKEN (берётся из /config).
+          </div>
 
-<div class="topbar">
+          <div class="adminStack">
+            <button class="btn btn--danger adminStack__btn" id="btnDeleteExpired">
+              Удалить просроченные
+            </button>
 
-<h1>Госзакупки</h1>
+            <button class="btn btn--ghost adminStack__btn" id="btnRunDaily">
+              Запустить daily (вчера)
+            </button>
 
-<div class="controls">
+            <button class="btn btn--ghost adminStack__btn" id="btnRunBackfill">
+              Backfill (10 дней)
+            </button>
+          </div>
 
-<select id="sort" onchange="applySort()">
-<option value="none">Без сортировки</option>
-<option value="sum_desc">Сумма ↓</option>
-<option value="sum_asc">Сумма ↑</option>
-</select>
+          <div class="field">
+            <label class="field__label">Статус</label>
+            <div class="status" id="statusBox">Готов</div>
+          </div>
+        </div>
+      </aside>
 
-<div id="count"></div>
+      <main class="main">
+        <div class="main__toolbar">
+          <div class="toolbar__left">
+            <div class="title">Результаты</div>
+            <div class="muted" id="resultInfo">—</div>
+          </div>
 
-</div>
+          <div class="toolbar__right">
+            <div class="pagination" id="pagination"></div>
+          </div>
+        </div>
 
-</div>
+        <section id="tableWrap" class="tableWrap">
+          <div class="table">
+            <div class="table__head">
+              <div>Статус</div>
+              <div>Сумма</div>
+              <div>Дедлайн</div>
+              <div>Публикация</div>
+              <div>Рег. номер</div>
+              <div>Название</div>
+              <div>Заказчик</div>
+              <div></div>
+            </div>
+            <div id="tableBody" class="table__body"></div>
+          </div>
+        </section>
 
-<div id="cards" class="cards"></div>
+        <section id="cardsWrap" class="cardsWrap hidden">
+          <div id="cards" class="cards"></div>
+        </section>
+      </main>
+    </div>
+  </div>
 
-</div>
+  <div id="modal" class="modal hidden">
+    <div class="modal__backdrop" id="modalBackdrop"></div>
 
-</div>
+    <div class="modal__dialog">
+      <div class="modal__header">
+        <div class="modal__title" id="modalTitle">Детали</div>
+        <button class="iconBtn" id="modalClose" title="Закрыть">×</button>
+      </div>
 
-<script src="static/script.js"></script>
+      <div class="modal__content" id="modalContent"></div>
 
+      <div class="modal__footer">
+        <div class="row">
+          <button class="btn btn--ghost" id="btnCopyGuid">Копировать GUID</button>
+          <button class="btn btn--ghost" id="btnCopyReg">Копировать рег.номер</button>
+        </div>
+        <button class="btn btn--primary" id="btnModalOk">Закрыть</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/script.js"></script>
 </body>
 </html>
