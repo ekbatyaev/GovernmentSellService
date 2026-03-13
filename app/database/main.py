@@ -16,7 +16,8 @@ from sqlalchemy.orm import Session
 
 from .connection_to_database import init_db, get_db
 from .table_models import Purchase
-from .scheduler import run_backfill_on_startup, run_daily_job, run_backfill, delete_expired, get_last_status
+from .scheduler import run_backfill_on_startup, run_daily_job, run_backfill, delete_expired, get_last_status, \
+    process_day
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -132,6 +133,20 @@ class SuccessResponseModel(BaseModel):
     status: str
     message: str
     data: Optional[Any] = None
+
+class AdminTokenModel(BaseModel):
+    token: str
+
+class AdminBackfillModel(BaseModel):
+    token: str
+    days: Optional[int] = None
+
+class DeleteExpiredModel(BaseModel):
+    token: str
+
+class AdminProcessDay(BaseModel):
+    token: str
+    date: Optional[datetime] = None
 
 
 def verify_token(token: str):
@@ -357,21 +372,19 @@ def health_check(db: Session = Depends(get_db)):
 
 # ---- Admin endpoints ----
 
-class AdminTokenModel(BaseModel):
-    token: str
-
-
 @app.post("/admin/run_daily", response_model=SuccessResponseModel)
 def admin_run_daily(body: AdminTokenModel):
     verify_token(body.token)
     result = run_daily_job()
     return SuccessResponseModel(status="success", message="Daily finished", data=result)
 
-
-class AdminBackfillModel(BaseModel):
-    token: str
-    days: Optional[int] = None
-
+@app.post("/admin/run_process_day", response_model=SuccessResponseModel)
+def admin_run_process_day(body: AdminProcessDay):
+    verify_token(body.token)
+    print(body.date)
+    date_str = body.date.strftime("%Y-%m-%d")
+    result = process_day(date_str)
+    return SuccessResponseModel(status="success", message="Process day finished", data=result)
 
 @app.post("/admin/run_backfill", response_model=SuccessResponseModel)
 def admin_run_backfill(body: AdminBackfillModel):
@@ -379,15 +392,10 @@ def admin_run_backfill(body: AdminBackfillModel):
     result = run_backfill(days=body.days)
     return SuccessResponseModel(status="success", message="Backfill finished", data=result)
 
-
 @app.get("/admin/job_status", response_model=SuccessResponseModel)
 def admin_job_status():
     # без токена специально: можно закрыть, если хотите
     return SuccessResponseModel(status="success", message="Ok", data=get_last_status())
-
-class DeleteExpiredModel(BaseModel):
-    token: str
-
 
 @app.post("/admin/delete_expired", response_model=SuccessResponseModel)
 def admin_delete_expired(body: DeleteExpiredModel, db: Session = Depends(get_db)):

@@ -155,23 +155,54 @@
 
         <div class="panel">
           <div class="panel__title">Администрирование</div>
-          <div class="field__hint">
-            Эти кнопки требуют SYSTEM_TOKEN (берётся из /config).
-          </div>
 
           <div class="adminStack">
-            <button class="btn btn--danger adminStack__btn" id="btnDeleteExpired">
-              Удалить просроченные
-            </button>
 
             <button class="btn btn--ghost adminStack__btn" id="btnRunDaily">
-              Запустить daily (вчера)
+              Получить заявки за предыдущий день
             </button>
 
-            <button class="btn btn--ghost adminStack__btn" id="btnRunBackfill">
-              Backfill (10 дней)
-            </button>
+            <div class="field">
+              <div style="display: flex; gap: 10px; align-items: flex-start;">
+                <input
+                  id="daysInput"
+                  class="input"
+                  type="number"
+                  min="1"
+                  max="30"
+                  value="10"
+                  placeholder="Количество дней"
+                  style="width: 200px;"
+                />
+                <button class="btn btn--ghost adminStack__btn" id="btnRunBackfill">
+                  Получить заявки
+                </button>
+              </div>
+              <div class="field__hint">
+                Собирает заявки за введенное количество дней до сегодня (макс. 30 дней)
+              </div>
+            </div>
+
           </div>
+          <div class="field">
+            <div style="display: flex; gap: 10px; align-items: flex-start;">
+              <input
+                id="process_day_input"
+                class="input"
+                type="date"
+                style="width: 200px;"
+              />
+              <button class="btn btn--ghost adminStack__btn" id="btnRunProcessDay">
+                Просмотреть
+              </button>
+            </div>
+            <div class="field__hint">
+                Просматривает заявки за определенную дату
+              </div>
+          </div>
+          <button class="btn btn--danger adminStack__btn" id="btnDeleteExpired">
+              Удалить просроченные
+          </button>
 
           <div class="field">
             <label class="field__label">Статус</label>

@@ -557,7 +557,49 @@ function bindEvents(){
 
   $("btnDeleteExpired").onclick = () => adminPost("/admin/delete_expired");
   $("btnRunDaily").onclick = () => adminPost("/admin/run_daily");
-  $("btnRunBackfill").onclick = () => adminPost("/admin/run_backfill", {token: SYSTEM_TOKEN, days: 10});
+  $("btnRunBackfill").onclick = () => {
+      const days = document.getElementById('daysInput').value;
+
+      if (!days || days < 1) {
+        alert('Пожалуйста, введите корректное количество дней (минимум 1)');
+        return;
+      }
+
+      if (days > 30) {
+        alert('Максимальное количество дней - 30');
+        return;
+      }
+
+      adminPost("/admin/run_backfill", {
+        token: SYSTEM_TOKEN,
+        days: days
+      });
+    };
+
+  $("btnRunProcessDay").onclick = () => {
+      const dateInput = document.getElementById('process_day_input');
+      const dateStr = dateInput.value;
+
+      if (!dateStr) {
+        alert('Пожалуйста, выберите дату');
+        return;
+      }
+
+      const today = new Date().toISOString().split('T')[0];
+
+      if (dateStr > today) {
+        alert('Дата не может быть в будущем. Пожалуйста, выберите сегодняшнюю или прошлую дату');
+        dateInput.value = '';
+        return;
+      }
+
+      const datetimeStr = `${dateStr}T00:00:00`;
+
+      adminPost("/admin/run_process_day", {
+        token: SYSTEM_TOKEN,
+        date: datetimeStr
+      });
+    };
 
   $("modalBackdrop").onclick = closeModal;
   $("modalClose").onclick = closeModal;
