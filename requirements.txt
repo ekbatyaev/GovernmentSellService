@@ -10,3 +10,6 @@ openai
 lxml
 xmltodict
 apscheduler
+exchangelib
+openpyxl
+pandas

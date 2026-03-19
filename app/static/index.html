@@ -154,13 +154,18 @@
         </div>
 
         <div class="panel">
+          <div class="panel__title">Настройки email рассылки</div>
+            <button class="btn btn--ghost adminStack__btn" id="btnSubscribeEmailNewsLetter">
+              Подписаться
+            </button>
+            <button class="btn btn--ghost adminStack__btn" id="btnUnsubscribeEmailNewsLetter">
+              Отписаться
+            </button>
+        </div>
+        <div class="panel">
           <div class="panel__title">Администрирование</div>
 
           <div class="adminStack">
-
-            <button class="btn btn--ghost adminStack__btn" id="btnRunDaily">
-              Получить заявки за предыдущий день
-            </button>
 
             <div class="field">
               <div style="display: flex; gap: 10px; align-items: flex-start;">
@@ -200,6 +205,11 @@
                 Просматривает заявки за определенную дату
               </div>
           </div>
+
+          <button class="btn btn--ghost adminStack__btn" id="btnRunDaily">
+              Получить заявки за предыдущий день
+          </button>
+
           <button class="btn btn--danger adminStack__btn" id="btnDeleteExpired">
               Удалить просроченные
           </button>
@@ -266,7 +276,37 @@
       </div>
     </div>
   </div>
+  <div id="emailModal" class="modal hidden">
+    <div class="modal__backdrop" id="emailModalBackdrop"></div>
 
-  <script src="/static/script.js"></script>
+    <div class="modal__dialog">
+      <div class="modal__header">
+        <div class="modal__title">Email рассылка</div>
+        <button class="iconBtn" id="emailModalClose">×</button>
+      </div>
+
+      <div class="modal__content">
+        <div class="field">
+          <label class="field__label">Email</label>
+          <input id="emailInput" class="input" type="email" />
+        </div>
+
+        <div class="field" id="codeField" style="display:none;">
+          <label class="field__label">Код</label>
+          <input id="codeInput" class="input" />
+        </div>
+
+        <div id="emailStatus" class="field__hint"></div>
+      </div>
+
+      <div class="modal__footer">
+        <button class="btn btn--ghost" id="btnSendCode">Получить код</button>
+        <button class="btn btn--primary" id="btnVerifyCode" style="display:none;">
+          Подтвердить
+        </button>
+      </div>
+    </div>
+  </div>
+  <script src="/static/script.js" defer></script>
 </body>
 </html>

@@ -5,9 +5,42 @@ let filteredPurchases = [];
 let viewMode = "table";
 let page = 1;
 
+// email subscription
+
+let emailModal, emailInput, codeInput, codeField, emailStatus;
+let btnSendCode, btnVerifyCode;
+let emailMode = "subscribe";
+let sendCodeTimer = null;
+let sendCodeSeconds = 60;
+
 const SOON_HOURS = 48;
 
+
 function $(id){ return document.getElementById(id); }
+
+function startSendCodeTimer(button, mode) {
+  let remaining = sendCodeSeconds;
+
+  button.disabled = true;
+  button.textContent = `Отправить через ${remaining} сек`;
+
+  sendCodeTimer = setInterval(() => {
+    remaining--;
+
+    if (remaining <= 0) {
+      clearInterval(sendCodeTimer);
+      sendCodeTimer = null;
+      button.disabled = false;
+
+      // Восстанавливаем текст кнопки в зависимости от режима
+      button.textContent =
+        mode === "subscribe" ? "Получить код" : "Получить код для отписки";
+      return;
+    }
+
+    button.textContent = `Отправить через ${remaining} сек`;
+  }, 1000);
+}
 
 function setStatus(text, type="info"){
   const el = $("statusBox");
@@ -557,6 +590,16 @@ function bindEvents(){
 
   $("btnDeleteExpired").onclick = () => adminPost("/admin/delete_expired");
   $("btnRunDaily").onclick = () => adminPost("/admin/run_daily");
+  // открыть модалку
+  // кнопки
+  $("btnSubscribeEmailNewsLetter").onclick = () => openEmailModal("subscribe");
+  $("btnUnsubscribeEmailNewsLetter").onclick = () => openEmailModal("unsubscribe");
+  $("btnSendCode").onclick = sendAuthCode;
+  $("btnVerifyCode").onclick = verifyAuthCode;
+  // модалка
+  $("emailModalBackdrop").onclick = closeEmailModal;
+  $("emailModalClose").onclick = closeEmailModal;
+
   $("btnRunBackfill").onclick = () => {
       const days = document.getElementById('daysInput').value;
 
@@ -610,8 +653,159 @@ function bindEvents(){
   });
 }
 
+function initEmailModal(){
+  emailModal = $("emailModal");
+  emailInput = $("emailInput");
+  codeInput = $("codeInput");
+  codeField = $("codeField");
+  emailStatus = $("emailStatus");
+
+  btnSendCode = $("btnSendCode");
+  btnVerifyCode = $("btnVerifyCode");
+}
+
+function resetSendCodeTimer() {
+  if (sendCodeTimer) {
+    clearInterval(sendCodeTimer);
+    sendCodeTimer = null;
+  }
+
+  btnSendCode.disabled = false;
+  btnSendCode.textContent =
+    emailMode === "subscribe" ? "Получить код" : "Получить код для отписки";
+}
+
+function openEmailModal(mode = "subscribe"){
+  emailMode = mode;
+
+  resetSendCodeTimer();
+  emailModal.classList.remove("hidden");
+  lockBodyScroll();
+
+  // reset
+  emailInput.value = "";
+  codeInput.value = "";
+  codeField.style.display = "none";
+  btnVerifyCode.style.display = "none";
+  emailStatus.innerText = "";
+
+  btnVerifyCode.innerText =
+    mode === "subscribe" ? "Подписаться" : "Отписаться";
+
+  btnSendCode.innerText =
+    mode === "subscribe"
+      ? "Получить код"
+      : "Получить код для отписки";
+}
+
+function closeEmailModal(){
+  emailModal.classList.add("hidden");
+  unlockBodyScroll();
+
+  emailInput.value = "";
+  codeInput.value = "";
+  codeField.style.display = "none";
+  btnVerifyCode.style.display = "none";
+  emailStatus.innerText = "";
+}
+
+async function apiPost(url, body){
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+
+  let data = {};
+  try { data = await res.json(); } catch {}
+
+  if (!res.ok){
+    throw new Error(data.detail || "Ошибка");
+  }
+
+  return data;
+}
+
+async function sendAuthCode(){
+  const email = emailInput.value;
+
+  if (!email){
+    emailStatus.innerText = "Введите email";
+    return;
+  }
+
+  if (!SYSTEM_TOKEN){
+      emailStatus.innerText = "Нет токена";
+      return;
+  }
+
+  try{
+    emailStatus.innerText = "Отправка...";
+
+    await apiPost("/send_auth_code", {
+      email: email,
+      token: SYSTEM_TOKEN
+    });
+
+    emailStatus.innerText = "Код отправлен";
+
+    codeField.style.display = "block";
+    btnVerifyCode.style.display = "inline-block";
+
+    startSendCodeTimer(btnSendCode, emailMode);
+
+  }catch(e){
+    emailStatus.innerText = "❌ " + e.message;
+  }
+}
+
+
+async function verifyAuthCode(){
+  const email = emailInput.value;
+  const code = codeInput.value;
+
+  if (!code){
+    emailStatus.innerText = "Введите код";
+    return;
+  }
+
+  try{
+    emailStatus.innerText = "Проверка...";
+
+    // проверка кода
+    await apiPost("/verify_code", {
+      email: email,
+      code: String(code),
+      token: SYSTEM_TOKEN
+    });
+
+    // действие
+    if (emailMode === "subscribe"){
+      await apiPost("/put_newsletter", {
+        email: email,
+        token: SYSTEM_TOKEN
+      });
+    } else {
+      await apiPost("/delete_newsletter", {
+        email: email,
+        token: SYSTEM_TOKEN
+      });
+    }
+
+    emailStatus.innerText =
+      emailMode === "subscribe"
+        ? "✅ Почта добавлена"
+        : "✅ Вы отписались";
+
+    setTimeout(closeEmailModal, 1200);
+  }catch(e){
+    emailStatus.innerText = "❌ " + e.message;
+  }
+}
+
 async function init(){
   loadTheme();
+  initEmailModal();
   bindEvents();
   loadStateFromUrl();
   await fetchToken();

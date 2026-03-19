@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column, String, DateTime, Numeric
+from sqlalchemy import Column, String, DateTime, Numeric, Integer
 from sqlalchemy.dialects.postgresql import JSONB, ARRAY
 
 from .connection_to_database import Base
@@ -26,6 +26,13 @@ class Purchase(Base):
 
     lots = Column(ARRAY(JSONB), nullable=False, default=list)
 
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=True)
 
     source_file = Column(String(255), nullable=True)
+
+class NewsLetter(Base):
+    __tablename__ = "newsletter"
+
+    id = Column(Integer, primary_key=True)
+
+    email = Column(String(64), unique = True,nullable=False, index = True )

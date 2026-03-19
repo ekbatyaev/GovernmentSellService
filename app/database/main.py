@@ -1,10 +1,11 @@
+import json
 import os
 import logging
 from datetime import datetime, timedelta
 from typing import Optional, List, Any
-
+import random
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi import FastAPI, HTTPException, Depends, status, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -15,9 +16,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .connection_to_database import init_db, get_db
-from .table_models import Purchase
+from .table_models import Purchase, NewsLetter
 from .scheduler import run_backfill_on_startup, run_daily_job, run_backfill, delete_expired, get_last_status, \
     process_day
+
+from .email_handles import send_email
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -44,7 +47,7 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Вариант A: в контейнере после `COPY app .` статика лежит в /app/static
+
 app.mount("/static", StaticFiles(directory="static", html=True), name="static")
 
 app.add_middleware(
@@ -55,6 +58,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Загрузка данных
+def load_data(data_file):
+    try:
+        with open(data_file, 'r', encoding='utf-8') as file:
+            return json.load(file)
+    except:
+        return {}
+
+# Сохранение данных
+def save_data(data_file, data):
+    with open(data_file, 'w', encoding='utf-8') as file:
+        json.dump(data, file, ensure_ascii=False, indent=4)
 
 # ---------------------------
 # Pydantic models
@@ -94,6 +109,8 @@ class GetAllPurchasesModel(BaseModel):
     publication_datetime_to: Optional[datetime] = None
     submission_close_datetime_from: Optional[datetime] = None
     submission_close_datetime_to: Optional[datetime] = None
+    created_at_from: Optional[datetime] = None
+    created_at_to: Optional[datetime] = None
     source_file: Optional[str] = None
 
 
@@ -148,6 +165,29 @@ class AdminProcessDay(BaseModel):
     token: str
     date: Optional[datetime] = None
 
+class PutNewsLetterModel(BaseModel):
+    token: str
+    email: str
+
+class DeleteNewsLetterModel(BaseModel):
+    token: str
+    email: str
+
+class GetNewsLetterModel(BaseModel):
+    token: str
+    email: str
+
+class BaseTokenModel(BaseModel):
+    token: str
+
+class SendAuthCode(BaseModel):
+    token: str
+    email: str
+
+class VerifyCode(BaseModel):
+    token: str
+    email: str
+    code: int
 
 def verify_token(token: str):
     if SYSTEM_TOKEN != token:
@@ -183,7 +223,8 @@ def startup_event():
     scheduler.start()
 
     # backfill 10 дней назад при старте
-    run_backfill_on_startup()
+
+    # run_backfill_on_startup()
 
     logger.info("Startup complete (db + scheduler)")
 
@@ -307,6 +348,31 @@ def get_all_purchases(purchase_data: GetAllPurchasesModel, db: Session = Depends
     elif pub_to:
         query = query.where(Purchase.publication_datetime <= pub_to)
 
+    created_at_from = purchase_data.created_at_from
+    created_at_to = purchase_data.created_at_to
+
+    if created_at_from and created_at_to:
+        if created_at_from.date() == created_at_to.date():
+            start = datetime.combine(created_at_from.date(), datetime.min.time())
+            end = start + timedelta(days=1)
+            query = query.where(
+                Purchase.created_at >= start,
+                Purchase.created_at < end
+            )
+        else:
+            end = datetime.combine(created_at_to.date(), datetime.min.time()) + timedelta(days=1)
+            query = query.where(
+                Purchase.created_at >= created_at_from,
+                Purchase.created_at < end
+            )
+
+    elif created_at_from:
+        query = query.where(Purchase.created_at >= created_at_from)
+
+    elif created_at_to:
+        end = datetime.combine(created_at_to.date(), datetime.min.time()) + timedelta(days=1)
+        query = query.where(Purchase.created_at < end)
+
     sub_from = purchase_data.submission_close_datetime_from
     sub_to = purchase_data.submission_close_datetime_to
     if sub_from and sub_to:
@@ -403,3 +469,153 @@ def admin_delete_expired(body: DeleteExpiredModel, db: Session = Depends(get_db)
     deleted = delete_expired(db, mode=os.getenv("EXPIRE_MODE", "now"))
     db.commit()
     return SuccessResponseModel(status="success", message="Expired deleted", data={"deleted": deleted})
+
+@app.post("/put_newsletter", response_model=SuccessResponseModel, status_code=status.HTTP_201_CREATED)
+def put_newsletter(data: PutNewsLetterModel, db: Session = Depends(get_db)):
+    verify_token(data.token)
+
+    newsletter = NewsLetter(email=data.email)
+
+    try:
+        db.add(newsletter)
+        db.commit()
+        db.refresh(newsletter)
+
+        return SuccessResponseModel(
+            status="success",
+            message="Email added",
+            data={"email": newsletter.email},
+        )
+
+    except IntegrityError:
+        db.rollback()
+
+        existing = db.query(NewsLetter).filter_by(email=data.email).first()
+        if existing:
+            return SuccessResponseModel(
+                status="success",
+                message="Email already exists",
+                data={"email": existing.email},
+            )
+
+        raise HTTPException(status_code=400, detail="Failed to add email")
+
+@app.post("/delete_newsletter", response_model=SuccessResponseModel)
+def delete_newsletter(data: DeleteNewsLetterModel, db: Session = Depends(get_db)):
+    verify_token(data.token)
+
+    newsletter = db.query(NewsLetter).filter_by(email=data.email).first()
+
+    if not newsletter:
+        raise HTTPException(status_code=500, detail="Email not found")
+
+    db.delete(newsletter)
+    db.commit()
+
+    return SuccessResponseModel(
+        status="success",
+        message="Deleted",
+        data={"email": data.email},
+    )
+
+@app.post("/get_newsletter", response_model=SuccessResponseModel)
+def get_newsletter(data: GetNewsLetterModel, db: Session = Depends(get_db)):
+    verify_token(data.token)
+
+    newsletter = db.query(NewsLetter).filter_by(email=data.email).first()
+
+    if not newsletter:
+        raise HTTPException(status_code=500, detail="Email not found")
+
+    return SuccessResponseModel(
+        status="success",
+        message="Ok",
+        data={"email": newsletter.email},
+    )
+
+@app.post("/get_all_newsletters", response_model=SuccessResponseModel)
+def get_all_newsletters(data: BaseTokenModel, db: Session = Depends(get_db)):
+    verify_token(data.token)
+
+    newsletters = db.query(NewsLetter).all()
+
+    return SuccessResponseModel(
+        status="success",
+        message="Ok",
+        data=[{"email": n.email} for n in newsletters],
+    )
+
+@app.post("/send_auth_code", response_model=SuccessResponseModel)
+def send_auth_code(data: SendAuthCode):
+    verify_token(data.token)
+
+    code = random.randint(100000, 999999)
+
+    try:
+        subject = "Проверочный код"
+        html_content = f"""
+        <html>
+          <body style="font-family: Arial, sans-serif; line-height: 1.5; color: #333;">
+            <h2 style="color:#2E86C1;">Проверочный код для рассылки Госзакупок</h2>
+            <p>Здравствуйте!</p>
+            <p>Ваш проверочный код для вашего email:</p>
+            <p style="font-size: 1.5em; font-weight: bold; color:#E74C3C;">{code}</p>
+            <p>Введите этот код в приложении, чтобы подтвердить или отменить рассылку.</p>
+            <hr>
+            <p style="font-size: 0.9em; color:#888;">
+              Это письмо сформировано автоматически, отвечать на него не нужно.
+            </p>
+          </body>
+        </html>
+        """
+
+        send_email(
+            data.email,
+            subject,
+            html_content
+        )
+        # send_email(data.email, "Проверочный код", f"Ваш проверочный код для регистрации почты в рассылке госзакупок: {code}")
+    except:
+        raise HTTPException(status_code=500, detail="Email not found")
+
+    try:
+        codes_storage = load_data("auth_codes.json")
+        codes_storage[data.email] = code
+        save_data("auth_codes.json", codes_storage)
+    except:
+        raise HTTPException(status_code=500, detail="Code not saved")
+    return SuccessResponseModel(
+        status="success",
+        message="Auth code created",
+        data={"email": data.email},
+    )
+
+@app.post("/verify_code", response_model=SuccessResponseModel)
+def verify_code(data: VerifyCode):
+    verify_token(data.token)
+    try:
+        codes_storage = load_data("auth_codes.json")
+
+        real_code = codes_storage.get(data.email)
+
+        if not real_code:
+            raise HTTPException(status_code=404, detail="Code not found")
+    except:
+        raise HTTPException(status_code=500, detail="Code data is not available")
+
+    if real_code != data.code:
+        raise HTTPException(status_code=400, detail="Invalid code")
+
+    del codes_storage[data.email]
+
+    try:
+        save_data("auth_codes.json", codes_storage)
+    except:
+        raise HTTPException(status_code=404, detail="Codes storage is not saved")
+
+    return SuccessResponseModel(
+        status="success",
+        message="Auth completed",
+        data={"auth": True}
+    )
+
