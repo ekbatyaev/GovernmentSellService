@@ -1,6 +1,7 @@
 import os
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, time
+from time import sleep
 from typing import Dict, Any
 from sqlalchemy import delete
 from .connection_to_database import db_session, try_advisory_lock, advisory_unlock
@@ -23,7 +24,8 @@ LOCK_KEY = int(os.getenv("SCHEDULER_LOCK_KEY", "424242"))
 ORG_REGION = os.getenv("ORG_REGION", "77")
 DOCUMENT_TYPE = os.getenv("DOCUMENT_TYPE_223", "purchaseNotice")
 SUBSYSTEM_TYPE = os.getenv("SUBSYSTEM_TYPE", "RI223")
-
+RETRY_COUNT = int(os.getenv("RETRY_COUNT"))
+RETRY_DELAY =  int(os.getenv("RETRY_DELAY"))
 BACKFILL_DAYS = int(os.getenv("BACKFILL_DAYS", "10"))
 BACKFILL_ON_STARTUP = os.getenv("PIPELINE_BACKFILL_ON_STARTUP", "true").lower() == "true"
 
@@ -152,7 +154,7 @@ def run_daily_job() -> Dict[str, Any]:
         added = process_day(date_str)
 
         now = datetime.now()
-        start_day = datetime.combine(now.date(), datetime.time.min)
+        start_day = datetime.combine(now.date(), time.min)
 
         emails = requests.post(f"{APP_URL}/get_all_newsletters", json={"token": TOKEN}).json().get("data", [])
 
@@ -301,6 +303,7 @@ def run_backfill(days: int | None = None) -> Dict[str, Any]:
 
     added_total = 0
     processed_days = 0
+    failed_days = []
 
     try:
         today = _utcnow().date()
@@ -314,29 +317,69 @@ def run_backfill(days: int | None = None) -> Dict[str, Any]:
             date_str = d.strftime("%Y-%m-%d")
             processed_days += 1
 
-            _set_status(progress={"days": days, "current": i + 1, "date": date_str, "added_total": added_total})
+            _set_status(progress={
+                "days": days,
+                "current": i + 1,
+                "date": date_str,
+                "added_total": added_total
+            })
+
             logger.info("Backfill: day %s/%s | %s", i + 1, days, date_str)
 
-            added = process_day(date_str)
-            added_total += added
+            # 🔁 RETRY LOGIC
+            success = False
+            for attempt in range(RETRY_COUNT):
+                try:
+                    added = process_day(date_str)
+                    added_total += added
+                    success = True
+                    break
+
+                except Exception as e:
+                    logger.warning(
+                        "Backfill error (%s) attempt %s/%s: %s",
+                        date_str, attempt + 1, RETRY_COUNT, e
+                    )
+                    sleep(RETRY_DELAY)
+
+            if not success:
+                logger.error("Backfill: пропускаю дату %s после %s попыток", date_str, RETRY_COUNT)
+                failed_days.append(date_str)
 
         with db_session() as db:
             deleted = delete_expired(db, mode=EXPIRE_MODE)
 
-        result = {"ok": True, "processed_days": processed_days, "added_total": added_total, "deleted_expired": deleted}
-        _set_status(running=False, finished_at=_utcnow().isoformat(), message="done", result=result)
+        result = {
+            "ok": True,
+            "processed_days": processed_days,
+            "added_total": added_total,
+            "deleted_expired": deleted,
+            "failed_days": failed_days,
+        }
+
+        _set_status(
+            running=False,
+            finished_at=_utcnow().isoformat(),
+            message="done",
+            result=result
+        )
+
         logger.info("Scheduler(backfill): done | %s", result)
         return result
 
     except Exception as e:
         logger.exception("Scheduler(backfill) failed")
-        _set_status(running=False, finished_at=_utcnow().isoformat(), message=f"error: {e}", result={"ok": False, "error": str(e)})
+        _set_status(
+            running=False,
+            finished_at=_utcnow().isoformat(),
+            message=f"error: {e}",
+            result={"ok": False, "error": str(e)}
+        )
         return {"ok": False, "error": str(e)}
 
     finally:
         with db_session() as db:
             advisory_unlock(db, LOCK_KEY)
-
 
 def run_backfill_on_startup() -> None:
     if not BACKFILL_ON_STARTUP:

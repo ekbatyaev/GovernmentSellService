@@ -1,3 +1,6 @@
+const API_BASE = "/goszakupki";
+//const API_BASE = "";
+
 let SYSTEM_TOKEN = null;
 
 let rawPurchases = [];
@@ -108,11 +111,18 @@ function getDeadlineStatus(p){
   if (Number.isNaN(d.getTime())) return {key:"active", label:"Дедлайн", cls:"badge--ok"};
 
   const now = new Date();
-  const diffMs = d - now;
-  if (diffMs < 0) return {key:"expired", label:"Просрочена", cls:"badge--danger"};
 
-  const diffHours = diffMs / 1000 / 60 / 60;
+  // Делаем today с обнулением времени
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  // deadline теперь до конца дня, т.е. +1 день
+  const deadline = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+
+  if (deadline <= today) return {key:"expired", label:"Просрочена", cls:"badge--danger"};
+
+  const diffHours = (deadline - now) / 1000 / 60 / 60;
   if (diffHours <= SOON_HOURS) return {key:"soon", label:`Скоро (${Math.ceil(diffHours)}ч)`, cls:"badge--warn"};
+
   return {key:"active", label:"Активна", cls:"badge--ok"};
 }
 
@@ -427,7 +437,7 @@ function setView(mode){
 async function fetchToken(){
   try{
     setStatus("Получаю токен…");
-    const res = await fetch("/config");
+    const res = await fetch(`${API_BASE}/config`);
     const data = await res.json();
     SYSTEM_TOKEN = data.system_token;
     setStatus("Токен получен", "ok");
@@ -458,7 +468,7 @@ async function apiSearch(){
 
   try{
     setStatus("Загружаю данные…");
-    const res = await fetch("/get_all_purchases", {
+    const res = await fetch(`${API_BASE}/get_all_purchases`, {
       method:"POST",
       headers:{ "Content-Type":"application/json" },
       body: JSON.stringify(body)
@@ -588,8 +598,8 @@ function bindEvents(){
   $("btnExportJson").onclick = exportJson;
   $("btnExportCsv").onclick = exportCsv;
 
-  $("btnDeleteExpired").onclick = () => adminPost("/admin/delete_expired");
-  $("btnRunDaily").onclick = () => adminPost("/admin/run_daily");
+  $("btnDeleteExpired").onclick = () => adminPost(`${API_BASE}/admin/delete_expired`);
+  $("btnRunDaily").onclick = () => adminPost(`${API_BASE}/admin/run_daily`);
   // открыть модалку
   // кнопки
   $("btnSubscribeEmailNewsLetter").onclick = () => openEmailModal("subscribe");
@@ -613,7 +623,7 @@ function bindEvents(){
         return;
       }
 
-      adminPost("/admin/run_backfill", {
+      adminPost(`${API_BASE}/admin/run_backfill`, {
         token: SYSTEM_TOKEN,
         days: days
       });
@@ -638,7 +648,7 @@ function bindEvents(){
 
       const datetimeStr = `${dateStr}T00:00:00`;
 
-      adminPost("/admin/run_process_day", {
+      adminPost(`${API_BASE}/admin/run_process_day`, {
         token: SYSTEM_TOKEN,
         date: datetimeStr
       });
@@ -742,7 +752,7 @@ async function sendAuthCode(){
   try{
     emailStatus.innerText = "Отправка...";
 
-    await apiPost("/send_auth_code", {
+    await apiPost(`${API_BASE}/send_auth_code`, {
       email: email,
       token: SYSTEM_TOKEN
     });
@@ -773,7 +783,7 @@ async function verifyAuthCode(){
     emailStatus.innerText = "Проверка...";
 
     // проверка кода
-    await apiPost("/verify_code", {
+    await apiPost(`${API_BASE}/verify_code`, {
       email: email,
       code: String(code),
       token: SYSTEM_TOKEN
@@ -781,12 +791,12 @@ async function verifyAuthCode(){
 
     // действие
     if (emailMode === "subscribe"){
-      await apiPost("/put_newsletter", {
+      await apiPost(`${API_BASE}/put_newsletter`, {
         email: email,
         token: SYSTEM_TOKEN
       });
     } else {
-      await apiPost("/delete_newsletter", {
+      await apiPost(`${API_BASE}/delete_newsletter`, {
         email: email,
         token: SYSTEM_TOKEN
       });

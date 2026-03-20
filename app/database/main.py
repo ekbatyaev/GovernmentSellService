@@ -38,6 +38,8 @@ if not SYSTEM_TOKEN:
 DAILY_HOUR_MSK = int(os.getenv("DAILY_JOB_HOUR_MSK", "1"))
 DAILY_MINUTE_MSK = int(os.getenv("DAILY_JOB_MINUTE_MSK", "0"))
 
+API_BASE = os.getenv("API_BASE")
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
 logger = logging.getLogger(__name__)
 
@@ -224,7 +226,7 @@ def startup_event():
 
     # backfill 10 дней назад при старте
 
-    # run_backfill_on_startup()
+    run_backfill_on_startup()
 
     logger.info("Startup complete (db + scheduler)")
 
@@ -237,7 +239,7 @@ def shutdown_event():
         scheduler = None
 
 
-@app.get("/config")
+@app.get(f"{API_BASE}/config")
 async def get_config():
     return {
         "system_token": SYSTEM_TOKEN
@@ -247,13 +249,13 @@ async def get_config():
 # Routes
 # ---------------------------
 
-@app.get("/")
+@app.get(f"{API_BASE}/")
 async def root():
     # Вариант A: файл лежит в /app/static/index.html
     return FileResponse("static/index.html")
 
 
-@app.post("/put_purchase", response_model=SuccessResponseModel, status_code=status.HTTP_201_CREATED)
+@app.post(f"{API_BASE}/put_purchase", response_model=SuccessResponseModel, status_code=status.HTTP_201_CREATED)
 def put_purchase(purchase_data: PutPurchaseModel, db: Session = Depends(get_db)):
     verify_token(purchase_data.token)
 
@@ -292,7 +294,7 @@ def put_purchase(purchase_data: PutPurchaseModel, db: Session = Depends(get_db))
         raise HTTPException(status_code=400, detail="Failed to create purchase")
 
 
-@app.post("/delete_purchase", response_model=SuccessResponseModel)
+@app.post(f"{API_BASE}/delete_purchase", response_model=SuccessResponseModel)
 def delete_purchase(purchase_data: DeletePurchaseModel, db: Session = Depends(get_db)):
     verify_token(purchase_data.token)
 
@@ -305,7 +307,7 @@ def delete_purchase(purchase_data: DeletePurchaseModel, db: Session = Depends(ge
     return SuccessResponseModel(status="success", message="Deleted", data={"guid": purchase_data.guid})
 
 
-@app.post("/get_purchase", response_model=SuccessResponseModel)
+@app.post(f"{API_BASE}/get_purchase", response_model=SuccessResponseModel)
 def get_purchase(purchase_data: GetPurchaseModel, db: Session = Depends(get_db)):
     verify_token(purchase_data.token)
 
@@ -320,7 +322,7 @@ def get_purchase(purchase_data: GetPurchaseModel, db: Session = Depends(get_db))
     )
 
 
-@app.post("/get_all_purchases", response_model=SuccessResponseModel)
+@app.post(f"{API_BASE}/get_all_purchases", response_model=SuccessResponseModel)
 def get_all_purchases(purchase_data: GetAllPurchasesModel, db: Session = Depends(get_db)):
     verify_token(purchase_data.token)
 
@@ -397,7 +399,7 @@ def get_all_purchases(purchase_data: GetAllPurchasesModel, db: Session = Depends
     return SuccessResponseModel(status="success", message=f"Found {len(data)} purchases", data=data)
 
 
-@app.post("/update_purchase", response_model=SuccessResponseModel)
+@app.post(f"{API_BASE}/update_purchase", response_model=SuccessResponseModel)
 def update_purchase(purchase_data: UpdatePurchaseModel, db: Session = Depends(get_db)):
     verify_token(purchase_data.token)
 
@@ -420,7 +422,7 @@ def update_purchase(purchase_data: UpdatePurchaseModel, db: Session = Depends(ge
     )
 
 
-@app.get("/stats", response_model=SuccessResponseModel)
+@app.get(f"{API_BASE}/stats", response_model=SuccessResponseModel)
 def get_statistics(db: Session = Depends(get_db)):
     purchases_count = db.scalar(select(func.count()).select_from(Purchase))
     return SuccessResponseModel(
@@ -430,7 +432,7 @@ def get_statistics(db: Session = Depends(get_db)):
     )
 
 
-@app.get("/health", response_model=SuccessResponseModel)
+@app.get(f"{API_BASE}/health", response_model=SuccessResponseModel)
 def health_check(db: Session = Depends(get_db)):
     db.execute(select(1))
     return SuccessResponseModel(status="success", message="Healthy")
@@ -438,13 +440,13 @@ def health_check(db: Session = Depends(get_db)):
 
 # ---- Admin endpoints ----
 
-@app.post("/admin/run_daily", response_model=SuccessResponseModel)
+@app.post(f"{API_BASE}/admin/run_daily", response_model=SuccessResponseModel)
 def admin_run_daily(body: AdminTokenModel):
     verify_token(body.token)
     result = run_daily_job()
     return SuccessResponseModel(status="success", message="Daily finished", data=result)
 
-@app.post("/admin/run_process_day", response_model=SuccessResponseModel)
+@app.post(f"{API_BASE}/admin/run_process_day", response_model=SuccessResponseModel)
 def admin_run_process_day(body: AdminProcessDay):
     verify_token(body.token)
     print(body.date)
@@ -452,25 +454,25 @@ def admin_run_process_day(body: AdminProcessDay):
     result = process_day(date_str)
     return SuccessResponseModel(status="success", message="Process day finished", data=result)
 
-@app.post("/admin/run_backfill", response_model=SuccessResponseModel)
+@app.post(f"{API_BASE}/admin/run_backfill", response_model=SuccessResponseModel)
 def admin_run_backfill(body: AdminBackfillModel):
     verify_token(body.token)
     result = run_backfill(days=body.days)
     return SuccessResponseModel(status="success", message="Backfill finished", data=result)
 
-@app.get("/admin/job_status", response_model=SuccessResponseModel)
+@app.get(f"{API_BASE}/admin/job_status", response_model=SuccessResponseModel)
 def admin_job_status():
     # без токена специально: можно закрыть, если хотите
     return SuccessResponseModel(status="success", message="Ok", data=get_last_status())
 
-@app.post("/admin/delete_expired", response_model=SuccessResponseModel)
+@app.post(f"{API_BASE}/admin/delete_expired", response_model=SuccessResponseModel)
 def admin_delete_expired(body: DeleteExpiredModel, db: Session = Depends(get_db)):
     verify_token(body.token)
     deleted = delete_expired(db, mode=os.getenv("EXPIRE_MODE", "now"))
     db.commit()
     return SuccessResponseModel(status="success", message="Expired deleted", data={"deleted": deleted})
 
-@app.post("/put_newsletter", response_model=SuccessResponseModel, status_code=status.HTTP_201_CREATED)
+@app.post(f"{API_BASE}/put_newsletter", response_model=SuccessResponseModel, status_code=status.HTTP_201_CREATED)
 def put_newsletter(data: PutNewsLetterModel, db: Session = Depends(get_db)):
     verify_token(data.token)
 
@@ -500,7 +502,7 @@ def put_newsletter(data: PutNewsLetterModel, db: Session = Depends(get_db)):
 
         raise HTTPException(status_code=400, detail="Failed to add email")
 
-@app.post("/delete_newsletter", response_model=SuccessResponseModel)
+@app.post(f"{API_BASE}/delete_newsletter", response_model=SuccessResponseModel)
 def delete_newsletter(data: DeleteNewsLetterModel, db: Session = Depends(get_db)):
     verify_token(data.token)
 
@@ -518,7 +520,7 @@ def delete_newsletter(data: DeleteNewsLetterModel, db: Session = Depends(get_db)
         data={"email": data.email},
     )
 
-@app.post("/get_newsletter", response_model=SuccessResponseModel)
+@app.post(f"{API_BASE}/get_newsletter", response_model=SuccessResponseModel)
 def get_newsletter(data: GetNewsLetterModel, db: Session = Depends(get_db)):
     verify_token(data.token)
 
@@ -533,7 +535,7 @@ def get_newsletter(data: GetNewsLetterModel, db: Session = Depends(get_db)):
         data={"email": newsletter.email},
     )
 
-@app.post("/get_all_newsletters", response_model=SuccessResponseModel)
+@app.post(f"{API_BASE}/get_all_newsletters", response_model=SuccessResponseModel)
 def get_all_newsletters(data: BaseTokenModel, db: Session = Depends(get_db)):
     verify_token(data.token)
 
@@ -545,7 +547,7 @@ def get_all_newsletters(data: BaseTokenModel, db: Session = Depends(get_db)):
         data=[{"email": n.email} for n in newsletters],
     )
 
-@app.post("/send_auth_code", response_model=SuccessResponseModel)
+@app.post(f"{API_BASE}/send_auth_code", response_model=SuccessResponseModel)
 def send_auth_code(data: SendAuthCode):
     verify_token(data.token)
 
@@ -590,7 +592,7 @@ def send_auth_code(data: SendAuthCode):
         data={"email": data.email},
     )
 
-@app.post("/verify_code", response_model=SuccessResponseModel)
+@app.post(f"{API_BASE}/verify_code", response_model=SuccessResponseModel)
 def verify_code(data: VerifyCode):
     verify_token(data.token)
     try:
