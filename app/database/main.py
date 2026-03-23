@@ -50,7 +50,7 @@ app = FastAPI(
 )
 
 
-app.mount("/static", StaticFiles(directory="static", html=True), name="static")
+app.mount("/goszakupki/static", StaticFiles(directory="static", html=True), name="static")
 
 app.add_middleware(
     CORSMiddleware,

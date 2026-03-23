@@ -179,4 +179,5 @@ def parse_zip_archive(zip_path: str) -> List[Dict[str, Any]]:
                 logger.exception("Ошибка в файле %s: %s", file_name, e)
 
     logger.info("Парсинг завершён. Подходит под фильтры: %s", len(all_data))
+    os.remove(zip_path)
     return all_data
