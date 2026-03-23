@@ -3,7 +3,7 @@ import logging
 from datetime import datetime, timedelta, timezone, time
 from time import sleep
 from typing import Dict, Any
-from sqlalchemy import delete
+from sqlalchemy import delete, func
 from .connection_to_database import db_session, try_advisory_lock, advisory_unlock
 from .table_models import Purchase
 from goszakupki_requests.data_request import get_docs_by_region, download_archive_from_result
@@ -28,9 +28,6 @@ RETRY_COUNT = int(os.getenv("RETRY_COUNT"))
 RETRY_DELAY =  int(os.getenv("RETRY_DELAY"))
 BACKFILL_DAYS = int(os.getenv("BACKFILL_DAYS", "10"))
 BACKFILL_ON_STARTUP = os.getenv("PIPELINE_BACKFILL_ON_STARTUP", "true").lower() == "true"
-
-# по вашему решению: просроченные = submission_close_datetime < now()
-EXPIRE_MODE = os.getenv("EXPIRE_MODE", "now")  # now | start_of_today
 
 APP_URL = os.getenv("APP_URL")
 API_BASE = os.getenv("API_BASE")
@@ -73,18 +70,15 @@ def get_last_status() -> Dict[str, Any]:
     return LAST_JOB_STATUS
 
 
-def delete_expired(db, mode: str = "now") -> int:
-    now = _utcnow()
-    if mode == "start_of_today":
-        cutoff = datetime(now.year, now.month, now.day, tzinfo=timezone.utc).replace(tzinfo=None)
-    else:
-        cutoff = now.replace(tzinfo=None)
+def delete_expired(db) -> int:
+    today = _utcnow().date()
 
     stmt = (
         delete(Purchase)
         .where(Purchase.submission_close_datetime.isnot(None))
-        .where(Purchase.submission_close_datetime < cutoff)
+        .where(func.date(Purchase.submission_close_datetime) < today)
     )
+
     res = db.execute(stmt)
     return res.rowcount or 0
 
@@ -312,7 +306,7 @@ def run_daily_job() -> Dict[str, Any]:
         os.remove("analysis.xlsx")
 
         with db_session() as db:
-            deleted = delete_expired(db, mode=EXPIRE_MODE)
+            deleted = delete_expired(db)
 
         result = {"ok": True, "added": added, "deleted_expired": deleted, "date": date_str}
         _set_status(
@@ -404,7 +398,7 @@ def run_backfill(days: int | None = None) -> Dict[str, Any]:
                 failed_days.append(date_str)
 
         with db_session() as db:
-            deleted = delete_expired(db, mode=EXPIRE_MODE)
+            deleted = delete_expired(db)
 
         result = {
             "ok": True,

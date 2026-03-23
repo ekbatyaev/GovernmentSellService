@@ -21,6 +21,34 @@ const SOON_HOURS = 48;
 
 function $(id){ return document.getElementById(id); }
 
+async function copyText(text){
+  const value = String(text || "").trim();
+  if (!value) throw new Error("Нет значения для копирования");
+
+  // Современный способ
+  if (navigator.clipboard && window.isSecureContext) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+
+  // Fallback для http / старых браузеров
+  const ta = document.createElement("textarea");
+  ta.value = value;
+  ta.style.position = "fixed";
+  ta.style.left = "-9999px";
+  ta.style.top = "0";
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+
+  const ok = document.execCommand("copy");
+  document.body.removeChild(ta);
+
+  if (!ok) {
+    throw new Error("Браузер не смог скопировать текст");
+  }
+}
+
 function startSendCodeTimer(button, mode) {
   let remaining = sendCodeSeconds;
 
@@ -245,13 +273,28 @@ function openModal(p){
     <div class="kv"><div class="kv__k">Лоты</div><div class="kv__v">${Array.isArray(p.lots) ? p.lots.length : "—"}</div></div>
   `;
 
-  $("btnCopyGuid").onclick = async () => {
-    await navigator.clipboard.writeText(p.guid || "");
-    setStatus("GUID скопирован", "ok");
+  $("btnCopyGuid").onclick = async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      try {
+        await copyText(p.guid);
+        setStatus("GUID скопирован", "ok");
+      } catch (err) {
+        console.error(err);
+        setStatus("Не удалось скопировать GUID", "error");
+      }
   };
-  $("btnCopyReg").onclick = async () => {
-    await navigator.clipboard.writeText(p.registration_number || "");
-    setStatus("Рег. номер скопирован", "ok");
+
+  $("btnCopyReg").onclick = async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      try {
+        await copyText(p.registration_number);
+        setStatus("Рег. номер скопирован", "ok");
+      } catch (err) {
+        console.error(err);
+        setStatus("Не удалось скопировать рег. номер", "error");
+      }
   };
 
   $("modal").classList.remove("hidden");

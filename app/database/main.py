@@ -462,7 +462,7 @@ def admin_job_status():
 @app.post(f"{API_BASE}/admin/delete_expired", response_model=SuccessResponseModel)
 def admin_delete_expired(body: DeleteExpiredModel, db: Session = Depends(get_db)):
     verify_token(body.token)
-    deleted = delete_expired(db, mode=os.getenv("EXPIRE_MODE", "now"))
+    deleted = delete_expired(db)
     db.commit()
     return SuccessResponseModel(status="success", message="Expired deleted", data={"deleted": deleted})
 
