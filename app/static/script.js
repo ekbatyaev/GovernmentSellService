@@ -599,7 +599,6 @@ function bindEvents(){
   $("btnExportCsv").onclick = exportCsv;
 
   $("btnDeleteExpired").onclick = () => adminPost(`${API_BASE}/admin/delete_expired`);
-  $("btnRunDaily").onclick = () => adminPost(`${API_BASE}/admin/run_daily`);
   // открыть модалку
   // кнопки
   $("btnSubscribeEmailNewsLetter").onclick = () => openEmailModal("subscribe");

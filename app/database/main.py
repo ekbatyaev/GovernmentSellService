@@ -440,12 +440,6 @@ def health_check(db: Session = Depends(get_db)):
 
 # ---- Admin endpoints ----
 
-@app.post(f"{API_BASE}/admin/run_daily", response_model=SuccessResponseModel)
-def admin_run_daily(body: AdminTokenModel):
-    verify_token(body.token)
-    result = run_daily_job()
-    return SuccessResponseModel(status="success", message="Daily finished", data=result)
-
 @app.post(f"{API_BASE}/admin/run_process_day", response_model=SuccessResponseModel)
 def admin_run_process_day(body: AdminProcessDay):
     verify_token(body.token)
