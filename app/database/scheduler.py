@@ -1,19 +1,23 @@
-import os
 import logging
-from datetime import datetime, timedelta, timezone, time
+from datetime import  timezone
 from time import sleep
-from typing import Dict, Any
 from sqlalchemy import delete, func
 from .connection_to_database import db_session, try_advisory_lock, advisory_unlock
 from .table_models import Purchase
 from goszakupki_requests.data_request import get_docs_by_region, download_archive_from_result
 from goszakupki_requests.parse_data_fz_223 import parse_zip_archive
-import requests, pandas as pd
 from .email_handles import send_email
-from openpyxl import load_workbook
-from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
-from openpyxl.utils import get_column_letter
 from dotenv import load_dotenv
+import os
+import time as time_module
+from datetime import datetime, timedelta, time
+from typing import Dict, Any
+import pandas as pd
+import requests
+from openpyxl import load_workbook
+from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
+
 
 load_dotenv()
 
@@ -129,19 +133,6 @@ def process_day(date_str: str) -> int:
 
     logger.info("Pipeline: сохранено за %s: %s", date_str, saved)
     return saved
-
-
-import os
-import time as time_module
-from datetime import datetime, timedelta, time
-from typing import Dict, Any
-
-import pandas as pd
-import requests
-from openpyxl import load_workbook
-from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
-from openpyxl.utils import get_column_letter
-
 
 def run_daily_job() -> Dict[str, Any]:
     with db_session() as db:

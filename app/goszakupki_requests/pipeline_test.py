@@ -60,9 +60,9 @@ def process_day(date_str: str) -> int:
 
     result = get_docs_by_region(
         org_region="77",
-        document_type="purchaseNotice",
+        document_type="purchasePlan",
         exact_date=date_str,
-        subsystem_type="RI223",
+        subsystem_type="RPZ223",
     )
 
     zip_path = download_archive_from_result(result)
@@ -70,7 +70,7 @@ def process_day(date_str: str) -> int:
 
     saved = 0
     for purchase in purchases:
-        put_purchase_to_database(purchase)
+        # put_purchase_to_database(purchase)
         saved += 1
 
     logger.info("Добавлено закупок: %s", saved)
@@ -89,8 +89,9 @@ def run_pipeline(start_date: str, days: int = 10) -> int:
 
 
 if __name__ == "__main__":
-    # пример: последние 10 дней до вчера
-    today = datetime.now().date()
-    start = today - timedelta(days=10)
-    run_pipeline(start_date=start.strftime("%Y-%m-%d"), days=10)
-    get_all_purchases()
+    # # пример: последние 10 дней до вчера
+    # today = datetime.now().date()
+    # start = today - timedelta(days=10)
+    # run_pipeline(start_date=start.strftime("%Y-%m-%d"), days=10)
+    # get_all_purchases()
+    process_day("2026-03-11")

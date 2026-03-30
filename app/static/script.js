@@ -563,34 +563,183 @@ function exportJson(){
   URL.revokeObjectURL(a.href);
 }
 
-function exportCsv(){
-  const cols = [
-    "guid","registration_number","name","initial_sum",
-    "publication_datetime","submission_close_datetime",
-    "customer.full_name","customer.inn"
-  ];
+async function exportXlsx() {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet("Purchases");
 
-  const get = (obj, path) => {
-    const parts = path.split(".");
-    let cur = obj;
-    for (const p of parts){
-      cur = (cur && typeof cur === "object") ? cur[p] : null;
+  const safe = (v) => v ?? "";
+
+  const rows = [];
+
+  for (const p of filteredPurchases) {
+    const contactFio = [
+      p?.contact?.last_name,
+      p?.contact?.first_name,
+      p?.contact?.middle_name
+    ].filter(Boolean).join(" ");
+
+    const base = {
+      "guid_закупки": safe(p?.guid),
+      "reg_number": safe(p?.registration_number),
+      "название_закупки": safe(p?.name),
+      "файл_источник": safe(p?.source_file),
+      "сумма_общая": safe(p?.initial_sum),
+      "дата_публикации": safe(p?.publication_datetime),
+      "дата_окончания": safe(p?.submission_close_datetime),
+      "заказчик_инн": safe(p?.customer?.inn),
+      "заказчик_кпп": safe(p?.customer?.kpp),
+      "заказчик_огрн": safe(p?.customer?.ogrn),
+      "заказчик_название": safe(p?.customer?.full_name),
+      "контакт_email": safe(p?.contact?.email),
+      "контакт_телефон": safe(p?.contact?.phone),
+      "контакт_фио": safe(contactFio),
+      "порядок_подачи": safe(p?.apply_request?.submission_order),
+      "место_подачи": safe(p?.apply_request?.submission_place),
+      "дата_начала_подачи": safe(p?.apply_request?.submission_start_date),
+    };
+
+    const lots = Array.isArray(p?.lots) && p.lots.length ? p.lots : [{}];
+
+    for (const lot of lots) {
+      const items = Array.isArray(lot?.items) && lot.items.length ? lot.items : [{}];
+
+      for (const item of items) {
+        rows.push({
+          ...base,
+          "лот_guid": safe(lot?.guid),
+          "лот_номер": safe(lot?.ordinal_number),
+          "лот_предмет": safe(lot?.subject),
+          "лот_валюта": safe(lot?.currency),
+          "лот_сумма": safe(lot?.initial_sum),
+          "позиция_количество": safe(item?.qty),
+          "позиция_guid": safe(item?.guid),
+          "окпд2_код": safe(item?.okpd2_code),
+          "окпд2_название": safe(item?.okpd2_name),
+          "доп_инфо": safe(item?.additional_info),
+        });
+      }
     }
-    return cur ?? "";
-  };
-
-  const escape = (v) => `"${String(v).replaceAll('"','""')}"`;
-
-  const lines = [];
-  lines.push(cols.map(escape).join(","));
-  for (const p of filteredPurchases){
-    lines.push(cols.map(c => escape(get(p,c))).join(","));
   }
 
-  const blob = new Blob([lines.join("\n")], {type:"text/csv;charset=utf-8"});
+  const columns = [
+    { header: "guid_закупки", key: "guid_закупки" },
+    { header: "reg_number", key: "reg_number" },
+    { header: "название_закупки", key: "название_закупки" },
+    { header: "файл_источник", key: "файл_источник" },
+    { header: "сумма_общая", key: "сумма_общая" },
+    { header: "дата_публикации", key: "дата_публикации" },
+    { header: "дата_окончания", key: "дата_окончания" },
+    { header: "заказчик_инн", key: "заказчик_инн" },
+    { header: "заказчик_кпп", key: "заказчик_кпп" },
+    { header: "заказчик_огрн", key: "заказчик_огрн" },
+    { header: "заказчик_название", key: "заказчик_название" },
+    { header: "контакт_email", key: "контакт_email" },
+    { header: "контакт_телефон", key: "контакт_телефон" },
+    { header: "контакт_фио", key: "контакт_фио" },
+    { header: "порядок_подачи", key: "порядок_подачи" },
+    { header: "место_подачи", key: "место_подачи" },
+    { header: "дата_начала_подачи", key: "дата_начала_подачи" },
+    { header: "лот_guid", key: "лот_guid" },
+    { header: "лот_номер", key: "лот_номер" },
+    { header: "лот_предмет", key: "лот_предмет" },
+    { header: "лот_валюта", key: "лот_валюта" },
+    { header: "лот_сумма", key: "лот_сумма" },
+    { header: "позиция_количество", key: "позиция_количество" },
+    { header: "позиция_guid", key: "позиция_guid" },
+    { header: "окпд2_код", key: "окпд2_код" },
+    { header: "окпд2_название", key: "окпд2_название" },
+    { header: "доп_инфо", key: "доп_инфо" },
+  ];
+
+  worksheet.columns = columns;
+  worksheet.addRows(rows);
+
+  const headerFill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "366092" }
+  };
+
+  const headerFont = {
+    color: { argb: "FFFFFF" },
+    bold: true
+  };
+
+  const cellFont = {
+    size: 10
+  };
+
+  const border = {
+    top: { style: "thin" },
+    left: { style: "thin" },
+    bottom: { style: "thin" },
+    right: { style: "thin" }
+  };
+
+  const alignment = {
+    wrapText: true,
+    vertical: "middle"
+  };
+
+  worksheet.getRow(1).height = 30;
+
+  worksheet.getRow(1).eachCell((cell) => {
+    cell.fill = headerFill;
+    cell.font = headerFont;
+    cell.alignment = alignment;
+    cell.border = border;
+  });
+
+  for (let rowNumber = 2; rowNumber <= worksheet.rowCount; rowNumber++) {
+    const row = worksheet.getRow(rowNumber);
+    row.height = 30;
+
+    row.eachCell((cell) => {
+      cell.font = cellFont;
+      cell.alignment = alignment;
+      cell.border = border;
+    });
+  }
+
+  worksheet.columns.forEach((column) => {
+    let maxLength = column.header ? String(column.header).length : 10;
+
+    column.eachCell({ includeEmpty: true }, (cell) => {
+      const value = cell.value == null ? "" : String(cell.value);
+      if (value.length > maxLength) {
+        maxLength = value.length;
+      }
+    });
+
+    column.width = Math.min(maxLength + 2, 50);
+  });
+
+  const footnoteRowIndex = worksheet.rowCount + 2;
+  worksheet.mergeCells(footnoteRowIndex, 1, footnoteRowIndex, worksheet.columnCount);
+
+  const footnoteCell = worksheet.getCell(footnoteRowIndex, 1);
+  footnoteCell.value = "Сноска: данные по закупкам, лотам и позициям";
+  footnoteCell.font = {
+    italic: true,
+    size: 9,
+    color: { argb: "555555" }
+  };
+  footnoteCell.alignment = {
+    horizontal: "center"
+  };
+  footnoteCell.border = {
+    top: { style: "thin", color: { argb: "AAAAAA" } }
+  };
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob(
+    [buffer],
+    { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }
+  );
+
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = "purchases.csv";
+  a.download = "purchases.xlsx";
   a.click();
   URL.revokeObjectURL(a.href);
 }
@@ -639,7 +788,15 @@ function bindEvents(){
   $("viewCards").onclick = () => setView("cards");
 
   $("btnExportJson").onclick = exportJson;
-  $("btnExportCsv").onclick = exportCsv;
+
+  $("btnExportXlsx").onclick = async () => {
+  try {
+    await exportXlsx();
+  } catch (err) {
+    console.error("Ошибка экспорта XLSX:", err);
+    alert("Не удалось выгрузить XLSX");
+  }
+};
 
   $("btnDeleteExpired").onclick = () => adminPost(`${API_BASE}/admin/delete_expired`);
   // открыть модалку

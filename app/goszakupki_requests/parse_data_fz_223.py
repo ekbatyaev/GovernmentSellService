@@ -9,6 +9,8 @@ import xmltodict
 
 logger = logging.getLogger(__name__)
 
+# Фильтры для отбора документов
+
 FILTERS_CUSTOMER = ["РОССЕТИ МОСКОВСКИЙ РЕГИОН"]
 
 FILTERS_JOB_NAME = [
@@ -30,7 +32,12 @@ FILTERS_JOB_NAME = [
     r"РП 20 кВ",
 ]
 
+FILTERS_JOB_EXCLUDE = [
+    r"ПС-110\s*кВ/ПС-35\s*кВ/ПС/220\s*кВ"
+]
+
 JOB_PATTERNS = [re.compile(p, re.IGNORECASE) for p in FILTERS_JOB_NAME]
+JOB_EXCLUDE_PATTERNS = [re.compile(p, re.IGNORECASE) for p in FILTERS_JOB_EXCLUDE]
 
 
 def remove_ns(obj):
@@ -54,6 +61,7 @@ def ensure_list(value):
 
 
 def normalize_purchase(data: dict) -> dict:
+
     body = data.get("purchaseNotice", {}).get("body", {})
     item = body.get("item", {}) or {}
     notice = item.get("purchaseNoticeData", {}) or {}
@@ -164,6 +172,7 @@ def parse_zip_archive(zip_path: str) -> List[Dict[str, Any]]:
                 data = remove_ns(data)
 
                 normalized = normalize_purchase(data)
+                print(normalized)
                 normalized["source_file"] = file_name
 
                 customer_name = (normalized.get("customer") or {}).get("full_name")
@@ -171,8 +180,9 @@ def parse_zip_archive(zip_path: str) -> List[Dict[str, Any]]:
 
                 ok_customer = any(f in str(customer_name or "") for f in FILTERS_CUSTOMER)
                 ok_job = any(p.search(work_name) for p in JOB_PATTERNS)
+                excluded_job = any(p.search(work_name) for p in JOB_EXCLUDE_PATTERNS)
 
-                if ok_customer and ok_job:
+                if ok_customer and ok_job and not excluded_job:
                     all_data.append(normalized)
 
             except Exception as e:
