@@ -79,11 +79,22 @@
 
           <div class="grid2">
             <div class="field">
-              <label class="field__label">Подача заявок от</label>
+              <label class="field__label">Начало подачи от</label>
+              <input id="submission_start_datetime_from" class="input" type="date" />
+            </div>
+            <div class="field">
+              <label class="field__label">Начало подачи до</label>
+              <input id="submission_start_datetime_to" class="input" type="date" />
+            </div>
+          </div>
+
+          <div class="grid2">
+            <div class="field">
+              <label class="field__label">Окончание подачи от</label>
               <input id="submission_close_datetime_from" class="input" type="date" />
             </div>
             <div class="field">
-              <label class="field__label">Подача заявок до</label>
+              <label class="field__label">Окончание подачи до</label>
               <input id="submission_close_datetime_to" class="input" type="date" />
             </div>
           </div>
@@ -108,9 +119,12 @@
           <div class="field">
             <label class="field__label">Сортировка</label>
             <select id="sort" class="select">
+              <option value="submission_start_desc">Начало подачи ↓</option>
+              <option value="submission_start_asc">Начало подачи ↑</option>
+              <option value="submission_close_desc">Окончание подачи ↓</option>
+              <option value="submission_close_asc">Окончание подачи ↑</option>
               <option value="pub_desc">Публикация ↓</option>
               <option value="pub_asc">Публикация ↑</option>
-              <option value="deadline_asc">Дедлайн ↑</option>
               <option value="sum_desc">Сумма ↓</option>
               <option value="sum_asc">Сумма ↑</option>
               <option value="name_asc">Название A→Z</option>
@@ -229,8 +243,8 @@
             <div class="table__head">
               <div>Статус</div>
               <div>Сумма</div>
-              <div>Дедлайн</div>
-              <div>Публикация</div>
+              <div>Начало подачи</div>
+              <div>Окончание подачи</div>
               <div>Рег. номер</div>
               <div>Название</div>
               <div>Заказчик</div>

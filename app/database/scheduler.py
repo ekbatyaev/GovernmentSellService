@@ -122,11 +122,12 @@ def process_day(date_str: str) -> int:
                 source_file=p.get("source_file"),
                 initial_sum=p.get("initial_sum"),
                 publication_datetime=_parse_dt(p.get("publication_datetime")),
+                submission_start_datetime=_parse_dt(p.get("submission_start_datetime")),
                 submission_close_datetime=_parse_dt(p.get("submission_close_datetime")),
                 customer=p.get("customer") or {},
                 contact=p.get("contact") or {},
                 apply_request=p.get("apply_request") or {},
-                lots=p.get("lots") or [],
+                lots=p.get("lots") or []
             )
             db.add(obj)
             saved += 1
@@ -197,7 +198,7 @@ def run_daily_job() -> Dict[str, Any]:
 
         data = requests.post(
             f"{APP_URL}{API_BASE}/get_all_purchases",
-            json={"token": TOKEN, "created_at_from": start_day.isoformat()},
+            json={"token": TOKEN, "publication_datetime_from": start_day.isoformat()},
             timeout=30,
         ).json().get("data", [])
 
@@ -209,8 +210,9 @@ def run_daily_job() -> Dict[str, Any]:
                 "название_закупки": p["name"],
                 "файл_источник": p["source_file"],
                 "сумма_общая": p["initial_sum"],
+                "дата_начала_подачи_заявок": p["submission_start_datetime"],
+                "дата_окончания_подачи_заявок": p["submission_close_datetime"],
                 "дата_публикации": p["publication_datetime"],
-                "дата_окончания": p["submission_close_datetime"],
                 "заказчик_инн": p["customer"]["inn"],
                 "заказчик_кпп": p["customer"]["kpp"],
                 "заказчик_огрн": p["customer"]["ogrn"],

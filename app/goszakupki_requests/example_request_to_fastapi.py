@@ -6,29 +6,32 @@ from pprint import pprint
 
 load_dotenv()
 
-APP_URL = os.getenv("APP_URL")
+# APP_URL = os.getenv("APP_URL")
+APP_URL = "http://127.0.0.1:8002/goszakupki"
 SYSTEM_TOKEN = os.getenv("SYSTEM_TOKEN")
 print(f"APP_URL: {APP_URL}")
 
 # 1. POST /put_purchase - Создать закупку
-print("\n" + "="*50)
-print("1. Creating purchase...")
-# response = requests.post(f"{APP_URL}/put_purchase", json={
-#     "token": SYSTEM_TOKEN,
-#     "guid": "124",
-#     "registration_number": "REG001",
-#     "name": "Тестовая закупка - 2",
-#     "source_file": "file.pdf",
-#     "initial_sum": 1000.0,
-#     "created_at": datetime.now().isoformat(),
-#     "publication_datetime": datetime.now().isoformat(),
-#     "submission_close_datetime": datetime.now().isoformat(),
-#     "customer_json": {"name": "Customer", "inn": "1234567890"},
-#     "contact_json": {"email": "test@test.com", "phone": "+71234567890"},
-#     "apply_request_json": {"status": "open", "requests": 5},
-#     "lot": {"number": 1, "description": "Main lot"}
-# })
-#
+# print("\n" + "="*50)
+# print("1. Creating purchase...")
+response = requests.post(f"{APP_URL}/put_purchase", json={
+    "token": SYSTEM_TOKEN,
+    "guid": "124",
+    "registration_number": "32615787390",
+    "name": "Тестовая закупка - 2",
+    "source_file": "file.pdf",
+    "initial_sum": 1000.0,
+    "publication_datetime": datetime.now().isoformat(),
+    "submission_start_datetime": datetime.now().isoformat(),
+    "submission_close_datetime": datetime.now().isoformat(),
+    "customer": {"name": "Customer", "inn": "1234567890"},
+    "contact": {"email": "test@test.com", "phone": "+71234567890"},
+    "apply_request": {"status": "open", "requests": 5},
+    "lots": [{"number": 1, "description": "Main lot"}]
+})
+
+print(response.json())
+
 # response = requests.post(f"{APP_URL}/put_purchase", json={
 #     "token": SYSTEM_TOKEN,
 #     "guid": "f2721f61-c78a-4209-860f-682b9de2c930",  # реальный guid
@@ -90,8 +93,9 @@ print("1. Creating purchase...")
 # print("2. Getting purchase...")
 # response = requests.post(f"{APP_URL}/get_purchase", json={
 #     "token": SYSTEM_TOKEN,
-#     "guid": "123"
+#     "guid": "b4fbce07-0b7c-40ad-9911-a2861d2d284c"
 # })
+# print(response.json())
 #
 # print(f"Status: {response.status_code}")
 # pprint(response.json())
@@ -120,14 +124,14 @@ print("1. Creating purchase...")
 # })
 
 # 4. POST /get_all_purchases - Получить список с фильтрами
-print("\n" + "="*50)
-print("4. Getting all purchases with filters...")
-response = requests.post(f"{APP_URL}/get_all_purchases", json={
-    "token": SYSTEM_TOKEN
-})
-#
-print(f"Status: {response.status_code}")
-pprint(response.json())
+# print("\n" + "="*50)
+# print("4. Getting all purchases with filters...")
+# response = requests.post(f"{APP_URL}/get_all_purchases", json={
+#     "token": SYSTEM_TOKEN
+# })
+# #
+# print(f"Status: {response.status_code}")
+# pprint(response.json())
 #
 # # 5. GET /stats - Статистика
 # print("\n" + "="*50)

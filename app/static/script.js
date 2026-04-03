@@ -186,7 +186,8 @@ function applyClientFilters(){
 }
 
 function applySort(){
-  const sortType = val("sort") || "pub_desc";
+  const sortType = val("sort") || "submission_start_desc";
+
   const safeDate = (x) => {
     const d = new Date(x || 0);
     return Number.isNaN(d.getTime()) ? 0 : d.getTime();
@@ -196,9 +197,17 @@ function applySort(){
     if (sortType === "sum_desc") return (Number(b.initial_sum)||0) - (Number(a.initial_sum)||0);
     if (sortType === "sum_asc") return (Number(a.initial_sum)||0) - (Number(b.initial_sum)||0);
     if (sortType === "name_asc") return String(a.name||"").localeCompare(String(b.name||""), "ru");
-    if (sortType === "deadline_asc") return safeDate(a.submission_close_datetime) - safeDate(b.submission_close_datetime);
+
+    if (sortType === "submission_start_asc") return safeDate(a.submission_start_datetime) - safeDate(b.submission_start_datetime);
+    if (sortType === "submission_start_desc") return safeDate(b.submission_start_datetime) - safeDate(a.submission_start_datetime);
+
+    if (sortType === "submission_close_asc") return safeDate(a.submission_close_datetime) - safeDate(b.submission_close_datetime);
+    if (sortType === "submission_close_desc") return safeDate(b.submission_close_datetime) - safeDate(a.submission_close_datetime);
+
     if (sortType === "pub_asc") return safeDate(a.publication_datetime) - safeDate(b.publication_datetime);
-    return safeDate(b.publication_datetime) - safeDate(a.publication_datetime);
+    if (sortType === "pub_desc") return safeDate(b.publication_datetime) - safeDate(a.publication_datetime);
+
+    return 0;
   });
 }
 
@@ -256,21 +265,21 @@ function openModal(p){
   const st = getDeadlineStatus(p);
 
   $("modalContent").innerHTML = `
-    <div class="kv"><div class="kv__k">Статус</div><div class="kv__v">${st.label}</div></div>
-    <div class="kv"><div class="kv__k">GUID</div><div class="kv__v"><span class="cellMono">${p.guid || "—"}</span></div></div>
-    <div class="kv"><div class="kv__k">Рег. номер</div><div class="kv__v"><span class="cellMono">${p.registration_number || "—"}</span></div></div>
-    <div class="kv"><div class="kv__k">Сумма</div><div class="kv__v">${fmtMoney(p.initial_sum)}</div></div>
-    <div class="kv"><div class="kv__k">Публикация</div><div class="kv__v">${fmtDateOnly(p.publication_datetime)}</div></div>
-    <div class="kv"><div class="kv__k">Дедлайн</div><div class="kv__v">${fmtDateOnly(p.submission_close_datetime)}</div></div>
+      <div class="kv"><div class="kv__k">Статус</div><div class="kv__v">${st.label}</div></div>
+      <div class="kv"><div class="kv__k">GUID</div><div class="kv__v"><span class="cellMono">${p.guid || "—"}</span></div></div>
+      <div class="kv"><div class="kv__k">Рег. номер</div><div class="kv__v"><span class="cellMono">${p.registration_number || "—"}</span></div></div>
+      <div class="kv"><div class="kv__k">Сумма</div><div class="kv__v">${fmtMoney(p.initial_sum)}</div></div>
+      <div class="kv"><div class="kv__k">Начало подачи заявки</div><div class="kv__v">${fmtDateOnly(p.submission_start_datetime)}</div></div>
+      <div class="kv"><div class="kv__k">Окончание подачи заявки</div><div class="kv__v">${fmtDateOnly(p.submission_close_datetime)}</div></div>
+      <div class="kv"><div class="kv__k">Дата публикации</div><div class="kv__v">${fmtDateOnly(p.publication_datetime)}</div></div>
+      <div class="kv"><div class="kv__k">Заказчик</div><div class="kv__v">${c.full_name || "—"}</div></div>
+      <div class="kv"><div class="kv__k">ИНН / КПП</div><div class="kv__v">${c.inn || "—"} / ${c.kpp || "—"}</div></div>
 
-    <div class="kv"><div class="kv__k">Заказчик</div><div class="kv__v">${c.full_name || "—"}</div></div>
-    <div class="kv"><div class="kv__k">ИНН / КПП</div><div class="kv__v">${c.inn || "—"} / ${c.kpp || "—"}</div></div>
+      <div class="kv"><div class="kv__k">Контакт</div><div class="kv__v">${[contact.last_name, contact.first_name, contact.middle_name].filter(Boolean).join(" ") || "—"}</div></div>
+      <div class="kv"><div class="kv__k">Телефон</div><div class="kv__v">${contact.phone || "—"}</div></div>
+      <div class="kv"><div class="kv__k">Email</div><div class="kv__v">${contact.email || "—"}</div></div>
 
-    <div class="kv"><div class="kv__k">Контакт</div><div class="kv__v">${[contact.last_name, contact.first_name, contact.middle_name].filter(Boolean).join(" ") || "—"}</div></div>
-    <div class="kv"><div class="kv__k">Телефон</div><div class="kv__v">${contact.phone || "—"}</div></div>
-    <div class="kv"><div class="kv__k">Email</div><div class="kv__v">${contact.email || "—"}</div></div>
-
-    <div class="kv"><div class="kv__k">Лоты</div><div class="kv__v">${Array.isArray(p.lots) ? p.lots.length : "—"}</div></div>
+      <div class="kv"><div class="kv__k">Лоты</div><div class="kv__v">${Array.isArray(p.lots) ? p.lots.length : "—"}</div></div>
   `;
 
   $("btnCopyGuid").onclick = async (e) => {
@@ -317,7 +326,6 @@ function renderTable(items){
     const row = document.createElement("div");
     row.className = "rowItem";
     row.onclick = () => openModal(p);
-
     row.innerHTML = `
       <div>
         <span class="badge ${st.cls}">
@@ -332,13 +340,13 @@ function renderTable(items){
       </div>
 
       <div>
-        <div class="cellTitle">${fmtDateOnly(p.submission_close_datetime)}</div>
-        <div class="cellSmall">до даты</div>
+        <div class="cellTitle">${fmtDateOnly(p.submission_start_datetime)}</div>
+        <div class="cellSmall">начало подачи</div>
       </div>
 
       <div>
-        <div class="cellTitle">${fmtDateOnly(p.publication_datetime)}</div>
-        <div class="cellSmall">дата</div>
+        <div class="cellTitle">${fmtDateOnly(p.submission_close_datetime)}</div>
+        <div class="cellSmall">окончание подачи</div>
       </div>
 
       <div>
@@ -359,6 +367,8 @@ function renderTable(items){
       </div>
     `;
 
+
+
     body.appendChild(row);
   });
 }
@@ -376,7 +386,7 @@ function renderCards(items){
     card.onclick = () => openModal(p);
 
     card.innerHTML = `
-      <div class="row" style="justify-content:space-between">
+      <div class="row card__top">
         <div class="card__title">${p.name || "—"}</div>
         <span class="badge ${st.cls}">
           <span class="badge__dot"></span>
@@ -387,10 +397,23 @@ function renderCards(items){
       <div class="card__sum">${fmtMoney(p.initial_sum)}</div>
 
       <div class="card__grid">
-        <div class="card__meta"><b>Рег.№:</b> <span class="cellMono">${p.registration_number || "—"}</span></div>
-        <div class="card__meta"><b>Публикация:</b> ${fmtDateOnly(p.publication_datetime)}</div>
-        <div class="card__meta"><b>Дедлайн:</b> ${fmtDateOnly(p.submission_close_datetime)}</div>
-        <div class="card__meta" style="grid-column:1 / -1"><b>Заказчик:</b> ${c.full_name || "—"}</div>
+        <div class="card__meta card__meta--full">
+          <b>Рег.№:</b> <span class="cellMono">${p.registration_number || "—"}</span>
+        </div>
+
+        <div class="card__meta">
+          <b>Начало подачи заявки:</b>
+          <span>${fmtDateOnly(p.submission_start_datetime)}</span>
+        </div>
+
+        <div class="card__meta">
+          <b>Окончание подачи заявки:</b>
+          <span>${fmtDateOnly(p.submission_close_datetime)}</span>
+        </div>
+
+        <div class="card__meta card__meta--full">
+          <b>Заказчик:</b> ${c.full_name || "—"}
+        </div>
       </div>
     `;
 
@@ -424,17 +447,18 @@ function render(){
 function saveStateToUrl(){
   const params = new URLSearchParams();
 
-  ["name","initial_sum_from","initial_sum_to",
-   "publication_datetime_from","publication_datetime_to",
-   "submission_close_datetime_from","submission_close_datetime_to"
+  ["initial_sum_from","initial_sum_to",
+     "publication_datetime_from","publication_datetime_to",
+     "submission_start_datetime_from","submission_start_datetime_to",
+     "submission_close_datetime_from","submission_close_datetime_to"
   ].forEach(id => {
-    const el = $(id);
-    if (!el) return;
-    if (el.value) params.set(id, el.value);
+      const el = $(id);
+      if (!el) return;
+      if (el.value) params.set(id, el.value);
   });
 
   if (val("q")) params.set("q", val("q"));
-  params.set("sort", val("sort") || "pub_desc");
+  params.set("sort", val("sort") || "submission_start_desc");
   params.set("pageSize", val("pageSize") || "20");
   params.set("statusFilter", val("statusFilter") || "all");
   params.set("view", viewMode);
@@ -450,10 +474,11 @@ function loadStateFromUrl(){
     if (v !== null && $(id)) $(id).value = v;
   };
 
-  ["name","initial_sum_from","initial_sum_to",
-   "publication_datetime_from","publication_datetime_to",
-   "submission_close_datetime_from","submission_close_datetime_to",
-   "q","sort","pageSize","statusFilter"
+  ["initial_sum_from","initial_sum_to",
+     "publication_datetime_from","publication_datetime_to",
+     "submission_start_datetime_from","submission_start_datetime_to",
+     "submission_close_datetime_from","submission_close_datetime_to",
+     "q","sort","pageSize","statusFilter"
   ].forEach(setIf);
 
   const v = params.get("view");
@@ -498,12 +523,14 @@ async function apiSearch(){
 
   const body = {
     token: SYSTEM_TOKEN,
-    name: val("name"),
     initial_sum_from: num("initial_sum_from"),
     initial_sum_to: num("initial_sum_to"),
 
     publication_datetime_from: dateToIsoRangeStart("publication_datetime_from"),
     publication_datetime_to: dateToIsoRangeEnd("publication_datetime_to"),
+
+    submission_start_datetime_from: dateToIsoRangeStart("submission_start_datetime_from"),
+    submission_start_datetime_to: dateToIsoRangeEnd("submission_start_datetime_to"),
 
     submission_close_datetime_from: dateToIsoRangeStart("submission_close_datetime_from"),
     submission_close_datetime_to: dateToIsoRangeEnd("submission_close_datetime_to"),
@@ -585,7 +612,6 @@ async function exportXlsx() {
       "файл_источник": safe(p?.source_file),
       "сумма_общая": safe(p?.initial_sum),
       "дата_публикации": safe(p?.publication_datetime),
-      "дата_окончания": safe(p?.submission_close_datetime),
       "заказчик_инн": safe(p?.customer?.inn),
       "заказчик_кпп": safe(p?.customer?.kpp),
       "заказчик_огрн": safe(p?.customer?.ogrn),
@@ -595,7 +621,8 @@ async function exportXlsx() {
       "контакт_фио": safe(contactFio),
       "порядок_подачи": safe(p?.apply_request?.submission_order),
       "место_подачи": safe(p?.apply_request?.submission_place),
-      "дата_начала_подачи": safe(p?.apply_request?.submission_start_date),
+      "дата_начала_подачи": safe(p?.submission_start_datetime),
+      "дата_окончания_подачи": safe(p?.submission_close_datetime)
     };
 
     const lots = Array.isArray(p?.lots) && p.lots.length ? p.lots : [{}];
@@ -622,34 +649,36 @@ async function exportXlsx() {
   }
 
   const columns = [
-    { header: "guid_закупки", key: "guid_закупки" },
-    { header: "reg_number", key: "reg_number" },
-    { header: "название_закупки", key: "название_закупки" },
-    { header: "файл_источник", key: "файл_источник" },
-    { header: "сумма_общая", key: "сумма_общая" },
-    { header: "дата_публикации", key: "дата_публикации" },
-    { header: "дата_окончания", key: "дата_окончания" },
-    { header: "заказчик_инн", key: "заказчик_инн" },
-    { header: "заказчик_кпп", key: "заказчик_кпп" },
-    { header: "заказчик_огрн", key: "заказчик_огрн" },
-    { header: "заказчик_название", key: "заказчик_название" },
-    { header: "контакт_email", key: "контакт_email" },
-    { header: "контакт_телефон", key: "контакт_телефон" },
-    { header: "контакт_фио", key: "контакт_фио" },
-    { header: "порядок_подачи", key: "порядок_подачи" },
-    { header: "место_подачи", key: "место_подачи" },
-    { header: "дата_начала_подачи", key: "дата_начала_подачи" },
-    { header: "лот_guid", key: "лот_guid" },
-    { header: "лот_номер", key: "лот_номер" },
-    { header: "лот_предмет", key: "лот_предмет" },
-    { header: "лот_валюта", key: "лот_валюта" },
-    { header: "лот_сумма", key: "лот_сумма" },
-    { header: "позиция_количество", key: "позиция_количество" },
-    { header: "позиция_guid", key: "позиция_guid" },
-    { header: "окпд2_код", key: "окпд2_код" },
-    { header: "окпд2_название", key: "окпд2_название" },
-    { header: "доп_инфо", key: "доп_инфо" },
+      { header: "guid_закупки", key: "guid_закупки" },
+      { header: "reg_number", key: "reg_number" },
+      { header: "название_закупки", key: "название_закупки" },
+      { header: "файл_источник", key: "файл_источник" },
+      { header: "сумма_общая", key: "сумма_общая" },
+      { header: "дата_публикации", key: "дата_публикации" },
+      { header: "заказчик_инн", key: "заказчик_инн" },
+      { header: "заказчик_кпп", key: "заказчик_кпп" },
+      { header: "заказчик_огрн", key: "заказчик_огрн" },
+      { header: "заказчик_название", key: "заказчик_название" },
+      { header: "контакт_email", key: "контакт_email" },
+      { header: "контакт_телефон", key: "контакт_телефон" },
+      { header: "контакт_фио", key: "контакт_фио" },
+      { header: "порядок_подачи", key: "порядок_подачи" },
+      { header: "место_подачи", key: "место_подачи" },
+      { header: "дата_начала_подачи", key: "дата_начала_подачи" },
+      { header: "дата_окончания_подачи", key: "дата_окончания_подачи" },
+      { header: "лот_guid", key: "лот_guid" },
+      { header: "лот_номер", key: "лот_номер" },
+      { header: "лот_предмет", key: "лот_предмет" },
+      { header: "лот_валюта", key: "лот_валюта" },
+      { header: "лот_сумма", key: "лот_сумма" },
+      { header: "позиция_количество", key: "позиция_количество" },
+      { header: "позиция_guid", key: "позиция_guid" },
+      { header: "окпд2_код", key: "окпд2_код" },
+      { header: "окпд2_название", key: "окпд2_название" },
+      { header: "доп_инфо", key: "доп_инфо" },
   ];
+
+
 
   worksheet.columns = columns;
   worksheet.addRows(rows);
@@ -745,13 +774,15 @@ async function exportXlsx() {
 }
 
 function resetFilters(){
-  ["name","q",
-   "initial_sum_from","initial_sum_to",
-   "publication_datetime_from","publication_datetime_to",
-   "submission_close_datetime_from","submission_close_datetime_to"
+
+  ["q",
+     "initial_sum_from","initial_sum_to",
+     "publication_datetime_from","publication_datetime_to",
+     "submission_start_datetime_from","submission_start_datetime_to",
+     "submission_close_datetime_from","submission_close_datetime_to"
   ].forEach(id => { if ($(id)) $(id).value = ""; });
 
-  $("sort").value = "pub_desc";
+  $("sort").value = "submission_start_desc";
   $("pageSize").value = "20";
   $("statusFilter").value = "all";
   page = 1;

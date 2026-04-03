@@ -66,12 +66,13 @@ def normalize_purchase(data: dict) -> dict:
     item = body.get("item", {}) or {}
     notice = item.get("purchaseNoticeData", {}) or {}
 
-    result: dict = {}
+    result = {}
 
     result["guid"] = item.get("guid")
     result["registration_number"] = notice.get("registrationNumber")
     result["name"] = notice.get("name")
     result["publication_datetime"] = notice.get("publicationDateTime")
+    result["submission_start_datetime"] = notice.get("applSubmisionStartDate")
     result["submission_close_datetime"] = notice.get("submissionCloseDateTime")
 
     customer = (notice.get("customer") or {}).get("mainInfo") or {}
@@ -93,21 +94,21 @@ def normalize_purchase(data: dict) -> dict:
 
     result["apply_request"] = {
         "submission_order": notice.get("applSubmisionOrder"),
-        "submission_place": notice.get("applSubmisionPlace"),
-        "submission_start_date": notice.get("applSubmisionStartDate"),
+        "submission_place": notice.get("applSubmisionPlace")
     }
 
-    # attachments: делаем безопасно (не используете — просто не падаем)
-    attached_files = notice.get("attachments") or {}
-    document = attached_files.get("document")
-    if isinstance(document, str):
-        try:
-            document = json.loads(document)
-        except Exception:
-            document = None
-    document = ensure_list(document)
 
-    _ = document  # заглушка: если захотите — сохраните в result["attached_files"]
+    # attachments: делаем безопасно (не используете — просто не падаем)
+    # attached_files = notice.get("attachments") or {}
+    # document = attached_files.get("document")
+    # if isinstance(document, str):
+    #     try:
+    #         document = json.loads(document)
+    #     except Exception:
+    #         document = None
+    # document = ensure_list(document)
+    # print(document)
+    # _ = document  # заглушка: если захотите — сохраните в result["attached_files"]
 
     result["lots"] = []
     lots = ensure_list((notice.get("lots") or {}).get("lot"))
@@ -170,9 +171,7 @@ def parse_zip_archive(zip_path: str) -> List[Dict[str, Any]]:
 
                 data = xmltodict.parse(xml_content)
                 data = remove_ns(data)
-
                 normalized = normalize_purchase(data)
-                print(normalized)
                 normalized["source_file"] = file_name
 
                 customer_name = (normalized.get("customer") or {}).get("full_name")

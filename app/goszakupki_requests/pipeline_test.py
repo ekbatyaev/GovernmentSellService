@@ -60,9 +60,9 @@ def process_day(date_str: str) -> int:
 
     result = get_docs_by_region(
         org_region="77",
-        document_type="purchasePlan",
+        document_type="purchaseNotice",
         exact_date=date_str,
-        subsystem_type="RPZ223",
+        subsystem_type="RI223",
     )
 
     zip_path = download_archive_from_result(result)
@@ -94,4 +94,4 @@ if __name__ == "__main__":
     # start = today - timedelta(days=10)
     # run_pipeline(start_date=start.strftime("%Y-%m-%d"), days=10)
     # get_all_purchases()
-    process_day("2026-03-11")
+    process_day("2026-03-01")

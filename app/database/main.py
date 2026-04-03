@@ -80,11 +80,12 @@ def save_data(data_file, data):
 class PutPurchaseModel(BaseModel):
     token: str
     guid: str
-    registration_number: Optional[str] = None
+    registration_number: str
     name: str
     source_file: Optional[str] = None
     initial_sum: Optional[float] = None
     publication_datetime: Optional[datetime] = None
+    submission_start_datetime: Optional[datetime] = None
     submission_close_datetime: Optional[datetime] = None
     customer: Any
     contact: Any
@@ -107,12 +108,15 @@ class GetAllPurchasesModel(BaseModel):
     name: Optional[str] = None
     initial_sum_from: Optional[float] = None
     initial_sum_to: Optional[float] = None
+
     publication_datetime_from: Optional[datetime] = None
     publication_datetime_to: Optional[datetime] = None
+
+    submission_start_datetime_from: Optional[datetime] = None
+    submission_start_datetime_to: Optional[datetime] = None
+
     submission_close_datetime_from: Optional[datetime] = None
     submission_close_datetime_to: Optional[datetime] = None
-    created_at_from: Optional[datetime] = None
-    created_at_to: Optional[datetime] = None
     source_file: Optional[str] = None
 
 
@@ -124,6 +128,7 @@ class UpdatePurchaseModel(BaseModel):
     source_file: Optional[str] = None
     initial_sum: Optional[float] = None
     publication_datetime: Optional[datetime] = None
+    submission_start_datetime: Optional[datetime] = None
     submission_close_datetime: Optional[datetime] = None
     customer: Optional[Any] = None
     contact: Optional[Any] = None
@@ -138,6 +143,7 @@ class PurchaseResponseModel(BaseModel):
     source_file: Optional[str]
     initial_sum: Optional[float]
     publication_datetime: Optional[datetime]
+    submission_start_datetime: Optional[datetime]
     submission_close_datetime: Optional[datetime]
     customer: Any
     contact: Any
@@ -259,6 +265,35 @@ async def root():
 def put_purchase(purchase_data: PutPurchaseModel, db: Session = Depends(get_db)):
     verify_token(purchase_data.token)
 
+    existing_purchase = db.scalar(
+        select(Purchase).where(
+            Purchase.registration_number == purchase_data.registration_number
+        )
+    )
+
+    if existing_purchase:
+        existing_purchase.guid = purchase_data.guid
+        existing_purchase.registration_number = purchase_data.registration_number
+        existing_purchase.name = purchase_data.name
+        existing_purchase.source_file = purchase_data.source_file
+        existing_purchase.initial_sum = purchase_data.initial_sum
+        existing_purchase.publication_datetime = purchase_data.publication_datetime
+        existing_purchase.submission_start_datetime = purchase_data.submission_start_datetime
+        existing_purchase.submission_close_datetime = purchase_data.submission_close_datetime
+        existing_purchase.customer = purchase_data.customer or {}
+        existing_purchase.contact = purchase_data.contact or {}
+        existing_purchase.apply_request = purchase_data.apply_request or {}
+        existing_purchase.lots = purchase_data.lots or []
+
+        db.commit()
+        db.refresh(existing_purchase)
+
+        return SuccessResponseModel(
+            status="success",
+            message="Purchase updated",
+            data=PurchaseResponseModel.from_orm(existing_purchase),
+        )
+
     new_purchase = Purchase(
         guid=purchase_data.guid,
         registration_number=purchase_data.registration_number,
@@ -266,6 +301,7 @@ def put_purchase(purchase_data: PutPurchaseModel, db: Session = Depends(get_db))
         source_file=purchase_data.source_file,
         initial_sum=purchase_data.initial_sum,
         publication_datetime=purchase_data.publication_datetime,
+        submission_start_datetime=purchase_data.submission_start_datetime,
         submission_close_datetime=purchase_data.submission_close_datetime,
         customer=purchase_data.customer or {},
         contact=purchase_data.contact or {},
@@ -284,13 +320,6 @@ def put_purchase(purchase_data: PutPurchaseModel, db: Session = Depends(get_db))
         )
     except IntegrityError:
         db.rollback()
-        existing = db.get(Purchase, purchase_data.guid)
-        if existing:
-            return SuccessResponseModel(
-                status="success",
-                message="Purchase already exists",
-                data=PurchaseResponseModel.from_orm(existing),
-            )
         raise HTTPException(status_code=400, detail="Failed to create purchase")
 
 
@@ -350,44 +379,55 @@ def get_all_purchases(purchase_data: GetAllPurchasesModel, db: Session = Depends
     elif pub_to:
         query = query.where(Purchase.publication_datetime <= pub_to)
 
-    created_at_from = purchase_data.created_at_from
-    created_at_to = purchase_data.created_at_to
+    submission_start_datetime_from = purchase_data.submission_start_datetime_from
+    submission_start_datetime_to = purchase_data.submission_start_datetime_to
 
-    if created_at_from and created_at_to:
-        if created_at_from.date() == created_at_to.date():
-            start = datetime.combine(created_at_from.date(), datetime.min.time())
+    if submission_start_datetime_from and submission_start_datetime_to:
+        if submission_start_datetime_from.date() == submission_start_datetime_to.date():
+            start = datetime.combine(submission_start_datetime_from.date(), datetime.min.time())
             end = start + timedelta(days=1)
             query = query.where(
-                Purchase.created_at >= start,
-                Purchase.created_at < end
+                Purchase.submission_start_datetime >= start,
+                Purchase.submission_start_datetime < end
             )
         else:
-            end = datetime.combine(created_at_to.date(), datetime.min.time()) + timedelta(days=1)
+            end = datetime.combine(submission_start_datetime_to.date(), datetime.min.time()) + timedelta(days=1)
             query = query.where(
-                Purchase.created_at >= created_at_from,
-                Purchase.created_at < end
+                Purchase.submission_start_datetime >= submission_start_datetime_from,
+                Purchase.submission_start_datetime < end
             )
 
-    elif created_at_from:
-        query = query.where(Purchase.created_at >= created_at_from)
+    elif submission_start_datetime_from:
+        query = query.where(Purchase.submission_start_datetime >= submission_start_datetime_from)
 
-    elif created_at_to:
-        end = datetime.combine(created_at_to.date(), datetime.min.time()) + timedelta(days=1)
-        query = query.where(Purchase.created_at < end)
+    elif submission_start_datetime_to:
+        end = datetime.combine(submission_start_datetime_to.date(), datetime.min.time()) + timedelta(days=1)
+        query = query.where(Purchase.submission_start_datetime < end)
 
-    sub_from = purchase_data.submission_close_datetime_from
-    sub_to = purchase_data.submission_close_datetime_to
-    if sub_from and sub_to:
-        if sub_from.date() == sub_to.date():
-            start = datetime.combine(sub_from.date(), datetime.min.time())
+    submission_close_datetime_from = purchase_data.submission_close_datetime_from
+    submission_close_datetime_to = purchase_data.submission_close_datetime_to
+
+    if submission_close_datetime_from and submission_close_datetime_to:
+        if submission_close_datetime_from.date() == submission_close_datetime_to.date():
+            start = datetime.combine(submission_close_datetime_from.date(), datetime.min.time())
             end = start + timedelta(days=1)
-            query = query.where(Purchase.submission_close_datetime >= start, Purchase.submission_close_datetime < end)
+            query = query.where(
+                Purchase.submission_close_datetime >= start,
+                Purchase.submission_close_datetime < end
+            )
         else:
-            query = query.where(Purchase.submission_close_datetime >= sub_from, Purchase.submission_close_datetime <= sub_to)
-    elif sub_from:
-        query = query.where(Purchase.submission_close_datetime >= sub_from)
-    elif sub_to:
-        query = query.where(Purchase.submission_close_datetime <= sub_to)
+            end = datetime.combine(submission_close_datetime_to.date(), datetime.min.time()) + timedelta(days=1)
+            query = query.where(
+                Purchase.submission_close_datetime >= submission_close_datetime_from,
+                Purchase.submission_close_datetime < end
+            )
+
+    elif submission_close_datetime_from:
+        query = query.where(Purchase.submission_close_datetime >= submission_close_datetime_from)
+
+    elif submission_close_datetime_to:
+        end = datetime.combine(submission_close_datetime_to.date(), datetime.min.time()) + timedelta(days=1)
+        query = query.where(Purchase.submission_close_datetime < end)
 
     if purchase_data.source_file:
         query = query.where(Purchase.source_file.ilike(f"%{purchase_data.source_file}%"))

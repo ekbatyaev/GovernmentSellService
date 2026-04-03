@@ -18,6 +18,8 @@ class Purchase(Base):
     initial_sum = Column(Numeric(18, 2), nullable=True)
 
     publication_datetime = Column(DateTime, nullable=True)
+
+    submission_start_datetime = Column(DateTime, nullable=True)
     submission_close_datetime = Column(DateTime, nullable=True)
 
     customer = Column(JSONB, nullable=False, default=dict)
@@ -25,8 +27,6 @@ class Purchase(Base):
     apply_request = Column(JSONB, nullable=False, default=dict)
 
     lots = Column(ARRAY(JSONB), nullable=False, default=list)
-
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=True)
 
     source_file = Column(String(255), nullable=True)
 
