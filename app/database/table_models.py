@@ -25,6 +25,7 @@ class Purchase(Base):
     customer = Column(JSONB, nullable=False, default=dict)
     contact = Column(JSONB, nullable=False, default=dict)
     apply_request = Column(JSONB, nullable=False, default=dict)
+    result_info = Column(JSONB, nullable=False, default=dict)
 
     lots = Column(ARRAY(JSONB), nullable=False, default=list)
 

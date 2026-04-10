@@ -14,23 +14,23 @@ print(f"APP_URL: {APP_URL}")
 # 1. POST /put_purchase - Создать закупку
 # print("\n" + "="*50)
 # print("1. Creating purchase...")
-response = requests.post(f"{APP_URL}/put_purchase", json={
-    "token": SYSTEM_TOKEN,
-    "guid": "124",
-    "registration_number": "32615787390",
-    "name": "Тестовая закупка - 2",
-    "source_file": "file.pdf",
-    "initial_sum": 1000.0,
-    "publication_datetime": datetime.now().isoformat(),
-    "submission_start_datetime": datetime.now().isoformat(),
-    "submission_close_datetime": datetime.now().isoformat(),
-    "customer": {"name": "Customer", "inn": "1234567890"},
-    "contact": {"email": "test@test.com", "phone": "+71234567890"},
-    "apply_request": {"status": "open", "requests": 5},
-    "lots": [{"number": 1, "description": "Main lot"}]
-})
-
-print(response.json())
+# response = requests.post(f"{APP_URL}/put_purchase", json={
+#     "token": SYSTEM_TOKEN,
+#     "guid": "124",
+#     "registration_number": "32615787390",
+#     "name": "Тестовая закупка - 2",
+#     "source_file": "file.pdf",
+#     "initial_sum": 1000.0,
+#     "publication_datetime": datetime.now().isoformat(),
+#     "submission_start_datetime": datetime.now().isoformat(),
+#     "submission_close_datetime": datetime.now().isoformat(),
+#     "customer": {"name": "Customer", "inn": "1234567890"},
+#     "contact": {"email": "test@test.com", "phone": "+71234567890"},
+#     "apply_request": {"status": "open", "requests": 5},
+#     "lots": [{"number": 1, "description": "Main lot"}]
+# })
+#
+# print(response.json())
 
 # response = requests.post(f"{APP_URL}/put_purchase", json={
 #     "token": SYSTEM_TOKEN,
@@ -114,14 +114,13 @@ print(response.json())
 # pprint(response.json())
 #
 # 4. POST /get_all_purchases - Получить список с фильтрами
-# print("\n" + "="*50)
-# print("4. Getting all purchases with filters...")
-# response = requests.post(f"{APP_URL}/get_all_purchases", json={
-#     "token": SYSTEM_TOKEN,
-#     "name": "тестовая",
-#     "initial_sum_from": 500,
-#     "initial_sum_to": 5000
-# })
+print("\n" + "="*50)
+print("4. Getting all purchases with filters...")
+response = requests.post(f"{APP_URL}/get_all_purchases", json={
+    "token": SYSTEM_TOKEN
+})
+
+pprint(response.json())
 
 # 4. POST /get_all_purchases - Получить список с фильтрами
 # print("\n" + "="*50)

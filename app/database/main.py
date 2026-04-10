@@ -90,6 +90,7 @@ class PutPurchaseModel(BaseModel):
     customer: Any
     contact: Any
     apply_request: Any
+    result_info: Any
     lots: List[Any]
 
 
@@ -133,6 +134,7 @@ class UpdatePurchaseModel(BaseModel):
     customer: Optional[Any] = None
     contact: Optional[Any] = None
     apply_request: Optional[Any] = None
+    result_info: Optional[Any] = None
     lots: Optional[Any] = None
 
 
@@ -148,6 +150,7 @@ class PurchaseResponseModel(BaseModel):
     customer: Any
     contact: Any
     apply_request: Any
+    result_info: Any
     lots: List[Any]
 
     class Config:
@@ -283,6 +286,7 @@ def put_purchase(purchase_data: PutPurchaseModel, db: Session = Depends(get_db))
         existing_purchase.customer = purchase_data.customer or {}
         existing_purchase.contact = purchase_data.contact or {}
         existing_purchase.apply_request = purchase_data.apply_request or {}
+        existing_purchase.result_info = purchase_data.result_info or {}
         existing_purchase.lots = purchase_data.lots or []
 
         db.commit()
@@ -306,6 +310,7 @@ def put_purchase(purchase_data: PutPurchaseModel, db: Session = Depends(get_db))
         customer=purchase_data.customer or {},
         contact=purchase_data.contact or {},
         apply_request=purchase_data.apply_request or {},
+        result_info=purchase_data.result_info or {},
         lots=purchase_data.lots or [],
     )
 
@@ -543,7 +548,7 @@ def delete_newsletter(data: DeleteNewsLetterModel, db: Session = Depends(get_db)
     newsletter = db.query(NewsLetter).filter_by(email=data.email).first()
 
     if not newsletter:
-        raise HTTPException(status_code=500, detail="Email not found")
+        raise HTTPException(status_code=404, detail="Email not found")
 
     db.delete(newsletter)
     db.commit()
@@ -561,7 +566,7 @@ def get_newsletter(data: GetNewsLetterModel, db: Session = Depends(get_db)):
     newsletter = db.query(NewsLetter).filter_by(email=data.email).first()
 
     if not newsletter:
-        raise HTTPException(status_code=500, detail="Email not found")
+        raise HTTPException(status_code=404, detail="Email not found")
 
     return SuccessResponseModel(
         status="success",
@@ -631,13 +636,13 @@ def verify_code(data: VerifyCode):
     verify_token(data.token)
     try:
         codes_storage = load_data("auth_codes.json")
-
-        real_code = codes_storage.get(data.email)
-
-        if not real_code:
-            raise HTTPException(status_code=404, detail="Code not found")
-    except:
+    except Exception:
         raise HTTPException(status_code=500, detail="Code data is not available")
+
+    real_code = codes_storage.get(data.email)
+
+    if real_code is None:
+        raise HTTPException(status_code=404, detail="Code not found")
 
     if real_code != data.code:
         raise HTTPException(status_code=400, detail="Invalid code")

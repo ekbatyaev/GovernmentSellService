@@ -94,4 +94,11 @@ if __name__ == "__main__":
     # start = today - timedelta(days=10)
     # run_pipeline(start_date=start.strftime("%Y-%m-%d"), days=10)
     # get_all_purchases()
-    process_day("2026-03-01")
+    from datetime import date, timedelta
+
+    current = date(2026, 2, 1)
+    end = date(2026, 3, 1)
+
+    while current < end:
+        process_day(current.isoformat())
+        current += timedelta(days=1)

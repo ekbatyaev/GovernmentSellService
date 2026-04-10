@@ -13,3 +13,8 @@ apscheduler
 exchangelib
 openpyxl
 pandas
+python-docx
+pypdf
+rarfile
+charset-normalizer
+pymupdf

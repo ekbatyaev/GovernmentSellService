@@ -18,20 +18,17 @@ let sendCodeSeconds = 60;
 
 const SOON_HOURS = 48;
 
-
 function $(id){ return document.getElementById(id); }
 
 async function copyText(text){
   const value = String(text || "").trim();
   if (!value) throw new Error("Нет значения для копирования");
 
-  // Современный способ
   if (navigator.clipboard && window.isSecureContext) {
     await navigator.clipboard.writeText(value);
     return;
   }
 
-  // Fallback для http / старых браузеров
   const ta = document.createElement("textarea");
   ta.value = value;
   ta.style.position = "fixed";
@@ -63,7 +60,6 @@ function startSendCodeTimer(button, mode) {
       sendCodeTimer = null;
       button.disabled = false;
 
-      // Восстанавливаем текст кнопки в зависимости от режима
       button.textContent =
         mode === "subscribe" ? "Получить код" : "Получить код для отписки";
       return;
@@ -77,7 +73,10 @@ function setStatus(text, type="info"){
   const el = $("statusBox");
   if (!el) return;
   el.textContent = text;
-  el.style.color = (type === "error") ? "var(--danger)" : (type === "ok" ? "var(--ok)" : "var(--muted)");
+  el.style.color =
+    (type === "error")
+      ? "var(--danger)"
+      : (type === "ok" ? "var(--ok)" : "var(--muted)");
 }
 
 function lockBodyScroll(){
@@ -119,14 +118,14 @@ function num(id){
   return Number.isFinite(n) ? n : null;
 }
 
-// input[type=date] -> ISO start/end
 function dateToIsoRangeStart(id){
-  const v = $(id)?.value; // YYYY-MM-DD
+  const v = $(id)?.value;
   if (!v) return null;
   return new Date(v + "T00:00:00").toISOString();
 }
+
 function dateToIsoRangeEnd(id){
-  const v = $(id)?.value; // YYYY-MM-DD
+  const v = $(id)?.value;
   if (!v) return null;
   return new Date(v + "T23:59:59.999").toISOString();
 }
@@ -139,17 +138,15 @@ function getDeadlineStatus(p){
   if (Number.isNaN(d.getTime())) return {key:"active", label:"Дедлайн", cls:"badge--ok"};
 
   const now = new Date();
-
-  // Делаем today с обнулением времени
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-  // deadline теперь до конца дня, т.е. +1 день
   const deadline = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
 
   if (deadline <= today) return {key:"expired", label:"Просрочена", cls:"badge--danger"};
 
   const diffHours = (deadline - now) / 1000 / 60 / 60;
-  if (diffHours <= SOON_HOURS) return {key:"soon", label:`Скоро (${Math.ceil(diffHours)}ч)`, cls:"badge--warn"};
+  if (diffHours <= SOON_HOURS) {
+    return {key:"soon", label:`Скоро (${Math.ceil(diffHours)}ч)`, cls:"badge--warn"};
+  }
 
   return {key:"active", label:"Активна", cls:"badge--ok"};
 }
@@ -283,27 +280,27 @@ function openModal(p){
   `;
 
   $("btnCopyGuid").onclick = async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      try {
-        await copyText(p.guid);
-        setStatus("GUID скопирован", "ok");
-      } catch (err) {
-        console.error(err);
-        setStatus("Не удалось скопировать GUID", "error");
-      }
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      await copyText(p.guid);
+      setStatus("GUID скопирован", "ok");
+    } catch (err) {
+      console.error(err);
+      setStatus("Не удалось скопировать GUID", "error");
+    }
   };
 
   $("btnCopyReg").onclick = async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      try {
-        await copyText(p.registration_number);
-        setStatus("Рег. номер скопирован", "ok");
-      } catch (err) {
-        console.error(err);
-        setStatus("Не удалось скопировать рег. номер", "error");
-      }
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      await copyText(p.registration_number);
+      setStatus("Рег. номер скопирован", "ok");
+    } catch (err) {
+      console.error(err);
+      setStatus("Не удалось скопировать рег. номер", "error");
+    }
   };
 
   $("modal").classList.remove("hidden");
@@ -367,8 +364,6 @@ function renderTable(items){
       </div>
     `;
 
-
-
     body.appendChild(row);
   });
 }
@@ -425,7 +420,9 @@ function render(){
   applyClientFilters();
   applySort();
 
-  window.__pmap = Object.fromEntries(filteredPurchases.filter(p=>p.guid).map(p=>[p.guid,p]));
+  window.__pmap = Object.fromEntries(
+    filteredPurchases.filter(p => p.guid).map(p => [p.guid, p])
+  );
 
   const {items, total, pages, size} = paginate(filteredPurchases);
 
@@ -447,14 +444,15 @@ function render(){
 function saveStateToUrl(){
   const params = new URLSearchParams();
 
-  ["initial_sum_from","initial_sum_to",
-     "publication_datetime_from","publication_datetime_to",
-     "submission_start_datetime_from","submission_start_datetime_to",
-     "submission_close_datetime_from","submission_close_datetime_to"
+  [
+    "initial_sum_from","initial_sum_to",
+    "publication_datetime_from","publication_datetime_to",
+    "submission_start_datetime_from","submission_start_datetime_to",
+    "submission_close_datetime_from","submission_close_datetime_to"
   ].forEach(id => {
-      const el = $(id);
-      if (!el) return;
-      if (el.value) params.set(id, el.value);
+    const el = $(id);
+    if (!el) return;
+    if (el.value) params.set(id, el.value);
   });
 
   if (val("q")) params.set("q", val("q"));
@@ -474,11 +472,12 @@ function loadStateFromUrl(){
     if (v !== null && $(id)) $(id).value = v;
   };
 
-  ["initial_sum_from","initial_sum_to",
-     "publication_datetime_from","publication_datetime_to",
-     "submission_start_datetime_from","submission_start_datetime_to",
-     "submission_close_datetime_from","submission_close_datetime_to",
-     "q","sort","pageSize","statusFilter"
+  [
+    "initial_sum_from","initial_sum_to",
+    "publication_datetime_from","publication_datetime_to",
+    "submission_start_datetime_from","submission_start_datetime_to",
+    "submission_close_datetime_from","submission_close_datetime_to",
+    "q","sort","pageSize","statusFilter"
   ].forEach(setIf);
 
   const v = params.get("view");
@@ -498,6 +497,7 @@ function setView(mode){
     t.classList.add("segmented__btn--active");
     c.classList.remove("segmented__btn--active");
   }
+
   render();
   saveStateToUrl();
 }
@@ -513,6 +513,82 @@ async function fetchToken(){
     console.error(e);
     setStatus("Не удалось получить токен (/config)", "error");
   }
+}
+
+async function fetchAllPurchasesForExport(){
+  if (!SYSTEM_TOKEN){
+    throw new Error("Нет SYSTEM_TOKEN");
+  }
+
+  const res = await fetch(`${API_BASE}/get_all_purchases`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token: SYSTEM_TOKEN })
+  });
+
+  let json = {};
+  try {
+    json = await res.json();
+  } catch {
+    throw new Error("Сервер вернул некорректный JSON");
+  }
+
+  if (!res.ok) {
+    throw new Error(json.detail || json.message || "Ошибка загрузки всех закупок");
+  }
+
+  return Array.isArray(json.data) ? json.data : [];
+}
+
+function safeExportValue(v){
+  return v ?? "";
+}
+
+function formatExportDate(value){
+  if (!value) return "";
+
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+
+  return d;
+}
+
+function buildExportRows(purchases){
+  const rows = [];
+  let lotSequence = 1;
+
+  for (const p of purchases) {
+    const resultInfo = p?.result_info || {};
+    const lots = Array.isArray(p?.lots) && p.lots.length ? p.lots : [{}];
+
+    for (const lot of lots) {
+      rows.push({
+        "Реестровый номер закупки": safeExportValue(p?.registration_number),
+        "Порядковый номер лота": lotSequence++,
+        "Наименование лота": safeExportValue(lot?.subject || p?.name),
+        "Начальная (максимальная) цена контракта": Number(p?.initial_sum) || 0,
+        "Валюта": safeExportValue(lot?.currency || p?.currency || "RUB"),
+        "Наименование Заказчика": safeExportValue(p?.customer?.full_name),
+        "Организация, осуществляющая размещение ": safeExportValue(
+          p?.customer?.placement_organization || p?.customer?.full_name
+        ),
+        "Дата размещения": formatExportDate(p?.submission_start_datetime),
+        "Дата обновления": formatExportDate(p?.publication_datetime),
+        "Дата начала подачи заявок": formatExportDate(p?.submission_start_datetime),
+        "Дата окончания подачи заявок": formatExportDate(p?.submission_close_datetime),
+        "Победитель ": safeExportValue(resultInfo?.["Победитель"]),
+        "Другие\nучастники": safeExportValue(resultInfo?.["Другие участники"]),
+        "Ячейки": safeExportValue(resultInfo?.["Ячейки"]),
+        "Кол-во ячеек": safeExportValue(resultInfo?.["Кол-во ячеек"]),
+        "Типовой проект": safeExportValue(resultInfo?.["Типовой проект"]),
+        "Проектировщик": safeExportValue(resultInfo?.["Проектировщик"]),
+        "Дата исполнения договора": safeExportValue(resultInfo?.["Дата исполнения договора"]),
+        "Филиал/РЭС": safeExportValue(resultInfo?.["Филиал/РЭС"]),
+      });
+    }
+  }
+
+  return rows;
 }
 
 async function apiSearch(){
@@ -581,206 +657,180 @@ async function adminPost(url, payload = null){
   }
 }
 
-function exportJson(){
-  const blob = new Blob([JSON.stringify(filteredPurchases, null, 2)], {type:"application/json;charset=utf-8"});
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "purchases.json";
-  a.click();
-  URL.revokeObjectURL(a.href);
+async function exportJson(){
+  try {
+    const allPurchases = await fetchAllPurchasesForExport();
+    const rows = buildExportRows(allPurchases).map((row) => {
+      const normalized = { ...row };
+
+      [
+        "Дата размещения",
+        "Дата обновления",
+        "Дата начала подачи заявок",
+        "Дата окончания подачи заявок"
+      ].forEach((key) => {
+        if (normalized[key] instanceof Date) {
+          normalized[key] = normalized[key].toISOString();
+        }
+      });
+
+      return normalized;
+    });
+
+    const blob = new Blob(
+      [JSON.stringify(rows, null, 2)],
+      { type:"application/json;charset=utf-8" }
+    );
+
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "purchases.json";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch (err) {
+    console.error("Ошибка экспорта JSON:", err);
+    alert("Не удалось выгрузить JSON");
+  }
 }
 
 async function exportXlsx() {
-  const workbook = new ExcelJS.Workbook();
-  const worksheet = workbook.addWorksheet("Purchases");
+  try {
+    const allPurchases = await fetchAllPurchasesForExport();
+    const rows = buildExportRows(allPurchases);
 
-  const safe = (v) => v ?? "";
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Purchases");
 
-  const rows = [];
+    const columns = [
+      { header: "Реестровый номер закупки", key: "Реестровый номер закупки", width: 16 },
+      { header: "Порядковый номер лота", key: "Порядковый номер лота", width: 9 },
+      { header: "Наименование лота", key: "Наименование лота", width: 55 },
+      { header: "Начальная (максимальная) цена контракта", key: "Начальная (максимальная) цена контракта", width: 16 },
+      { header: "Валюта", key: "Валюта", width: 9 },
+      { header: "Наименование Заказчика", key: "Наименование Заказчика", width: 28 },
+      { header: "Организация, осуществляющая размещение ", key: "Организация, осуществляющая размещение ", width: 21 },
+      { header: "Дата размещения", key: "Дата размещения", width: 13 },
+      { header: "Дата обновления", key: "Дата обновления", width: 13 },
+      { header: "Дата начала подачи заявок", key: "Дата начала подачи заявок", width: 11 },
+      { header: "Дата окончания подачи заявок", key: "Дата окончания подачи заявок", width: 13 },
+      { header: "Победитель ", key: "Победитель ", width: 14 },
+      { header: "Другие\nучастники", key: "Другие\nучастники", width: 15 },
+      { header: "Ячейки", key: "Ячейки", width: 9 },
+      { header: "Кол-во ячеек", key: "Кол-во ячеек", width: 13 },
+      { header: "Типовой проект", key: "Типовой проект", width: 15 },
+      { header: "Проектировщик", key: "Проектировщик", width: 29 },
+      { header: "Дата исполнения договора", key: "Дата исполнения договора", width: 13 },
+      { header: "Филиал/РЭС", key: "Филиал/РЭС", width: 14 },
+    ];
 
-  for (const p of filteredPurchases) {
-    const contactFio = [
-      p?.contact?.last_name,
-      p?.contact?.first_name,
-      p?.contact?.middle_name
-    ].filter(Boolean).join(" ");
+    worksheet.columns = columns;
+    worksheet.addRows(rows);
 
-    const base = {
-      "guid_закупки": safe(p?.guid),
-      "reg_number": safe(p?.registration_number),
-      "название_закупки": safe(p?.name),
-      "файл_источник": safe(p?.source_file),
-      "сумма_общая": safe(p?.initial_sum),
-      "дата_публикации": safe(p?.publication_datetime),
-      "заказчик_инн": safe(p?.customer?.inn),
-      "заказчик_кпп": safe(p?.customer?.kpp),
-      "заказчик_огрн": safe(p?.customer?.ogrn),
-      "заказчик_название": safe(p?.customer?.full_name),
-      "контакт_email": safe(p?.contact?.email),
-      "контакт_телефон": safe(p?.contact?.phone),
-      "контакт_фио": safe(contactFio),
-      "порядок_подачи": safe(p?.apply_request?.submission_order),
-      "место_подачи": safe(p?.apply_request?.submission_place),
-      "дата_начала_подачи": safe(p?.submission_start_datetime),
-      "дата_окончания_подачи": safe(p?.submission_close_datetime)
+    const thinBorder = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" }
     };
 
-    const lots = Array.isArray(p?.lots) && p.lots.length ? p.lots : [{}];
+    const yellowHeaderCols = new Set([
+      "Победитель ",
+      "Другие\nучастники",
+      "Ячейки",
+      "Кол-во ячеек",
+      "Типовой проект",
+      "Проектировщик",
+      "Дата исполнения договора",
+      "Филиал/РЭС"
+    ]);
 
-    for (const lot of lots) {
-      const items = Array.isArray(lot?.items) && lot.items.length ? lot.items : [{}];
+    worksheet.getRow(1).height = 67.5;
 
-      for (const item of items) {
-        rows.push({
-          ...base,
-          "лот_guid": safe(lot?.guid),
-          "лот_номер": safe(lot?.ordinal_number),
-          "лот_предмет": safe(lot?.subject),
-          "лот_валюта": safe(lot?.currency),
-          "лот_сумма": safe(lot?.initial_sum),
-          "позиция_количество": safe(item?.qty),
-          "позиция_guid": safe(item?.guid),
-          "окпд2_код": safe(item?.okpd2_code),
-          "окпд2_название": safe(item?.okpd2_name),
-          "доп_инфо": safe(item?.additional_info),
-        });
+    worksheet.getRow(1).eachCell((cell) => {
+      cell.font = {
+        name: "Calibri",
+        size: 11,
+        bold: true
+      };
+
+      cell.alignment = {
+        horizontal: "center",
+        vertical: "middle",
+        wrapText: true
+      };
+
+      cell.border = thinBorder;
+
+      if (yellowHeaderCols.has(cell.value)) {
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFFFFF00" }
+        };
       }
+    });
+
+    for (let rowNumber = 2; rowNumber <= worksheet.rowCount; rowNumber++) {
+      const row = worksheet.getRow(rowNumber);
+
+      row.eachCell((cell, colNumber) => {
+        cell.font = {
+          name: "Calibri",
+          size: 11
+        };
+
+        cell.alignment = {
+          wrapText: true,
+          vertical: "middle"
+        };
+        cell.border = thinBorder;
+
+        if (colNumber === 1) {
+          cell.alignment.horizontal = "left";
+        }
+
+        if (colNumber === 2) {
+          cell.alignment.horizontal = "center";
+          cell.alignment.vertical = "middle";
+        }
+
+        if (colNumber >= 8 && colNumber <= 11 && cell.value instanceof Date) {
+          cell.numFmt = "mm-dd-yy";
+        }
+
+        if (colNumber === 4 && typeof cell.value === "number") {
+          cell.numFmt = "#,##0.00";
+        }
+      });
     }
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob(
+      [buffer],
+      { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }
+    );
+
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "purchases.xlsx";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch (err) {
+    console.error("Ошибка экспорта XLSX:", err);
+    alert("Не удалось выгрузить XLSX");
   }
-
-  const columns = [
-      { header: "guid_закупки", key: "guid_закупки" },
-      { header: "reg_number", key: "reg_number" },
-      { header: "название_закупки", key: "название_закупки" },
-      { header: "файл_источник", key: "файл_источник" },
-      { header: "сумма_общая", key: "сумма_общая" },
-      { header: "дата_публикации", key: "дата_публикации" },
-      { header: "заказчик_инн", key: "заказчик_инн" },
-      { header: "заказчик_кпп", key: "заказчик_кпп" },
-      { header: "заказчик_огрн", key: "заказчик_огрн" },
-      { header: "заказчик_название", key: "заказчик_название" },
-      { header: "контакт_email", key: "контакт_email" },
-      { header: "контакт_телефон", key: "контакт_телефон" },
-      { header: "контакт_фио", key: "контакт_фио" },
-      { header: "порядок_подачи", key: "порядок_подачи" },
-      { header: "место_подачи", key: "место_подачи" },
-      { header: "дата_начала_подачи", key: "дата_начала_подачи" },
-      { header: "дата_окончания_подачи", key: "дата_окончания_подачи" },
-      { header: "лот_guid", key: "лот_guid" },
-      { header: "лот_номер", key: "лот_номер" },
-      { header: "лот_предмет", key: "лот_предмет" },
-      { header: "лот_валюта", key: "лот_валюта" },
-      { header: "лот_сумма", key: "лот_сумма" },
-      { header: "позиция_количество", key: "позиция_количество" },
-      { header: "позиция_guid", key: "позиция_guid" },
-      { header: "окпд2_код", key: "окпд2_код" },
-      { header: "окпд2_название", key: "окпд2_название" },
-      { header: "доп_инфо", key: "доп_инфо" },
-  ];
-
-
-
-  worksheet.columns = columns;
-  worksheet.addRows(rows);
-
-  const headerFill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: "366092" }
-  };
-
-  const headerFont = {
-    color: { argb: "FFFFFF" },
-    bold: true
-  };
-
-  const cellFont = {
-    size: 10
-  };
-
-  const border = {
-    top: { style: "thin" },
-    left: { style: "thin" },
-    bottom: { style: "thin" },
-    right: { style: "thin" }
-  };
-
-  const alignment = {
-    wrapText: true,
-    vertical: "middle"
-  };
-
-  worksheet.getRow(1).height = 30;
-
-  worksheet.getRow(1).eachCell((cell) => {
-    cell.fill = headerFill;
-    cell.font = headerFont;
-    cell.alignment = alignment;
-    cell.border = border;
-  });
-
-  for (let rowNumber = 2; rowNumber <= worksheet.rowCount; rowNumber++) {
-    const row = worksheet.getRow(rowNumber);
-    row.height = 30;
-
-    row.eachCell((cell) => {
-      cell.font = cellFont;
-      cell.alignment = alignment;
-      cell.border = border;
-    });
-  }
-
-  worksheet.columns.forEach((column) => {
-    let maxLength = column.header ? String(column.header).length : 10;
-
-    column.eachCell({ includeEmpty: true }, (cell) => {
-      const value = cell.value == null ? "" : String(cell.value);
-      if (value.length > maxLength) {
-        maxLength = value.length;
-      }
-    });
-
-    column.width = Math.min(maxLength + 2, 50);
-  });
-
-  const footnoteRowIndex = worksheet.rowCount + 2;
-  worksheet.mergeCells(footnoteRowIndex, 1, footnoteRowIndex, worksheet.columnCount);
-
-  const footnoteCell = worksheet.getCell(footnoteRowIndex, 1);
-  footnoteCell.value = "Сноска: данные по закупкам, лотам и позициям";
-  footnoteCell.font = {
-    italic: true,
-    size: 9,
-    color: { argb: "555555" }
-  };
-  footnoteCell.alignment = {
-    horizontal: "center"
-  };
-  footnoteCell.border = {
-    top: { style: "thin", color: { argb: "AAAAAA" } }
-  };
-
-  const buffer = await workbook.xlsx.writeBuffer();
-  const blob = new Blob(
-    [buffer],
-    { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }
-  );
-
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "purchases.xlsx";
-  a.click();
-  URL.revokeObjectURL(a.href);
 }
 
 function resetFilters(){
-
-  ["q",
-     "initial_sum_from","initial_sum_to",
-     "publication_datetime_from","publication_datetime_to",
-     "submission_start_datetime_from","submission_start_datetime_to",
-     "submission_close_datetime_from","submission_close_datetime_to"
-  ].forEach(id => { if ($(id)) $(id).value = ""; });
+  [
+    "q",
+    "initial_sum_from","initial_sum_to",
+    "publication_datetime_from","publication_datetime_to",
+    "submission_start_datetime_from","submission_start_datetime_to",
+    "submission_close_datetime_from","submission_close_datetime_to"
+  ].forEach(id => {
+    if ($(id)) $(id).value = "";
+  });
 
   $("sort").value = "submission_start_desc";
   $("pageSize").value = "20";
@@ -818,71 +868,57 @@ function bindEvents(){
   $("viewTable").onclick = () => setView("table");
   $("viewCards").onclick = () => setView("cards");
 
-  $("btnExportJson").onclick = exportJson;
-
-  $("btnExportXlsx").onclick = async () => {
-  try {
-    await exportXlsx();
-  } catch (err) {
-    console.error("Ошибка экспорта XLSX:", err);
-    alert("Не удалось выгрузить XLSX");
-  }
-};
+  $("btnExportJson").onclick = () => exportJson();
+  $("btnExportXlsx").onclick = () => exportXlsx();
 
   $("btnDeleteExpired").onclick = () => adminPost(`${API_BASE}/admin/delete_expired`);
-  // открыть модалку
-  // кнопки
+
   $("btnSubscribeEmailNewsLetter").onclick = () => openEmailModal("subscribe");
   $("btnUnsubscribeEmailNewsLetter").onclick = () => openEmailModal("unsubscribe");
   $("btnSendCode").onclick = sendAuthCode;
   $("btnVerifyCode").onclick = verifyAuthCode;
-  // модалка
+
   $("emailModalBackdrop").onclick = closeEmailModal;
   $("emailModalClose").onclick = closeEmailModal;
 
   $("btnRunBackfill").onclick = () => {
-      const days = document.getElementById('daysInput').value;
+    const days = document.getElementById("daysInput").value;
 
-      if (!days || days < 1) {
-        alert('Пожалуйста, введите корректное количество дней (минимум 1)');
-        return;
-      }
+    if (!days || days < 1) {
+      alert("Пожалуйста, введите корректное количество дней (минимум 1)");
+      return;
+    }
 
-      if (days > 30) {
-        alert('Максимальное количество дней - 30');
-        return;
-      }
-
-      adminPost(`${API_BASE}/admin/run_backfill`, {
-        token: SYSTEM_TOKEN,
-        days: days
-      });
-    };
+    adminPost(`${API_BASE}/admin/run_backfill`, {
+      token: SYSTEM_TOKEN,
+      days: days
+    });
+  };
 
   $("btnRunProcessDay").onclick = () => {
-      const dateInput = document.getElementById('process_day_input');
-      const dateStr = dateInput.value;
+    const dateInput = document.getElementById("process_day_input");
+    const dateStr = dateInput.value;
 
-      if (!dateStr) {
-        alert('Пожалуйста, выберите дату');
-        return;
-      }
+    if (!dateStr) {
+      alert("Пожалуйста, выберите дату");
+      return;
+    }
 
-      const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toISOString().split("T")[0];
 
-      if (dateStr > today) {
-        alert('Дата не может быть в будущем. Пожалуйста, выберите сегодняшнюю или прошлую дату');
-        dateInput.value = '';
-        return;
-      }
+    if (dateStr > today) {
+      alert("Дата не может быть в будущем. Пожалуйста, выберите сегодняшнюю или прошлую дату");
+      dateInput.value = "";
+      return;
+    }
 
-      const datetimeStr = `${dateStr}T00:00:00`;
+    const datetimeStr = `${dateStr}T00:00:00`;
 
-      adminPost(`${API_BASE}/admin/run_process_day`, {
-        token: SYSTEM_TOKEN,
-        date: datetimeStr
-      });
-    };
+    adminPost(`${API_BASE}/admin/run_process_day`, {
+      token: SYSTEM_TOKEN,
+      date: datetimeStr
+    });
+  };
 
   $("modalBackdrop").onclick = closeModal;
   $("modalClose").onclick = closeModal;
@@ -922,7 +958,6 @@ function openEmailModal(mode = "subscribe"){
   emailModal.classList.remove("hidden");
   lockBodyScroll();
 
-  // reset
   emailInput.value = "";
   codeInput.value = "";
   codeField.style.display = "none";
@@ -975,8 +1010,8 @@ async function sendAuthCode(){
   }
 
   if (!SYSTEM_TOKEN){
-      emailStatus.innerText = "Нет токена";
-      return;
+    emailStatus.innerText = "Нет токена";
+    return;
   }
 
   try{
@@ -993,12 +1028,10 @@ async function sendAuthCode(){
     btnVerifyCode.style.display = "inline-block";
 
     startSendCodeTimer(btnSendCode, emailMode);
-
   }catch(e){
     emailStatus.innerText = "❌ " + e.message;
   }
 }
-
 
 async function verifyAuthCode(){
   const email = emailInput.value;
@@ -1012,14 +1045,12 @@ async function verifyAuthCode(){
   try{
     emailStatus.innerText = "Проверка...";
 
-    // проверка кода
     await apiPost(`${API_BASE}/verify_code`, {
       email: email,
       code: String(code),
       token: SYSTEM_TOKEN
     });
 
-    // действие
     if (emailMode === "subscribe"){
       await apiPost(`${API_BASE}/put_newsletter`, {
         email: email,

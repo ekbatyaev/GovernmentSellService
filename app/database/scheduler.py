@@ -1,8 +1,8 @@
 import logging
 from datetime import  timezone
 from time import sleep
-from sqlalchemy import delete, func
-from .connection_to_database import db_session, try_advisory_lock, advisory_unlock
+from sqlalchemy import delete, func, select
+from .connection_to_database import db_session
 from .table_models import Purchase
 from goszakupki_requests.data_request import get_docs_by_region, download_archive_from_result
 from goszakupki_requests.parse_data_fz_223 import parse_zip_archive
@@ -35,7 +35,9 @@ BACKFILL_ON_STARTUP = os.getenv("PIPELINE_BACKFILL_ON_STARTUP", "true").lower() 
 
 APP_URL = os.getenv("APP_URL")
 API_BASE = os.getenv("API_BASE")
-TOKEN = os.getenv("SYSTEM_TOKEN") or exit("SYSTEM_TOKEN is required")
+TOKEN = os.getenv("SYSTEM_TOKEN")
+if not TOKEN:
+    raise RuntimeError("SYSTEM_TOKEN is required")
 
 # in-memory статус (простая телеметрия)
 LAST_JOB_STATUS: Dict[str, Any] = {
@@ -47,6 +49,11 @@ LAST_JOB_STATUS: Dict[str, Any] = {
     "progress": None,
     "result": None,
 }
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(threadName)s | %(name)s | %(message)s"
+)
 
 
 def _utcnow() -> datetime:
@@ -69,6 +76,61 @@ def _parse_dt(value):
             return None
     return None
 
+def put_purchase_to_db(purchase: dict) -> str:
+    purchase_payload = dict(purchase)
+    purchase_payload["token"] = TOKEN
+    registration_number = purchase_payload.get("registration_number")
+    guid = purchase_payload.get("guid")
+
+    try:
+        response = requests.post(
+            f"{APP_URL}{API_BASE}/put_purchase",
+            json=purchase_payload,
+            timeout=30,
+        )
+        response.raise_for_status()
+        data = response.json()
+    except requests.RequestException as e:
+        logger.exception(
+            "Pipeline: ошибка запроса к API | reg=%s | guid=%s | error=%s",
+            registration_number,
+            guid,
+            e,
+        )
+        return "skipped"
+    except ValueError:
+        logger.warning(
+            "Pipeline: API вернул некорректный JSON | reg=%s | guid=%s",
+            registration_number,
+            guid,
+        )
+        return "skipped"
+
+    message = data.get("message")
+
+    if message == "Purchase updated":
+        logger.info(
+            "Pipeline: обновлена закупка через API | reg=%s | guid=%s",
+            registration_number,
+            guid,
+        )
+        return "updated"
+
+    if message == "Purchase created":
+        logger.info(
+            "Pipeline: создана новая закупка через API | reg=%s | guid=%s",
+            registration_number,
+            guid,
+        )
+        return "created"
+
+    logger.warning(
+        "Pipeline: неизвестный ответ API | reg=%s | guid=%s | message=%s",
+        registration_number,
+        guid,
+        message,
+    )
+    return "skipped"
 
 def get_last_status() -> Dict[str, Any]:
     return LAST_JOB_STATUS
@@ -87,7 +149,7 @@ def delete_expired(db) -> int:
     return res.rowcount or 0
 
 
-def process_day(date_str: str) -> int:
+def process_day(date_str: str) -> Dict[str, int]:
     logger.info("Pipeline: обработка даты %s", date_str)
 
     result = get_docs_by_region(
@@ -102,328 +164,376 @@ def process_day(date_str: str) -> int:
 
     purchases = parse_zip_archive(zip_path)
     logger.info("Pipeline: после фильтров закупок: %s", len(purchases))
+
     if not purchases:
-        return 0
+        return {"created": 0, "updated": 0, "skipped": 0}
 
-    saved = 0
-    with db_session() as db:
-        for p in purchases:
-            guid = p.get("guid")
-            if not guid:
-                continue
+    created = 0
+    updated = 0
+    skipped = 0
+    for p in purchases:
+        try:
+            status = put_purchase_to_db(p)
 
-            if db.get(Purchase, guid):
-                continue
+            if status == "created":
+                created += 1
+            elif status == "updated":
+                updated += 1
+            else:
+                skipped += 1
 
-            obj = Purchase(
-                guid=guid,
-                registration_number=p.get("registration_number"),
-                name=p.get("name") or "",
-                source_file=p.get("source_file"),
-                initial_sum=p.get("initial_sum"),
-                publication_datetime=_parse_dt(p.get("publication_datetime")),
-                submission_start_datetime=_parse_dt(p.get("submission_start_datetime")),
-                submission_close_datetime=_parse_dt(p.get("submission_close_datetime")),
-                customer=p.get("customer") or {},
-                contact=p.get("contact") or {},
-                apply_request=p.get("apply_request") or {},
-                lots=p.get("lots") or []
+        except Exception:
+            logger.exception(
+                "Pipeline: ошибка сохранения закупки | reg=%s | guid=%s",
+                p.get("registration_number"),
+                p.get("guid"),
             )
-            db.add(obj)
-            saved += 1
+            skipped += 1
 
-    logger.info("Pipeline: сохранено за %s: %s", date_str, saved)
-    return saved
+    logger.info(
+        "Pipeline: итог за %s | создано=%s | обновлено=%s | пропущено=%s",
+        date_str,
+        created,
+        updated,
+        skipped,
+    )
+    return {"created": created, "updated": updated, "skipped": skipped}
 
 def run_daily_job() -> Dict[str, Any]:
     with db_session() as db:
-        if not try_advisory_lock(db, LOCK_KEY):
-            msg = "Scheduler: lock занят, пропускаю запуск daily"
-            logger.info(msg)
-            return {"ok": False, "skipped": True, "reason": "lock_busy"}
 
-    _set_status(
-        running=True,
-        job="daily",
-        started_at=_utcnow().isoformat(),
-        finished_at=None,
-        message="running",
-        progress=None,
-        result=None,
-    )
+        _set_status(
+            running=True,
+            job="daily",
+            started_at=_utcnow().isoformat(),
+            finished_at=None,
+            message="running",
+            progress=None,
+            result=None,
+        )
 
-    try:
-        yesterday = (_utcnow() - timedelta(days=1)).date()
-        date_str = yesterday.strftime("%Y-%m-%d")
+        try:
+            yesterday = (_utcnow() - timedelta(days=1)).date()
+            date_str = yesterday.strftime("%Y-%m-%d")
 
-        _set_status(progress={"date": date_str})
+            _set_status(progress={"date": date_str})
 
-        max_attempts = 3
-        retry_delay_sec = 10
-        added = None
+            max_attempts = 3
+            retry_delay_sec = 10
+            day_result = None
 
-        for attempt in range(1, max_attempts + 1):
-            try:
-                logger.info("Scheduler: daily attempt %s/%s for date %s", attempt, max_attempts, date_str)
-                added = process_day(date_str)
-                break
-            except Exception as e:
-                logger.warning(
-                    "Scheduler: daily error (%s) attempt %s/%s: %s",
-                    date_str,
-                    attempt,
-                    max_attempts,
-                    e,
-                )
-                if attempt == max_attempts:
-                    raise
-                time_module.sleep(retry_delay_sec)
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    logger.info(
+                        "Scheduler: daily attempt %s/%s for date %s",
+                        attempt,
+                        max_attempts,
+                        date_str,
+                    )
+                    day_result = process_day(date_str)
+                    break
+                except Exception as e:
+                    logger.warning(
+                        "Scheduler: daily error (%s) attempt %s/%s: %s",
+                        date_str,
+                        attempt,
+                        max_attempts,
+                        e,
+                    )
+                    if attempt == max_attempts:
+                        raise
+                    time_module.sleep(retry_delay_sec)
 
-        now = datetime.now()
-        start_day = datetime.combine(now.date(), time.min)
+            if day_result is None:
+                raise RuntimeError("Daily job finished without result")
 
-        emails = requests.post(
-            f"{APP_URL}{API_BASE}/get_all_newsletters",
-            json={"token": TOKEN},
-            timeout=30,
-        ).json().get("data", [])
+            created = day_result["created"]
+            updated = day_result["updated"]
+            skipped = day_result["skipped"]
 
-        html_content = f"""
-        <html><body style="font-family:Arial;">
-        <h2 style="color:#2E86C1;">Уведомление о новых заявках с госзакупок</h2>
-        <p>Добавлено новых заявок: <b style="color:#E74C3C;font-size:18px;">{added}</b></p>
-        <hr><p style="color:#888;font-size:12px;">Это письмо сформировано автоматически, отвечать на него не нужно</p>
-        </body></html>
-        """
+            now = datetime.now()
+            start_day = datetime.combine(now.date(), time.min)
 
-        data = requests.post(
-            f"{APP_URL}{API_BASE}/get_all_purchases",
-            json={"token": TOKEN, "publication_datetime_from": start_day.isoformat()},
-            timeout=30,
-        ).json().get("data", [])
+            emails_response = requests.post(
+                f"{APP_URL}{API_BASE}/get_all_newsletters",
+                json={"token": TOKEN},
+                timeout=30,
+            )
+            emails_response.raise_for_status()
+            emails = emails_response.json().get("data", [])
 
-        rows = []
-        for p in data:
-            base = {
-                "guid_закупки": p["guid"],
-                "reg_number": p["registration_number"],
-                "название_закупки": p["name"],
-                "файл_источник": p["source_file"],
-                "сумма_общая": p["initial_sum"],
-                "дата_начала_подачи_заявок": p["submission_start_datetime"],
-                "дата_окончания_подачи_заявок": p["submission_close_datetime"],
-                "дата_публикации": p["publication_datetime"],
-                "заказчик_инн": p["customer"]["inn"],
-                "заказчик_кпп": p["customer"]["kpp"],
-                "заказчик_огрн": p["customer"]["ogrn"],
-                "заказчик_название": p["customer"]["full_name"],
-                "контакт_email": p["contact"]["email"],
-                "контакт_телефон": p["contact"]["phone"],
-                "контакт_фио": " ".join(filter(None, [
-                    p["contact"]["last_name"],
-                    p["contact"]["first_name"],
-                    p["contact"]["middle_name"],
-                ])),
-                "порядок_подачи": p["apply_request"]["submission_order"],
-                "место_подачи": p["apply_request"]["submission_place"],
-                "дата_начала_подачи": p["apply_request"]["submission_start_date"],
+            html_content = f"""
+            <html><body style="font-family:Arial;">
+            <h2 style="color:#2E86C1;">Уведомление о заявках с госзакупок</h2>
+            <p>Новых заявок добавлено: <b style="color:#E74C3C;font-size:18px;">{created}</b></p>
+            <p>Заявок обновлено: <b style="color:#F39C12;font-size:18px;">{updated}</b></p>
+            <p>Пропущено: <b style="color:#7F8C8D;font-size:18px;">{skipped}</b></p>
+            <hr><p style="color:#888;font-size:12px;">Это письмо сформировано автоматически, отвечать на него не нужно</p>
+            </body></html>
+            """
+
+            purchases_response = requests.post(
+                f"{APP_URL}{API_BASE}/get_all_purchases",
+                json={"token": TOKEN, "publication_datetime_from": start_day.isoformat()},
+                timeout=30,
+            )
+            purchases_response.raise_for_status()
+            data = purchases_response.json().get("data", [])
+
+            rows = []
+            for p in data:
+                customer = p.get("customer") or {}
+                contact = p.get("contact") or {}
+                apply_request = p.get("apply_request") or {}
+                lots = p.get("lots") or []
+
+                base = {
+                    "guid_закупки": p.get("guid"),
+                    "reg_number": p.get("registration_number"),
+                    "название_закупки": p.get("name"),
+                    "файл_источник": p.get("source_file"),
+                    "сумма_общая": p.get("initial_sum"),
+                    "дата_начала_подачи_заявок": p.get("submission_start_datetime"),
+                    "дата_окончания_подачи_заявок": p.get("submission_close_datetime"),
+                    "дата_публикации": p.get("publication_datetime"),
+                    "заказчик_инн": customer.get("inn"),
+                    "заказчик_кпп": customer.get("kpp"),
+                    "заказчик_огрн": customer.get("ogrn"),
+                    "заказчик_название": customer.get("full_name"),
+                    "контакт_email": contact.get("email"),
+                    "контакт_телефон": contact.get("phone"),
+                    "контакт_фио": " ".join(filter(None, [
+                        contact.get("last_name"),
+                        contact.get("first_name"),
+                        contact.get("middle_name"),
+                    ])),
+                    "порядок_подачи": apply_request.get("submission_order"),
+                    "место_подачи": apply_request.get("submission_place"),
+                    "дата_начала_подачи": apply_request.get("submission_start_date"),
+                }
+
+                if not lots:
+                    rows.append(base)
+                    continue
+
+                for lot in lots:
+                    items = lot.get("items") or [{}]
+
+                    for item in items:
+                        rows.append({
+                            **base,
+                            "лот_guid": lot.get("guid"),
+                            "лот_номер": lot.get("ordinal_number"),
+                            "лот_предмет": lot.get("subject"),
+                            "лот_валюта": lot.get("currency"),
+                            "лот_сумма": lot.get("initial_sum"),
+                            "позиция_количество": item.get("qty"),
+                            "позиция_guid": item.get("guid"),
+                            "окпд2_код": item.get("okpd2_code"),
+                            "окпд2_название": item.get("okpd2_name"),
+                            "доп_инфо": item.get("additional_info"),
+                        })
+
+            result = {
+                "ok": True,
+                "created": created,
+                "updated": updated,
+                "skipped": skipped,
+                "date": date_str,
             }
 
-            for lot in p["lots"]:
-                for item in lot.get("items", [{}]):
-                    rows.append({
-                        **base,
-                        "лот_guid": lot["guid"],
-                        "лот_номер": lot["ordinal_number"],
-                        "лот_предмет": lot["subject"],
-                        "лот_валюта": lot["currency"],
-                        "лот_сумма": lot["initial_sum"],
-                        "позиция_количество": item.get("qty"),
-                        "позиция_guid": item.get("guid"),
-                        "окпд2_код": item.get("okpd2_code"),
-                        "окпд2_название": item.get("okpd2_name"),
-                        "доп_инфо": item.get("additional_info"),
-                    })
+            analysis_path = "analysis.xlsx"
 
-        df = pd.DataFrame(rows)
-        df.to_excel("analysis.xlsx", index=False)
+            try:
+                df = pd.DataFrame(rows)
+                df.to_excel(analysis_path, index=False)
 
-        wb = load_workbook("analysis.xlsx")
-        ws = wb.active
+                wb = load_workbook(analysis_path)
+                ws = wb.active
 
-        header_fill = PatternFill("solid", fgColor="366092")
-        header_font = Font(color="FFFFFF", bold=True)
-        cell_font = Font(size=10)
-        align = Alignment(wrap_text=True, vertical="center")
-        border = Border(*(Side(style="thin") for _ in range(4)))
-
-        for col in range(1, ws.max_column + 1):
-            c = ws.cell(1, col)
-            c.font, c.fill, c.alignment, c.border = header_font, header_fill, align, border
-
-        for r in range(2, ws.max_row + 1):
-            ws.row_dimensions[r].height = 30
-            for c in range(1, ws.max_column + 1):
-                cell = ws.cell(r, c)
-                cell.font, cell.alignment, cell.border = cell_font, align, border
-
-        for col in range(1, ws.max_column + 1):
-            letter = get_column_letter(col)
-            max_len = max(len(str(ws.cell(r, col).value or "")) for r in range(1, ws.max_row + 1))
-            ws.column_dimensions[letter].width = min(max_len + 2, 50)
-
-        last = ws.max_row + 2
-        ws.cell(last, 1, "Сноска: данные по закупкам, лотам и позициям")
-        ws.merge_cells(start_row=last, start_column=1, end_row=last, end_column=ws.max_column)
-
-        f = ws.cell(last, 1)
-        f.font = Font(italic=True, size=9, color="555555")
-        f.alignment = Alignment(horizontal="center")
-        f.border = Border(top=Side(style="thin", color="AAAAAA"))
-
-        wb.save("analysis.xlsx")
-
-        print("Файл создан")
-
-        subject = f"Заявки с госзакупок за {now.strftime('%d.%m.%Y')}"
-
-        for u in emails:
-            if u.get("email"):
-                send_email(
-                    u["email"],
-                    subject,
-                    html_content,
-                    attachments=["analysis.xlsx"] if added else None,
+                header_fill = PatternFill("solid", fgColor="366092")
+                header_font = Font(color="FFFFFF", bold=True)
+                cell_font = Font(size=10)
+                align = Alignment(wrap_text=True, vertical="center")
+                thin_side = Side(style="thin")
+                border = Border(
+                    left=thin_side,
+                    right=thin_side,
+                    top=thin_side,
+                    bottom=thin_side,
                 )
 
-        os.remove("analysis.xlsx")
+                for col in range(1, ws.max_column + 1):
+                    c = ws.cell(1, col)
+                    c.font = header_font
+                    c.fill = header_fill
+                    c.alignment = align
+                    c.border = border
 
-        with db_session() as db:
-            deleted = delete_expired(db)
+                for r in range(2, ws.max_row + 1):
+                    ws.row_dimensions[r].height = 30
+                    for c in range(1, ws.max_column + 1):
+                        cell = ws.cell(r, c)
+                        cell.font = cell_font
+                        cell.alignment = align
+                        cell.border = border
 
-        result = {"ok": True, "added": added, "deleted_expired": deleted, "date": date_str}
-        _set_status(
-            running=False,
-            finished_at=_utcnow().isoformat(),
-            message="done",
-            result=result,
-        )
-        logger.info("Scheduler: daily done | %s", result)
-        return result
+                for col in range(1, ws.max_column + 1):
+                    letter = get_column_letter(col)
+                    max_len = max(
+                        len(str(ws.cell(r, col).value or ""))
+                        for r in range(1, ws.max_row + 1)
+                    )
+                    ws.column_dimensions[letter].width = min(max_len + 2, 50)
 
-    except Exception as e:
-        logger.exception("Scheduler: daily job failed")
-        _set_status(
-            running=False,
-            finished_at=_utcnow().isoformat(),
-            message=f"error: {e}",
-            result={"ok": False, "error": str(e)},
-        )
-        return {"ok": False, "error": str(e)}
+                last = ws.max_row + 2
+                ws.cell(last, 1, "Сноска: данные по закупкам, лотам и позициям")
+                ws.merge_cells(
+                    start_row=last,
+                    start_column=1,
+                    end_row=last,
+                    end_column=ws.max_column,
+                )
 
-    finally:
-        with db_session() as db:
-            advisory_unlock(db, LOCK_KEY)
+                footnote_cell = ws.cell(last, 1)
+                footnote_cell.font = Font(italic=True, size=9, color="555555")
+                footnote_cell.alignment = Alignment(horizontal="center")
+                footnote_cell.border = Border(top=Side(style="thin", color="AAAAAA"))
+
+                wb.save(analysis_path)
+
+                subject = f"Заявки с госзакупок за {now.strftime('%d.%m.%Y')}"
+
+                for u in emails:
+                    email = u.get("email")
+                    if not email:
+                        continue
+
+                    send_email(
+                        email,
+                        subject,
+                        html_content,
+                        attachments=[analysis_path] if (created or updated) else None,
+                    )
+
+            finally:
+                if os.path.exists(analysis_path):
+                    os.remove(analysis_path)
+
+            _set_status(
+                running=False,
+                finished_at=_utcnow().isoformat(),
+                message="done",
+                result=result,
+            )
+            logger.info("Scheduler: daily done | %s", result)
+            return result
+
+        except Exception as e:
+            logger.exception("Scheduler: daily job failed")
+            error_result = {"ok": False, "error": str(e)}
+
+            _set_status(
+                running=False,
+                finished_at=_utcnow().isoformat(),
+                message=f"error: {e}",
+                result=error_result,
+            )
+            return error_result
 
 
 def run_backfill(days: int | None = None) -> Dict[str, Any]:
     days = int(days or BACKFILL_DAYS)
 
     with db_session() as db:
-        if not try_advisory_lock(db, LOCK_KEY):
-            msg = "Scheduler(backfill): lock занят, пропускаю backfill"
-            logger.info(msg)
-            return {"ok": False, "skipped": True, "reason": "lock_busy"}
-
-    _set_status(
-        running=True,
-        job="backfill",
-        started_at=_utcnow().isoformat(),
-        finished_at=None,
-        message="running",
-        progress={"days": days, "current": 0, "date": None, "added_total": 0},
-        result=None,
-    )
-
-    added_total = 0
-    processed_days = 0
-    failed_days = []
-
-    try:
-        today = _utcnow().date()
-        start = today - timedelta(days=days)
-
-        for i in range(days):
-            d = start + timedelta(days=i)
-            if d >= today:
-                continue
-
-            date_str = d.strftime("%Y-%m-%d")
-            processed_days += 1
-
-            _set_status(progress={
-                "days": days,
-                "current": i + 1,
-                "date": date_str,
-                "added_total": added_total
-            })
-
-            logger.info("Backfill: day %s/%s | %s", i + 1, days, date_str)
-
-            # 🔁 RETRY LOGIC
-            success = False
-            for attempt in range(RETRY_COUNT):
-                try:
-                    added = process_day(date_str)
-                    added_total += added
-                    success = True
-                    break
-
-                except Exception as e:
-                    logger.warning(
-                        "Backfill error (%s) attempt %s/%s: %s",
-                        date_str, attempt + 1, RETRY_COUNT, e
-                    )
-                    sleep(RETRY_DELAY)
-
-            if not success:
-                logger.error("Backfill: пропускаю дату %s после %s попыток", date_str, RETRY_COUNT)
-                failed_days.append(date_str)
-
-        with db_session() as db:
-            deleted = delete_expired(db)
-
-        result = {
-            "ok": True,
-            "processed_days": processed_days,
-            "added_total": added_total,
-            "deleted_expired": deleted,
-            "failed_days": failed_days,
-        }
-
         _set_status(
-            running=False,
-            finished_at=_utcnow().isoformat(),
-            message="done",
-            result=result
+            running=True,
+            job="backfill",
+            started_at=_utcnow().isoformat(),
+            finished_at=None,
+            message="running",
+            progress={"days": days, "current": 0, "date": None, "created_total": 0, "updated_total": 0},
+            result=None,
         )
 
-        logger.info("Scheduler(backfill): done | %s", result)
-        return result
+        created_total = 0
+        updated_total = 0
+        skipped_total = 0
+        processed_days = 0
+        failed_days = []
 
-    except Exception as e:
-        logger.exception("Scheduler(backfill) failed")
-        _set_status(
-            running=False,
-            finished_at=_utcnow().isoformat(),
-            message=f"error: {e}",
-            result={"ok": False, "error": str(e)}
-        )
-        return {"ok": False, "error": str(e)}
+        try:
+            today = _utcnow().date()
+            start = today - timedelta(days=days)
 
-    finally:
-        with db_session() as db:
-            advisory_unlock(db, LOCK_KEY)
+            for i in range(days):
+                d = start + timedelta(days=i)
+                if d >= today:
+                    continue
+
+                date_str = d.strftime("%Y-%m-%d")
+                processed_days += 1
+
+                _set_status(progress={
+                    "days": days,
+                    "current": i + 1,
+                    "date": date_str,
+                    "created_total": created_total,
+                    "updated_total": updated_total,
+                    "skipped_total": skipped_total,
+                })
+
+                logger.info("Backfill: day %s/%s | %s", i + 1, days, date_str)
+
+                success = False
+                for attempt in range(RETRY_COUNT):
+                    try:
+                        day_result = process_day(date_str)
+                        created_total += day_result["created"]
+                        updated_total += day_result["updated"]
+                        skipped_total += day_result["skipped"]
+                        success = True
+                        break
+                    except Exception as e:
+                        logger.warning(
+                            "Backfill error (%s) attempt %s/%s: %s",
+                            date_str, attempt + 1, RETRY_COUNT, e
+                        )
+                        sleep(RETRY_DELAY)
+
+                if not success:
+                    logger.error("Backfill: пропускаю дату %s после %s попыток", date_str, RETRY_COUNT)
+                    failed_days.append(date_str)
+
+            result = {
+                "ok": True,
+                "processed_days": processed_days,
+                "created_total": created_total,
+                "updated_total": updated_total,
+                "skipped_total": skipped_total,
+                "failed_days": failed_days,
+            }
+
+            _set_status(
+                running=False,
+                finished_at=_utcnow().isoformat(),
+                message="done",
+                result=result
+            )
+
+            logger.info("Scheduler(backfill): done | %s", result)
+            return result
+
+        except Exception as e:
+            logger.exception("Scheduler(backfill) failed")
+            _set_status(
+                running=False,
+                finished_at=_utcnow().isoformat(),
+                message=f"error: {e}",
+                result={"ok": False, "error": str(e)}
+            )
+            return {"ok": False, "error": str(e)}
+
 
 def run_backfill_on_startup() -> None:
     if not BACKFILL_ON_STARTUP:

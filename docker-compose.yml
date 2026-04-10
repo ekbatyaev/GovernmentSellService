@@ -25,8 +25,9 @@ services:
     env_file:
       - .env
     ports:
-      - 8002:8000
+      - "8002:8000"
     environment:
-      - TZ=Europe/Moscow
+      TZ: Europe/Moscow
+
 volumes:
   postgres_data:

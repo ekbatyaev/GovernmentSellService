@@ -23,7 +23,41 @@ os.makedirs(TMP_DIR, exist_ok=True)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
 logger = logging.getLogger(__name__)
 
-session = requests.Session()
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+def build_session() -> requests.Session:
+    session = requests.Session()
+
+    retry = Retry(
+        total=3,
+        backoff_factor=0.5,
+        status_forcelist=[429, 500, 502, 503, 504],
+        allowed_methods=["GET"]
+    )
+
+    adapter = HTTPAdapter(
+        max_retries=retry,
+        pool_connections=20,
+        pool_maxsize=20
+    )
+
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+
+    session.headers.update({
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/123.0.0.0 Safari/537.36"
+        ),
+        "Referer": "https://zakupki.gov.ru/",
+        "Accept": "*/*",
+    })
+
+    return session
+
+session = build_session()
 
 
 def _require_env(name: str) -> str:

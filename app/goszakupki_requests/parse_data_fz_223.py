@@ -3,9 +3,12 @@ import re
 import os
 import zipfile
 import logging
-from typing import Dict, List, Any
-
 import xmltodict
+from typing import Dict, List, Any
+from .document_consistent import process_attached_files_and_merge
+
+TMP_DIR = os.getenv("TMP_DIR", "tmp")
+os.makedirs(TMP_DIR, exist_ok=True)
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +43,40 @@ JOB_PATTERNS = [re.compile(p, re.IGNORECASE) for p in FILTERS_JOB_NAME]
 JOB_EXCLUDE_PATTERNS = [re.compile(p, re.IGNORECASE) for p in FILTERS_JOB_EXCLUDE]
 
 
+FIELDS = [
+    "Победитель",
+    "Другие участники",
+    "Ячейки",
+    "Кол-во ячеек",
+    "Типовой проект",
+    "Проектировщик",
+    "Дата исполнения договора",
+    "Филиал/РЭС",
+]
+
+
+def normalize_value(value):
+    if value is None:
+        return None
+    value = str(value).strip()
+    if not value:
+        return None
+    return value
+
+
+def split_merged_value(value: str):
+    """
+    Если extract_tender_fields уже вернул строку с несколькими значениями
+    через ;, перенос строки или запятую, разбиваем аккуратно.
+    """
+    parts = []
+    for chunk in str(value).replace("\n", ";").split(";"):
+        chunk = chunk.strip()
+        if chunk:
+            parts.append(chunk)
+    return parts
+
+
 def remove_ns(obj):
     if isinstance(obj, dict):
         new_dict = {}
@@ -72,7 +109,8 @@ def normalize_purchase(data: dict) -> dict:
     result["registration_number"] = notice.get("registrationNumber")
     result["name"] = notice.get("name")
     result["publication_datetime"] = notice.get("publicationDateTime")
-    result["submission_start_datetime"] = notice.get("applSubmisionStartDate")
+    submission_start = notice.get("applSubmisionStartDate")
+    result["submission_start_datetime"] = f"{submission_start}T00:00:00"
     result["submission_close_datetime"] = notice.get("submissionCloseDateTime")
 
     customer = (notice.get("customer") or {}).get("mainInfo") or {}
@@ -98,17 +136,26 @@ def normalize_purchase(data: dict) -> dict:
     }
 
 
-    # attachments: делаем безопасно (не используете — просто не падаем)
-    # attached_files = notice.get("attachments") or {}
-    # document = attached_files.get("document")
-    # if isinstance(document, str):
-    #     try:
-    #         document = json.loads(document)
-    #     except Exception:
-    #         document = None
-    # document = ensure_list(document)
-    # print(document)
-    # _ = document  # заглушка: если захотите — сохраните в result["attached_files"]
+    # начало работы с документами
+    attached_files = notice.get("attachments") or {}
+    document = attached_files.get("document")
+    if isinstance(document, str):
+        try:
+            document = json.loads(document)
+        except Exception:
+            document = None
+    document = ensure_list(document)
+    docs = []
+
+    for doc in document:
+        docs.append({
+            "filename": doc["fileName"],
+            "description": doc["description"],
+            "url": doc["url"]
+        })
+
+    result["attached_files"] = docs
+    # окончание работы с документами
 
     result["lots"] = []
     lots = ensure_list((notice.get("lots") or {}).get("lot"))
@@ -157,10 +204,9 @@ def normalize_purchase(data: dict) -> dict:
 def parse_zip_archive(zip_path: str) -> List[Dict[str, Any]]:
     zip_path = os.path.abspath(zip_path)
     all_data: List[Dict[str, Any]] = []
-
     logger.info("Открываем архив: %s", zip_path)
 
-    with zipfile.ZipFile(zip_path, "r") as archive:
+    with (zipfile.ZipFile(zip_path, "r") as archive):
         xml_files = [f for f in archive.namelist() if f.lower().endswith(".xml")]
         logger.info("Найдено XML файлов: %s", len(xml_files))
 
@@ -182,11 +228,30 @@ def parse_zip_archive(zip_path: str) -> List[Dict[str, Any]]:
                 excluded_job = any(p.search(work_name) for p in JOB_EXCLUDE_PATTERNS)
 
                 if ok_customer and ok_job and not excluded_job:
+
+                    normalized["result_info"] = process_attached_files_and_merge(
+                        attached_files=normalized["attached_files"],
+                        tmp_dir=TMP_DIR
+                    )
+
+                    del normalized["attached_files"]
+
                     all_data.append(normalized)
 
             except Exception as e:
                 logger.exception("Ошибка в файле %s: %s", file_name, e)
-
     logger.info("Парсинг завершён. Подходит под фильтры: %s", len(all_data))
     os.remove(zip_path)
     return all_data
+
+if __name__ == "__main__":
+    merged_fields = process_attached_files_and_merge(
+        attached_files=[
+            {
+                "filename": "624 Протокол итоговый.docx",
+                "description": "",
+                "url": "URL_СЮДА"
+            }
+        ],
+        tmp_dir=TMP_DIR,
+    )
