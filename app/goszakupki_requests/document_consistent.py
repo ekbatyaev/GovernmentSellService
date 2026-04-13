@@ -23,9 +23,7 @@ from pypdf import PdfReader
 from charset_normalizer import from_bytes
 from docx.table import Table
 from docx.text.paragraph import Paragraph
-
 from .extractor_pipeline import extract_tender_fields
-
 
 logger = logging.getLogger(__name__)
 
@@ -678,7 +676,23 @@ def process_text_into_accumulator(
         return False
 
     try:
-        extracted = extract_tender_fields(text)
+        path_name =  Path(filename).suffix.lower()
+        print(path_name)
+        if "протокол" in filename.lower():
+            print("ОБРАБОТКА: ", filename)
+            print(text)
+            extracted = extract_tender_fields(text, ["Победитель","Другие участники","Дата исполнения договора", "Филиал/РЭС"])
+        else:
+            extracted = {
+                "Победитель": None,
+                "Другие участники": None,
+                "Ячейки": None,
+                "Кол-во ячеек": None,
+                "Типовой проект": None,
+                "Проектировщик": None,
+                "Дата исполнения договора": None,
+                "Филиал/РЭС": None,
+            }
         merge_extracted_into_accumulator(accumulator, extracted)
         return True
     except Exception as e:
@@ -1220,3 +1234,22 @@ def process_attached_files_and_merge(attached_files: list, tmp_dir: str | Path) 
     )
 
     return finalize_result_accumulator(accumulator)
+
+
+
+if __name__ == "__main__":
+
+    from pathlib import Path
+    import json
+
+    folder = Path("/app/app/goszakupki_requests/tmp/ул. Феодосийская, зу 7 (extract.me)")
+
+    accumulator = init_result_accumulator()
+    stats = read_path_and_merge(folder, accumulator, task_id="local_test")
+    result = finalize_result_accumulator(accumulator)
+
+    print("STATS:")
+    print(json.dumps(stats, ensure_ascii=False, indent=2))
+
+    print("\nRESULT:")
+    print(json.dumps(result, ensure_ascii=False, indent=2))

@@ -18,3 +18,7 @@ pypdf
 rarfile
 charset-normalizer
 pymupdf
+dateparser
+natasha
+setuptools<82
+pymorphy2-dicts-ru
