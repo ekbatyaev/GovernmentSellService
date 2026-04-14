@@ -677,11 +677,15 @@ def process_text_into_accumulator(
 
     try:
         path_name =  Path(filename).suffix.lower()
-        print(path_name)
+
         if "протокол" in filename.lower():
             print("ОБРАБОТКА: ", filename)
             print(text)
             extracted = extract_tender_fields(text, ["Победитель","Другие участники","Дата исполнения договора", "Филиал/РЭС"])
+
+        elif path_name == ".pdf":
+            extracted = extract_tender_fields(text, ["Проектировщик"])
+
         else:
             extracted = {
                 "Победитель": None,
@@ -1233,7 +1237,17 @@ def process_attached_files_and_merge(attached_files: list, tmp_dir: str | Path) 
         )
     )
 
-    return finalize_result_accumulator(accumulator)
+    result = finalize_result_accumulator(accumulator)
+
+    parts = []
+    for x in result["Проектировщик"].split(";"):
+        x = x.strip()
+        if x and x not in parts:
+            parts.append(x)
+
+    result["Проектировщик"] = max(parts, key=len) if parts else ""
+
+    return result
 
 
 
@@ -1252,4 +1266,13 @@ if __name__ == "__main__":
     print(json.dumps(stats, ensure_ascii=False, indent=2))
 
     print("\nRESULT:")
+
+    parts = []
+    for x in result["Проектировщик"].split(";"):
+        x = x.strip()
+        if x and x not in parts:
+            parts.append(x)
+
+    result["Проектировщик"] = max(parts, key=len) if parts else ""
+
     print(json.dumps(result, ensure_ascii=False, indent=2))

@@ -167,14 +167,12 @@ def normalize_quotes(text: str) -> str:
             .replace("‟", '"')
     )
 
-
 def cleanup_org(name: Optional[str], keep_address: bool = False) -> Optional[str]:
     name = normalize_value(name)
     if not name:
         return None
 
     name = re.sub(r"\s+", " ", name).strip()
-    name = normalize_quotes(name)
 
     if not keep_address:
         name = re.sub(r"\s*\([^)]*\)", "", name).strip()
@@ -186,11 +184,9 @@ def cleanup_org(name: Optional[str], keep_address: bool = False) -> Optional[str
         flags=re.IGNORECASE,
     )[0].strip()
 
-    m = re.match(rf"^({ORG_HEAD_RE})\s+(.+)$", name, flags=re.IGNORECASE)
-    if m:
-        org_form = m.group(1)
-        org_name = m.group(2).replace('"', '').strip()
-        name = f'{org_form} "{org_name}"'
+    # убрать хвостовые скобки/мусор
+    name = name.strip(' "\'()[]{};,')
+    name = re.sub(r"\)+$", "", name).strip()
 
     return name or None
 
@@ -687,8 +683,53 @@ def extract_winner_candidates(text: str) -> List[Candidate]:
 def extract_participants(text: str) -> List[str]:
     return extract_ranked_participants(text)
 
+def extract_full_org_after_developer(text: str) -> Optional[str]:
+    text = text or ""
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+
+    developer_found = False
+
+    for line in lines:
+        clean_line = re.sub(
+            r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z\s*",
+            "",
+            line,
+        ).strip()
+
+        if not developer_found:
+            if re.search(r"разработчик\s+системы", clean_line, flags=re.IGNORECASE):
+                developer_found = True
+            continue
+
+        m_org = re.search(
+            r"((?:Общество с ограниченной ответственностью|"
+            r"Акционерное общество|"
+            r"Публичное акционерное общество|"
+            r"Закрытое акционерное общество|"
+            r"Открытое акционерное общество|"
+            r"Непубличное акционерное общество|"
+            r"Индивидуальный предприниматель)"
+            r"\s+[«\"][^»\"]+[»\"])",
+            clean_line,
+            flags=re.IGNORECASE,
+        )
+        if m_org:
+            return m_org.group(1).strip()
+
+    return None
 
 def extract_designer_candidates(text: str) -> List[Candidate]:
+    special_org = extract_full_org_after_developer(text)
+    if special_org:
+        return [
+            Candidate(
+                value=special_org,
+                score=100.0,
+                source="developer_special_case",
+                evidence="Разработчик системы",
+            )
+        ]
+
     candidates: List[Candidate] = []
     lines = split_lines(text)
 
@@ -729,7 +770,6 @@ def extract_designer_candidates(text: str) -> List[Candidate]:
                     add_candidate(candidates, normalize_value(m.group(1)), 3.5, "designer_context_text", chunk)
 
     return candidates
-
 
 def extract_execution_date_candidates(text: str) -> List[Candidate]:
     candidates: List[Candidate] = []

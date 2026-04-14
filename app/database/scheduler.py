@@ -252,7 +252,7 @@ def run_daily_job() -> Dict[str, Any]:
             skipped = day_result["skipped"]
 
             now = datetime.now()
-            start_day = datetime.combine(now.date(), time.min)
+            start_day = datetime.combine(now.date(), time.min) - timedelta(days=1)
 
             emails_response = requests.post(
                 f"{APP_URL}{API_BASE}/get_all_newsletters",
@@ -283,56 +283,26 @@ def run_daily_job() -> Dict[str, Any]:
             rows = []
             for p in data:
                 customer = p.get("customer") or {}
-                contact = p.get("contact") or {}
-                apply_request = p.get("apply_request") or {}
-                lots = p.get("lots") or []
+                result_info = p.get("result_info") or {}
 
                 base = {
-                    "guid_закупки": p.get("guid"),
-                    "reg_number": p.get("registration_number"),
-                    "название_закупки": p.get("name"),
-                    "файл_источник": p.get("source_file"),
-                    "сумма_общая": p.get("initial_sum"),
-                    "дата_начала_подачи_заявок": p.get("submission_start_datetime"),
-                    "дата_окончания_подачи_заявок": p.get("submission_close_datetime"),
-                    "дата_публикации": p.get("publication_datetime"),
-                    "заказчик_инн": customer.get("inn"),
-                    "заказчик_кпп": customer.get("kpp"),
-                    "заказчик_огрн": customer.get("ogrn"),
-                    "заказчик_название": customer.get("full_name"),
-                    "контакт_email": contact.get("email"),
-                    "контакт_телефон": contact.get("phone"),
-                    "контакт_фио": " ".join(filter(None, [
-                        contact.get("last_name"),
-                        contact.get("first_name"),
-                        contact.get("middle_name"),
-                    ])),
-                    "порядок_подачи": apply_request.get("submission_order"),
-                    "место_подачи": apply_request.get("submission_place"),
-                    "дата_начала_подачи": apply_request.get("submission_start_date"),
+                    "Реестровый номер": p.get("registration_number"),
+                    "Название закупки": p.get("name"),
+                    "Сумма закупки": p.get("initial_sum"),
+                    "Дата начала подачи заявок": p.get("submission_start_datetime"),
+                    "Дата окончания подачи заявок": p.get("submission_close_datetime"),
+                    "Дата публикации": p.get("publication_datetime"),
+                    "Заказчик название": customer.get("full_name"),
+                    "Победитель": result_info.get("Победитель"),
+                    "Другие участники": result_info.get("Другие участники"),
+                    "Ячейки": result_info.get("Ячейки"),
+                    "Кол-во ячеек": result_info.get("Кол-во ячеек"),
+                    "Типовой проект": result_info.get("Типовой проек"),
+                    "Проектировщик": result_info.get("Проектировщик"),
+                    "Дата исполнения договора": result_info.get("Дата исполнения договора"),
+                    "Филиал/РЭС": result_info.get("Филиал/РЭС")
                 }
-
-                if not lots:
-                    rows.append(base)
-                    continue
-
-                for lot in lots:
-                    items = lot.get("items") or [{}]
-
-                    for item in items:
-                        rows.append({
-                            **base,
-                            "лот_guid": lot.get("guid"),
-                            "лот_номер": lot.get("ordinal_number"),
-                            "лот_предмет": lot.get("subject"),
-                            "лот_валюта": lot.get("currency"),
-                            "лот_сумма": lot.get("initial_sum"),
-                            "позиция_количество": item.get("qty"),
-                            "позиция_guid": item.get("guid"),
-                            "окпд2_код": item.get("okpd2_code"),
-                            "окпд2_название": item.get("okpd2_name"),
-                            "доп_инфо": item.get("additional_info"),
-                        })
+                rows.append(base)
 
             result = {
                 "ok": True,
