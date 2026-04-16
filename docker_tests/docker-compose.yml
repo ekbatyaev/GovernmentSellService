@@ -1,0 +1,12 @@
+services:
+  parser:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: tender_parser_test
+    environment:
+      TZ: Europe/Moscow
+    volumes:
+      - .:/app
+    working_dir: /app
+    command: ["python", "-m", "app.goszakupki_requests.document_consistent"]

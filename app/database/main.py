@@ -101,7 +101,8 @@ class DeletePurchaseModel(BaseModel):
 
 class GetPurchaseModel(BaseModel):
     token: str
-    guid: str
+    guid: Optional[str] = None
+    registration_number: Optional[str] = None
 
 
 class GetAllPurchasesModel(BaseModel):
@@ -345,7 +346,31 @@ def delete_purchase(purchase_data: DeletePurchaseModel, db: Session = Depends(ge
 def get_purchase(purchase_data: GetPurchaseModel, db: Session = Depends(get_db)):
     verify_token(purchase_data.token)
 
-    purchase = db.get(Purchase, purchase_data.guid)
+    guid = purchase_data.guid.strip() if purchase_data.guid else None
+    registration_number = (
+        purchase_data.registration_number.strip()
+        if purchase_data.registration_number
+        else None
+    )
+
+
+
+    if registration_number:
+        purchase = (
+            db.query(Purchase)
+            .filter(Purchase.registration_number == registration_number)
+            .first()
+        )
+
+    elif guid:
+        purchase = db.get(Purchase, guid)
+
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="Не передан ни один ключ поиска: guid или registration_number",
+        )
+
     if not purchase:
         raise HTTPException(status_code=404, detail="Purchase not found")
 

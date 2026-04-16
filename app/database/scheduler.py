@@ -165,16 +165,19 @@ def process_day(date_str: str) -> Dict[str, int]:
     purchases = parse_zip_archive(zip_path)
     logger.info("Pipeline: после фильтров закупок: %s", len(purchases))
 
+    added_registration_numbers = []
+
     if not purchases:
-        return {"created": 0, "updated": 0, "skipped": 0}
+        return {"created": 0, "updated": 0, "skipped": 0, "added_registration_numbers": added_registration_numbers}
 
     created = 0
     updated = 0
     skipped = 0
+
     for p in purchases:
         try:
             status = put_purchase_to_db(p)
-
+            added_registration_numbers.append(p["registration_number"])
             if status == "created":
                 created += 1
             elif status == "updated":
@@ -197,7 +200,7 @@ def process_day(date_str: str) -> Dict[str, int]:
         updated,
         skipped,
     )
-    return {"created": created, "updated": updated, "skipped": skipped}
+    return {"created": created, "updated": updated, "skipped": skipped, "added_registration_numbers": added_registration_numbers}
 
 def run_daily_job() -> Dict[str, Any]:
     with db_session() as db:
@@ -250,9 +253,9 @@ def run_daily_job() -> Dict[str, Any]:
             created = day_result["created"]
             updated = day_result["updated"]
             skipped = day_result["skipped"]
+            added_registration_numbers = day_result["added_registration_numbers"]
 
             now = datetime.now()
-            start_day = datetime.combine(now.date(), time.min) - timedelta(days=1)
 
             emails_response = requests.post(
                 f"{APP_URL}{API_BASE}/get_all_newsletters",
@@ -272,26 +275,30 @@ def run_daily_job() -> Dict[str, Any]:
             </body></html>
             """
 
-            purchases_response = requests.post(
-                f"{APP_URL}{API_BASE}/get_all_purchases",
-                json={"token": TOKEN, "publication_datetime_from": start_day.isoformat()},
-                timeout=30,
-            )
-            purchases_response.raise_for_status()
-            data = purchases_response.json().get("data", [])
-
             rows = []
-            for p in data:
-                customer = p.get("customer") or {}
-                result_info = p.get("result_info") or {}
+
+            for registration_number in added_registration_numbers:
+
+                purchase_response = requests.post(
+                    f"{APP_URL}{API_BASE}/get_purchase",
+                    json={"token": TOKEN, "registration_number": registration_number},
+                    timeout=30,
+                )
+
+                purchase_response.raise_for_status()
+
+                purchase = purchase_response.json().get("data", {})
+
+                customer = purchase.get("customer") or {}
+                result_info = purchase.get("result_info") or {}
 
                 base = {
-                    "Реестровый номер": p.get("registration_number"),
-                    "Название закупки": p.get("name"),
-                    "Сумма закупки": p.get("initial_sum"),
-                    "Дата начала подачи заявок": p.get("submission_start_datetime"),
-                    "Дата окончания подачи заявок": p.get("submission_close_datetime"),
-                    "Дата публикации": p.get("publication_datetime"),
+                    "Реестровый номер": purchase.get("registration_number"),
+                    "Название закупки": purchase.get("name"),
+                    "Сумма закупки": purchase.get("initial_sum"),
+                    "Дата начала подачи заявок": purchase.get("submission_start_datetime"),
+                    "Дата окончания подачи заявок": purchase.get("submission_close_datetime"),
+                    "Дата публикации": purchase.get("publication_datetime"),
                     "Заказчик название": customer.get("full_name"),
                     "Победитель": result_info.get("Победитель"),
                     "Другие участники": result_info.get("Другие участники"),
@@ -302,6 +309,7 @@ def run_daily_job() -> Dict[str, Any]:
                     "Дата исполнения договора": result_info.get("Дата исполнения договора"),
                     "Филиал/РЭС": result_info.get("Филиал/РЭС")
                 }
+
                 rows.append(base)
 
             result = {

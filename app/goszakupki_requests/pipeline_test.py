@@ -65,6 +65,8 @@ def process_day(date_str: str) -> int:
         subsystem_type="RI223",
     )
 
+    print(result)
+
     zip_path = download_archive_from_result(result)
     purchases = parse_zip_archive(zip_path)
 
@@ -96,8 +98,8 @@ if __name__ == "__main__":
     # get_all_purchases()
     from datetime import date, timedelta
 
-    current = date(2026, 2, 1)
-    end = date(2026, 3, 1)
+    current = date(2026, 4, 1)
+    end = date(2026, 4, 13)
 
     while current < end:
         process_day(current.isoformat())

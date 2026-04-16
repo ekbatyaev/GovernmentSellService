@@ -36,7 +36,7 @@ FILTERS_JOB_NAME = [
 ]
 
 FILTERS_JOB_EXCLUDE = [
-    r"ПС-110\s*кВ/ПС-35\s*кВ/ПС/220\s*кВ"
+    r"\bПС-\s*\d+(?:/\d+)*\s*кВ\b",
 ]
 
 JOB_PATTERNS = [re.compile(p, re.IGNORECASE) for p in FILTERS_JOB_NAME]
@@ -225,7 +225,13 @@ def parse_zip_archive(zip_path: str) -> List[Dict[str, Any]]:
 
                 ok_customer = any(f in str(customer_name or "") for f in FILTERS_CUSTOMER)
                 ok_job = any(p.search(work_name) for p in JOB_PATTERNS)
-                excluded_job = any(p.search(work_name) for p in JOB_EXCLUDE_PATTERNS)
+                excluded_names = any(p.search(work_name) for p in JOB_EXCLUDE_PATTERNS)
+
+                has_from = bool(re.search(r"\bот\s+(РП|ТП|РТП)\b", work_name, re.IGNORECASE))
+                work_name_without_from = re.sub(r"\bот\s+(РП|ТП|РТП)\b", "", work_name, flags=re.IGNORECASE)
+                has_without_from = bool(re.search(r"\b(РП|ТП|РТП)\b", work_name_without_from, re.IGNORECASE))
+
+                excluded_job = excluded_names or (has_from and not has_without_from)
 
                 if ok_customer and ok_job and not excluded_job:
 
