@@ -22,3 +22,5 @@ dateparser
 natasha
 setuptools<82
 pymorphy2-dicts-ru
+openai
+asyncio

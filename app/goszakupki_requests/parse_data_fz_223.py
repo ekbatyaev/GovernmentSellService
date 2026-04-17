@@ -4,10 +4,15 @@ import os
 import zipfile
 import logging
 import xmltodict
+import requests
 from typing import Dict, List, Any
 from .document_consistent import process_attached_files_and_merge
 
 TMP_DIR = os.getenv("TMP_DIR", "tmp")
+APP_URL = os.getenv("APP_URL")
+API_BASE = os.getenv("API_BASE")
+TOKEN = os.getenv("SYSTEM_TOKEN")
+
 os.makedirs(TMP_DIR, exist_ok=True)
 
 logger = logging.getLogger(__name__)
@@ -235,9 +240,28 @@ def parse_zip_archive(zip_path: str) -> List[Dict[str, Any]]:
 
                 if ok_customer and ok_job and not excluded_job:
 
-                    normalized["result_info"] = process_attached_files_and_merge(
+                    # Обращение, получение данных и передача
+                    purchase_response = requests.post(
+                        f"{APP_URL}{API_BASE}/get_purchase",
+                        json={"token": TOKEN, "registration_number": normalized["registration_number"]},
+                        timeout=30,
+                    )
+
+                    purchase_response.raise_for_status()
+
+                    purchase = purchase_response.json().get("data", {})
+
+                    result_info = purchase.get("result_info") or {}
+                    match = re.search(r'для нужд\s+([^\s-]+)', normalized["name"])
+                    result_info["Филиал/РЭС"] = match.group(1) if match else None
+
+                    documents_list = purchase.get("documents_list") or []
+
+                    normalized["result_info"], normalized["documents_list"] = process_attached_files_and_merge(
                         attached_files=normalized["attached_files"],
-                        tmp_dir=TMP_DIR
+                        tmp_dir=TMP_DIR,
+                        result_info_old = result_info,
+                        documents_list_old = documents_list
                     )
 
                     del normalized["attached_files"]

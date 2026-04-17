@@ -10,7 +10,7 @@ import logging
 import threading
 from pathlib import Path
 from urllib.parse import urlparse, unquote
-from typing import Dict, Optional, Iterable
+from typing import Dict, Optional, Iterable, Tuple, List
 import time
 from contextlib import contextmanager
 from collections import OrderedDict
@@ -250,6 +250,9 @@ def split_merged_value(value: str):
 def init_result_accumulator() -> dict:
     return {field: OrderedDict() for field in FIELDS}
 
+def init_documents_accumulator(documents_list_old=None):
+    return OrderedDict((str(x).strip(), None) for x in (documents_list_old or []) if str(x).strip())
+
 
 def merge_extracted_into_accumulator(accumulator: dict, extracted: dict) -> None:
     if not extracted:
@@ -266,12 +269,19 @@ def merge_extracted_into_accumulator(accumulator: dict, extracted: dict) -> None
                 accumulator[field][part] = None
 
 
+def add_processed_document(documents_accumulator, filename: str):
+    filename = str(filename).strip()
+    if filename:
+        documents_accumulator[filename] = None
+
 def finalize_result_accumulator(accumulator: dict) -> dict:
     return {
         field: "; ".join(values.keys()) if values else ""
         for field, values in accumulator.items()
     }
 
+def finalize_documents_accumulator(documents_accumulator):
+    return list(documents_accumulator.keys())
 
 def run_libreoffice_convert(src: Path, outdir: Path, target_ext: str, task_id: str | None = None) -> Path:
     with _libreoffice_semaphore:
@@ -669,6 +679,7 @@ def iter_candidate_files(target: Path) -> Iterable[Path]:
 def process_text_into_accumulator(
     text: str,
     accumulator: dict,
+    documents_accumulator,
     filename: str,
     task_id: str | None = None,
 ) -> bool:
@@ -676,29 +687,30 @@ def process_text_into_accumulator(
         return False
 
     try:
-        path_name =  Path(filename).suffix.lower()
+        path_name = Path(filename).suffix.lower()
+        filename = str(filename).strip()
+
+        if filename in documents_accumulator:
+            logger.info(
+                "DOCUMENT SKIP | %s",
+                format_log_kv(task_id=task_id, filename=filename, reason="already_processed")
+            )
+            return True
 
         if "протокол" in filename.lower():
-            print("ОБРАБОТКА: ", filename)
-            print(text)
-            extracted = extract_tender_fields(text, ["Победитель","Другие участники","Дата исполнения договора", "Филиал/РЭС"])
+            extracted = extract_tender_fields(
+                text,
+                ["Победитель", "Другие участники", "Дата исполнения договора"]
+            )
+            merge_extracted_into_accumulator(accumulator, extracted)
 
         elif path_name == ".pdf":
             extracted = extract_tender_fields(text, ["Проектировщик"])
+            merge_extracted_into_accumulator(accumulator, extracted)
 
-        else:
-            extracted = {
-                "Победитель": None,
-                "Другие участники": None,
-                "Ячейки": None,
-                "Кол-во ячеек": None,
-                "Типовой проект": None,
-                "Проектировщик": None,
-                "Дата исполнения договора": None,
-                "Филиал/РЭС": None,
-            }
-        merge_extracted_into_accumulator(accumulator, extracted)
+        add_processed_document(documents_accumulator, filename)
         return True
+
     except Exception as e:
         logger.exception(
             "EXTRACT_FIELDS ERROR | %s",
@@ -706,8 +718,7 @@ def process_text_into_accumulator(
         )
         return False
 
-
-def read_supported_file_and_merge(target: Path, accumulator: dict, task_id: str | None = None) -> Dict:
+def read_supported_file_and_merge(target: Path, accumulator: dict, documents_accumulator, task_id: str | None = None) -> Dict:
     ext = target.suffix.lower()
     size_bytes = target.stat().st_size if target.exists() and target.is_file() else None
     started = time.perf_counter()
@@ -738,6 +749,7 @@ def read_supported_file_and_merge(target: Path, accumulator: dict, task_id: str 
         merged_ok = process_text_into_accumulator(
             text=text,
             accumulator=accumulator,
+            documents_accumulator=documents_accumulator,
             filename=target.name,
             task_id=task_id,
         )
@@ -799,7 +811,7 @@ def read_supported_file_and_merge(target: Path, accumulator: dict, task_id: str 
             "skipped": is_lo_timeout,
         }
 
-def read_path_and_merge(path: str | Path, accumulator: dict, task_id: str | None = None) -> Dict:
+def read_path_and_merge(path: str | Path, accumulator: dict, documents_accumulator, task_id: str | None = None) -> Dict:
     path = Path(path)
 
     logger.info("READ_PATH START | %s", format_log_kv(task_id=task_id, path=path, is_dir=path.is_dir() if path.exists() else None))
@@ -849,7 +861,7 @@ def read_path_and_merge(path: str | Path, accumulator: dict, task_id: str | None
 
             for file_path in regular_files:
                 stats["total"] += 1
-                result = read_supported_file_and_merge(file_path, accumulator, task_id)
+                result = read_supported_file_and_merge(file_path, accumulator, documents_accumulator, task_id)
                 if result["ok"]:
                     stats["ok"] += 1
                 elif result.get("skipped"):
@@ -883,7 +895,7 @@ def read_path_and_merge(path: str | Path, accumulator: dict, task_id: str | None
                 return
 
             stats["total"] += 1
-            result = read_supported_file_and_merge(target, accumulator, task_id)
+            result = read_supported_file_and_merge(target, accumulator, documents_accumulator, task_id)
             if result["ok"]:
                 stats["ok"] += 1
             elif result.get("skipped"):
@@ -1058,7 +1070,7 @@ def download_multipart_rar(parts: list, work_dir: Path, task_id: str | None = No
 # Интеграция
 # =========================
 
-def process_one_attached_file_and_merge(item: dict, tmp_dir: Path, accumulator: dict) -> dict:
+def process_one_attached_file_and_merge(item: dict, tmp_dir: Path, accumulator: dict, documents_accumulator) -> dict:
     work_dir = None
     session = get_thread_session()
     started = time.perf_counter()
@@ -1095,7 +1107,7 @@ def process_one_attached_file_and_merge(item: dict, tmp_dir: Path, accumulator: 
                 task_id=task_id,
             )
 
-            stats = read_path_and_merge(downloaded_path, accumulator, task_id=task_id)
+            stats = read_path_and_merge(downloaded_path, accumulator, documents_accumulator, task_id=task_id)
 
             elapsed = time.perf_counter() - started
             logger.info(
@@ -1139,7 +1151,7 @@ def process_one_attached_file_and_merge(item: dict, tmp_dir: Path, accumulator: 
             )
 
             first_part_path = download_multipart_rar(parts, work_dir, task_id=task_id)
-            stats = read_path_and_merge(first_part_path, accumulator, task_id=task_id)
+            stats = read_path_and_merge(first_part_path, accumulator, documents_accumulator, task_id=task_id)
 
             elapsed = time.perf_counter() - started
             logger.info(
@@ -1181,13 +1193,19 @@ def process_one_attached_file_and_merge(item: dict, tmp_dir: Path, accumulator: 
             logger.warning("Не удалось удалить временную папку %s: %s", work_dir, cleanup_error)
 
 
-def process_attached_files_and_merge(attached_files: list, tmp_dir: str | Path) -> dict:
+def process_attached_files_and_merge(attached_files: list, tmp_dir: str | Path, result_info_old, documents_list_old) -> Tuple[Dict, List]:
     tmp_dir = ensure_dir(tmp_dir)
     accumulator = init_result_accumulator()
+    merge_extracted_into_accumulator(accumulator, result_info_old)
+
+    documents_accumulator = init_documents_accumulator(documents_list_old)
 
     if not attached_files:
         logger.info("ATTACHED BATCH SKIP | reason=no_attached_files")
-        return finalize_result_accumulator(accumulator)
+        return (
+            finalize_result_accumulator(accumulator),
+            finalize_documents_accumulator(documents_accumulator)
+        )
 
     grouped_items = group_attached_files(attached_files)
 
@@ -1215,7 +1233,7 @@ def process_attached_files_and_merge(attached_files: list, tmp_dir: str | Path) 
         )
 
         item_started = time.perf_counter()
-        process_one_attached_file_and_merge(item, tmp_dir, accumulator)
+        process_one_attached_file_and_merge(item, tmp_dir, accumulator, documents_accumulator)
         item_elapsed = time.perf_counter() - item_started
 
         logger.info(
@@ -1247,7 +1265,9 @@ def process_attached_files_and_merge(attached_files: list, tmp_dir: str | Path) 
 
     result["Проектировщик"] = max(parts, key=len) if parts else ""
 
-    return result
+    documents_list = finalize_documents_accumulator(documents_accumulator)
+
+    return result, documents_list
 
 
 
@@ -1259,7 +1279,8 @@ if __name__ == "__main__":
     folder = Path("/app/app/goszakupki_requests/tmp/ул. Феодосийская, зу 7 (extract.me)")
 
     accumulator = init_result_accumulator()
-    stats = read_path_and_merge(folder, accumulator, task_id="local_test")
+    documents_accumulator = init_documents_accumulator([])
+    stats = read_path_and_merge(folder, accumulator, documents_accumulator, task_id="local_test")
     result = finalize_result_accumulator(accumulator)
 
     print("STATS:")

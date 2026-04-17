@@ -1,5 +1,3 @@
-from datetime import datetime
-
 from sqlalchemy import Column, String, DateTime, Numeric, Integer
 from sqlalchemy.dialects.postgresql import JSONB, ARRAY
 
@@ -26,7 +24,7 @@ class Purchase(Base):
     contact = Column(JSONB, nullable=False, default=dict)
     apply_request = Column(JSONB, nullable=False, default=dict)
     result_info = Column(JSONB, nullable=False, default=dict)
-
+    documents_list = Column(ARRAY(String), nullable=False, default=list)
     lots = Column(ARRAY(JSONB), nullable=False, default=list)
 
     source_file = Column(String(255), nullable=True)

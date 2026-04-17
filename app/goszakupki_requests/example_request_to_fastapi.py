@@ -1,13 +1,14 @@
 import os
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from pprint import pprint
+from datetime import time
 
 load_dotenv()
 
 # APP_URL = os.getenv("APP_URL")
-APP_URL = "http://127.0.0.1:8002/goszakupki"
+APP_URL = "http://87.239.111.52/goszakupki"
 SYSTEM_TOKEN = os.getenv("SYSTEM_TOKEN")
 print(f"APP_URL: {APP_URL}")
 
@@ -116,8 +117,13 @@ print(f"APP_URL: {APP_URL}")
 # 4. POST /get_all_purchases - Получить список с фильтрами
 print("\n" + "="*50)
 print("4. Getting all purchases with filters...")
+now = datetime.now()
+start_day = datetime.combine(now.date(), time.min) - timedelta(days=1)
+day = start_day.isoformat()
+print(now, start_day, day)
 response = requests.post(f"{APP_URL}/get_all_purchases", json={
-    "token": SYSTEM_TOKEN
+    "token": SYSTEM_TOKEN,
+    "publication_datetime_from": day
 })
 
 pprint(response.json())

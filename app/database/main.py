@@ -91,6 +91,7 @@ class PutPurchaseModel(BaseModel):
     contact: Any
     apply_request: Any
     result_info: Any
+    documents_list: List[Any]
     lots: List[Any]
 
 
@@ -136,6 +137,7 @@ class UpdatePurchaseModel(BaseModel):
     contact: Optional[Any] = None
     apply_request: Optional[Any] = None
     result_info: Optional[Any] = None
+    documents_list: Optional[Any]
     lots: Optional[Any] = None
 
 
@@ -152,6 +154,7 @@ class PurchaseResponseModel(BaseModel):
     contact: Any
     apply_request: Any
     result_info: Any
+    documents_list: List[Any]
     lots: List[Any]
 
     class Config:
@@ -288,6 +291,7 @@ def put_purchase(purchase_data: PutPurchaseModel, db: Session = Depends(get_db))
         existing_purchase.contact = purchase_data.contact or {}
         existing_purchase.apply_request = purchase_data.apply_request or {}
         existing_purchase.result_info = purchase_data.result_info or {}
+        existing_purchase.documents_list = purchase_data.documents_list or []
         existing_purchase.lots = purchase_data.lots or []
 
         db.commit()
@@ -312,7 +316,8 @@ def put_purchase(purchase_data: PutPurchaseModel, db: Session = Depends(get_db))
         contact=purchase_data.contact or {},
         apply_request=purchase_data.apply_request or {},
         result_info=purchase_data.result_info or {},
-        lots=purchase_data.lots or [],
+        documents_list=purchase_data.documents_list or [],
+        lots=purchase_data.lots or []
     )
 
     try:
@@ -372,7 +377,11 @@ def get_purchase(purchase_data: GetPurchaseModel, db: Session = Depends(get_db))
         )
 
     if not purchase:
-        raise HTTPException(status_code=404, detail="Purchase not found")
+        return SuccessResponseModel(
+            status="success",
+            message="Purchase not found",
+            data={},
+        )
 
     return SuccessResponseModel(
         status="success",
