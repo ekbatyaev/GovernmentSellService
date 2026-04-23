@@ -1,3 +1,4 @@
+import json
 import os
 import requests
 from datetime import datetime, timedelta
@@ -122,11 +123,44 @@ start_day = datetime.combine(now.date(), time.min) - timedelta(days=1)
 day = start_day.isoformat()
 print(now, start_day, day)
 response = requests.post(f"{APP_URL}/get_all_purchases", json={
-    "token": SYSTEM_TOKEN,
-    "publication_datetime_from": day
+    "token": SYSTEM_TOKEN
 })
 
-pprint(response.json())
+with open('protocols.json', 'r', encoding='utf-8') as f:
+
+    protocols = json.load(f)
+
+try:
+
+    with open('founded_coincidence.json', 'r', encoding='utf-8') as f:
+
+        founded_coincidence = json.load(f)
+
+except:
+
+    founded_coincidence = []
+
+data = response.json().get("data")
+
+print(data)
+
+for cell in data:
+
+    for protocol in protocols:
+
+        if cell["registration_number"] == protocol["registration_number"]:
+
+            founded_coincidence.append({
+
+                "purchase": cell,
+
+                "protocol": protocol
+
+            })
+
+with open("founded_coincidence.json", "w", encoding="utf-8") as f:
+
+    json.dump(founded_coincidence, f, ensure_ascii=False, indent=4)
 
 # 4. POST /get_all_purchases - Получить список с фильтрами
 # print("\n" + "="*50)

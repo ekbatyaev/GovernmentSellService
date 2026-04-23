@@ -3,6 +3,8 @@ import re
 import os
 import zipfile
 import logging
+from copy import copy
+
 import xmltodict
 import requests
 from typing import Dict, List, Any
@@ -41,7 +43,8 @@ FILTERS_JOB_NAME = [
 ]
 
 FILTERS_JOB_EXCLUDE = [
-    r"\bПС-\s*\d+(?:/\d+)*\s*кВ\b",
+    # r"\bПС-\s*(?:110|220|500)(?:/\d+)*\s*кВ\b",
+    r"\bПС(?:-\s*|\s+)(?:110|220|500)(?:/\d+)*\s*кВ\b"
 ]
 
 JOB_PATTERNS = [re.compile(p, re.IGNORECASE) for p in FILTERS_JOB_NAME]
@@ -58,29 +61,6 @@ FIELDS = [
     "Дата исполнения договора",
     "Филиал/РЭС",
 ]
-
-
-def normalize_value(value):
-    if value is None:
-        return None
-    value = str(value).strip()
-    if not value:
-        return None
-    return value
-
-
-def split_merged_value(value: str):
-    """
-    Если extract_tender_fields уже вернул строку с несколькими значениями
-    через ;, перенос строки или запятую, разбиваем аккуратно.
-    """
-    parts = []
-    for chunk in str(value).replace("\n", ";").split(";"):
-        chunk = chunk.strip()
-        if chunk:
-            parts.append(chunk)
-    return parts
-
 
 def remove_ns(obj):
     if isinstance(obj, dict):
@@ -101,6 +81,131 @@ def ensure_list(value):
         return value
     return [value]
 
+def normalize_protocol(data: dict) -> dict:
+
+    body = data.get("purchaseProtocol", {}).get("body", {})
+    item = body.get("item", {}) or {}
+    protocol = item.get("purchaseProtocolData", {}) or {}
+    purchase_info = protocol.get("purchaseInfo", {}) or {}
+
+    result = {}
+
+    result["guid"] = purchase_info.get("guid")
+    result["registration_number"] = purchase_info.get("purchaseNoticeNumber")
+    result["name"] = purchase_info.get("name")
+
+    customer = (protocol.get("customer") or {}).get("mainInfo") or {}
+    result["customer"] = {
+        "full_name": customer.get("fullName"),
+        "inn": customer.get("inn"),
+        "kpp": customer.get("kpp"),
+        "ogrn": customer.get("ogrn"),
+    }
+
+    # начало работы с документами
+    attached_files = protocol.get("attachments") or {}
+    document = attached_files.get("document")
+    if isinstance(document, str):
+        try:
+            document = json.loads(document)
+        except Exception:
+            document = None
+    document = ensure_list(document)
+    docs = []
+
+    for doc in document:
+        docs.append({
+            "filename": doc["fileName"],
+            "description": doc["description"],
+            "url": doc["url"]
+        })
+
+    result["attached_files"] = docs
+
+    result["publication_datetime"] = protocol.get("publicationDateTime")
+    # окончание работы с документами
+
+    return result
+
+
+def parse_zip_archive_protocols(zip_path: str) -> List[Dict[str, Any]]:
+    zip_path = os.path.abspath(zip_path)
+    all_data: List[Dict[str, Any]] = []
+    logger.info("Открываем архив: %s", zip_path)
+
+    with (zipfile.ZipFile(zip_path, "r") as archive):
+        xml_files = [f for f in archive.namelist() if f.lower().endswith(".xml")]
+        logger.info("Найдено XML файлов: %s", len(xml_files))
+
+        for file_name in xml_files:
+            try:
+                with archive.open(file_name) as file:
+                    xml_content = file.read()
+
+                data = xmltodict.parse(xml_content)
+                data = remove_ns(data)
+                normalized = normalize_protocol(data)
+                normalized["source_file"] = file_name
+
+                customer_name = (normalized.get("customer") or {}).get("full_name")
+                work_name = normalized.get("name", "") or ""
+
+                ok_customer = any(f in str(customer_name or "") for f in FILTERS_CUSTOMER)
+                ok_job = any(p.search(work_name) for p in JOB_PATTERNS)
+                excluded_names = any(p.search(work_name) for p in JOB_EXCLUDE_PATTERNS)
+
+                has_from = bool(re.search(r"\bот\s+(РП|ТП|РТП)\b", work_name, re.IGNORECASE))
+                work_name_without_from = re.sub(r"\bот\s+(РП|ТП|РТП)\b", "", work_name, flags=re.IGNORECASE)
+                has_without_from = bool(re.search(r"\b(РП|ТП|РТП)\b", work_name_without_from, re.IGNORECASE))
+
+                excluded_job = excluded_names or (has_from and not has_without_from)
+
+                if ok_customer and ok_job and not excluded_job:
+                    print(normalized["registration_number"])
+
+                    # Обращение, получение данных и передача
+                    purchase_response = requests.post(
+                        f"{APP_URL}{API_BASE}/get_purchase",
+                        json={"token": TOKEN, "registration_number": normalized["registration_number"]},
+                        timeout=30,
+                    )
+
+                    purchase_response.raise_for_status()
+
+                    purchase = purchase_response.json().get("data") or {}
+                    if not purchase:
+                        continue
+
+                    result_info = purchase.get("result_info") or {}
+
+                    documents_list = purchase.get("documents_list") or []
+
+                    normalized["result_info"], normalized["documents_list"] = process_attached_files_and_merge(
+                        attached_files=normalized["attached_files"],
+                        tmp_dir=TMP_DIR,
+                        result_info_old=result_info,
+                        documents_list_old=documents_list,
+                        protocol_mode=True
+                    )
+
+                    del normalized["attached_files"]
+
+                    print("result_info - protocols")
+                    print(normalized["result_info"])
+
+                    print("documents_list - protocols")
+                    print(normalized["documents_list"])
+
+                    all_data.append(normalized)
+
+
+            except Exception as e:
+                logger.exception("Ошибка в файле %s: %s", file_name, e)
+
+    logger.info("Парсинг завершён. Подходит под фильтры: %s", len(all_data))
+    os.remove(zip_path)
+    return all_data
+
 
 def normalize_purchase(data: dict) -> dict:
 
@@ -115,7 +220,9 @@ def normalize_purchase(data: dict) -> dict:
     result["name"] = notice.get("name")
     result["publication_datetime"] = notice.get("publicationDateTime")
     submission_start = notice.get("applSubmisionStartDate")
-    result["submission_start_datetime"] = f"{submission_start}T00:00:00"
+    result["submission_start_datetime"] = (
+        f"{submission_start}T00:00:00" if submission_start else None
+    )
     result["submission_close_datetime"] = notice.get("submissionCloseDateTime")
 
     customer = (notice.get("customer") or {}).get("mainInfo") or {}
@@ -206,7 +313,7 @@ def normalize_purchase(data: dict) -> dict:
     return result
 
 
-def parse_zip_archive(zip_path: str) -> List[Dict[str, Any]]:
+def parse_zip_archive_purchases(zip_path: str) -> List[Dict[str, Any]]:
     zip_path = os.path.abspath(zip_path)
     all_data: List[Dict[str, Any]] = []
     logger.info("Открываем архив: %s", zip_path)
@@ -252,8 +359,20 @@ def parse_zip_archive(zip_path: str) -> List[Dict[str, Any]]:
                     purchase = purchase_response.json().get("data", {})
 
                     result_info = purchase.get("result_info") or {}
-                    match = re.search(r'для нужд\s+([^\s-]+)', normalized["name"])
-                    result_info["Филиал/РЭС"] = match.group(1) if match else None
+
+                    match = re.search(r'для нужд\s+([^.,()\-–—]+)', normalized["name"], re.IGNORECASE)
+
+                    if match:
+
+                        value = match.group(1).strip()
+
+                        first_word = value.split()[0]
+
+                        result_info["Филиал/РЭС"] = value if len(first_word) > 4 else first_word
+
+                    else:
+
+                        result_info["Филиал/РЭС"] = None
 
                     documents_list = purchase.get("documents_list") or []
 
@@ -266,6 +385,10 @@ def parse_zip_archive(zip_path: str) -> List[Dict[str, Any]]:
 
                     del normalized["attached_files"]
 
+                    print("result_info")
+                    print(normalized["result_info"])
+                    print("documents_list")
+                    print(normalized["documents_list"])
                     all_data.append(normalized)
 
             except Exception as e:

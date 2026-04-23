@@ -1,13 +1,15 @@
+import json
 import os
 import logging
 from typing import Dict, List
 from datetime import datetime, timedelta
+from pprint import pprint
 
 import requests
 from dotenv import load_dotenv
 
 from app.goszakupki_requests.data_request import get_docs_by_region, download_archive_from_result
-from app.goszakupki_requests.parse_data_fz_223 import parse_zip_archive
+from app.goszakupki_requests.parse_data_fz_223 import parse_zip_archive_purchases, parse_zip_archive_protocols
 
 load_dotenv()
 
@@ -57,26 +59,62 @@ def get_all_purchases() -> List[Dict]:
 
 def process_day(date_str: str) -> int:
     logger.info("Обработка даты: %s", date_str)
+    try:
+        # result_purchases = get_docs_by_region(
+        #     org_region="77",
+        #     document_type="purchaseNotice",
+        #     exact_date=date_str,
+        #     subsystem_type="RI223",
+        # )
 
-    result = get_docs_by_region(
-        org_region="77",
-        document_type="purchaseNotice",
-        exact_date=date_str,
-        subsystem_type="RI223",
-    )
+        result_protocols = get_docs_by_region(
+            org_region="77",
+            document_type="purchaseProtocol",
+            exact_date=date_str,
+            subsystem_type="RI223",
+        )
+        #
+        # zip_path_purchases = download_archive_from_result(result_purchases)
 
-    print(result)
+        zip_path_protocols = download_archive_from_result(result_protocols)
 
-    zip_path = download_archive_from_result(result)
-    purchases = parse_zip_archive(zip_path)
+        # purchases = parse_zip_archive_purchases(zip_path_purchases)
 
-    saved = 0
-    for purchase in purchases:
-        # put_purchase_to_database(purchase)
-        saved += 1
+        protocols = parse_zip_archive_protocols(zip_path_protocols)
 
-    logger.info("Добавлено закупок: %s", saved)
-    return saved
+        # saved = 0
+        # for purchase in purchases:
+        #     # put_purchase_to_database(purchase)
+        #     saved += 1
+        #
+        # logger.info("Добавлено закупок: %s", saved)
+        # return saved
+        #
+        # protocols_new = parse_zip_archive_protocols(zip_path)
+        #
+
+        file_path = "protocols.json"  # или "/app/protocols.json"
+
+        try:
+            with open(file_path, "r", encoding="utf-8") as file:
+                protocols_old = json.load(file)
+        except FileNotFoundError:
+            protocols_old = []  # если файла нет, начинаем с пустого списка
+
+        # Убедимся, что это список
+        if not isinstance(protocols_old, list):
+            protocols_old = []
+
+        # Добавляем новые протоколы (лучше extend, но можно и цикл)
+        protocols_old.extend(protocols)  # protocols — это ваш новый список
+
+        # Записываем обратно
+        with open(file_path, "w", encoding="utf-8") as file:
+            json.dump(protocols_old, file, indent=4, ensure_ascii=False)
+
+        return len(protocols)
+    except Exception as error:
+        print(error)
 
 
 def run_pipeline(start_date: str, days: int = 10) -> int:
@@ -98,8 +136,8 @@ if __name__ == "__main__":
     # get_all_purchases()
     from datetime import date, timedelta
 
-    current = date(2026, 4, 1)
-    end = date(2026, 4, 13)
+    current = date(2026, 3, 10)
+    end = date(2026, 3, 30)
 
     while current < end:
         process_day(current.isoformat())
