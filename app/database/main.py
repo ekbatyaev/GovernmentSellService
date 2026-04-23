@@ -125,7 +125,7 @@ class GetAllPurchasesModel(BaseModel):
 
 class UpdatePurchaseModel(BaseModel):
     token: str
-    guid: str
+    guid: Optional[str] = None
     registration_number: Optional[str] = None
     name: Optional[str] = None
     source_file: Optional[str] = None
@@ -137,7 +137,7 @@ class UpdatePurchaseModel(BaseModel):
     contact: Optional[Any] = None
     apply_request: Optional[Any] = None
     result_info: Optional[Any] = None
-    documents_list: Optional[Any]
+    documents_list: Optional[Any] = None
     lots: Optional[Any] = None
 
 
@@ -482,17 +482,47 @@ def get_all_purchases(purchase_data: GetAllPurchasesModel, db: Session = Depends
 def update_purchase(purchase_data: UpdatePurchaseModel, db: Session = Depends(get_db)):
     verify_token(purchase_data.token)
 
-    purchase = db.get(Purchase, purchase_data.guid)
-    if not purchase:
-        raise HTTPException(status_code=404, detail="Purchase not found")
+    guid = purchase_data.guid.strip() if purchase_data.guid else None
+    registration_number = (
+        purchase_data.registration_number.strip()
+        if purchase_data.registration_number
+        else None
+    )
 
-    update_data = purchase_data.model_dump(exclude_unset=True, exclude={"token", "guid"})
+    if registration_number:
+        purchase = (
+            db.query(Purchase)
+            .filter(Purchase.registration_number == registration_number)
+            .first()
+        )
+
+    elif guid:
+        purchase = db.get(Purchase, guid)
+
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="Не передан ни один ключ поиска: guid или registration_number",
+        )
+
+    if not purchase:
+        return SuccessResponseModel(
+            status="success",
+            message="Purchase not found",
+            data={},
+        )
+
+    update_data = purchase_data.model_dump(exclude_unset=True, exclude={"token", "guid", "registration_number"})
     for field, value in update_data.items():
         if value is not None:
             setattr(purchase, field, value)
 
-    db.commit()
-    db.refresh(purchase)
+    try:
+        db.commit()
+        db.refresh(purchase)
+    except Exception:
+        db.rollback()
+        raise
 
     return SuccessResponseModel(
         status="success",

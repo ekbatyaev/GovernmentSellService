@@ -7,21 +7,17 @@ RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
         gcc \
-        g++ \
+        libpq-dev \
         unrar \
         libreoffice \
         libreoffice-writer \
-        libreoffice-calc \
         fonts-dejavu-core \
         tzdata; \
     rm -rf /var/lib/apt/lists/*
 
-COPY ../requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-COPY .. /app
+COPY app .
 
-ENV PYTHONUNBUFFERED=1
-ENV TZ=Europe/Moscow
-
-CMD ["python", "-m", "app.goszakupki_requests.document_consistent"]
+CMD ["uvicorn", "database.main:app", "--host", "0.0.0.0", "--port", "8000"]
