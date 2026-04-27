@@ -39,8 +39,31 @@ RESULT_TEMPLATE = {
     "Филиал/РЭС": None,
 }
 
+
 ORG_HEAD_RE = r"(?:ООО|АО|ПАО|ЗАО|ИП|ОАО|НАО)"
 ORG_PATTERN = rf"{ORG_HEAD_RE}\s+[«\"][^»\"\n]+(?:[»\"])?(?:\s*\([^)]*\))?"
+
+FULL_ORG_HEAD_RE = (
+    r"Общество\s+с\s+ограниченной\s+ответственностью|"
+    r"Акционерное\s+общество|"
+    r"Публичное\s+акционерное\s+общество|"
+    r"Закрытое\s+акционерное\s+общество|"
+    r"Открытое\s+акционерное\s+общество|"
+    r"Непубличное\s+акционерное\s+общество|"
+    r"Индивидуальный\s+предприниматель"
+)
+
+FULL_ORG_PATTERN = (
+    rf"(?:{FULL_ORG_HEAD_RE})\s+"
+    r"[«\"]?[^»\"\n;,]+[»\"]?"
+    r"(?:\s*\([^)]*\))?"
+)
+
+SHORT_ORG_PATTERN = (
+    rf"(?:{ORG_HEAD_RE})\s+"
+    r"[«\"]?[^»\"\n;,]+[»\"]?"
+    r"(?:\s*\([^)]*\))?"
+)
 
 WINNER_CUES = [
     "победитель",
@@ -436,6 +459,26 @@ def extract_between(text: str, patterns: List[str]) -> Optional[str]:
     return None
 
 
+def extract_strict_designer_orgs(text: str) -> List[str]:
+    text = clean_text(text)
+    if not text:
+        return []
+
+    found: List[str] = []
+
+    for m in re.finditer(FULL_ORG_PATTERN, text, flags=re.IGNORECASE):
+        val = cleanup_org(m.group(0))
+        if val:
+            found.append(val)
+
+    if not found:
+        for m in re.finditer(SHORT_ORG_PATTERN, text, flags=re.IGNORECASE):
+            val = cleanup_org(m.group(0))
+            if val:
+                found.append(val)
+
+    return unique_keep_order(found)
+
 def extract_execution_date_from_header_table(text: str) -> Optional[str]:
     text = clean_text(text)
     if not text:
@@ -751,12 +794,10 @@ def extract_designer_candidates(text: str) -> List[Candidate]:
             if not tail:
                 continue
 
-            orgs = extract_organizations(tail)
+            orgs = extract_strict_designer_orgs(tail)
             if orgs:
                 for org in orgs:
                     add_candidate(candidates, org, 7.0, "designer_regex_org", line)
-            else:
-                add_candidate(candidates, tail, 5.0, "designer_regex_text", line)
 
     for chunk in context_windows(text, DESIGNER_CUES, window=180):
         orgs = extract_organizations(chunk)

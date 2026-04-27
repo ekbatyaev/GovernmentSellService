@@ -13,10 +13,11 @@
     <header class="header">
       <div class="header__left">
         <div class="brand">
-          <div class="brand__logo">G</div>
+          <div class="brand__logo" aria-hidden="true">ê</div>
           <div class="brand__text">
-            <div class="brand__title">Госзакупки</div>
-            <div class="brand__subtitle">Мониторинг и фильтрация</div>
+            <div class="brand__eyebrow">Systeme Electric</div>
+            <div class="brand__title">Мониторинг закупок</div>
+            <div class="brand__subtitle">Фильтрация, экспорт и администрирование</div>
           </div>
         </div>
       </div>
@@ -177,7 +178,7 @@
           <div class="adminStack">
 
             <div class="field">
-              <div style="display: flex; gap: 10px; align-items: flex-start;">
+              <div class="inputAction">
                 <input
                   id="daysInput"
                   class="input"
@@ -186,9 +187,8 @@
                   max="30"
                   value="10"
                   placeholder="Количество дней"
-                  style="width: 200px;"
                 />
-                <button class="btn btn--ghost adminStack__btn" id="btnRunBackfill">
+                <button class="btn btn--ghost" id="btnRunBackfill">
                   Получить заявки
                 </button>
               </div>
@@ -199,14 +199,13 @@
 
           </div>
           <div class="field">
-            <div style="display: flex; gap: 10px; align-items: flex-start;">
+            <div class="inputAction">
               <input
                 id="process_day_input"
                 class="input"
                 type="date"
-                style="width: 200px;"
               />
-              <button class="btn btn--ghost adminStack__btn" id="btnRunProcessDay">
+              <button class="btn btn--ghost" id="btnRunProcessDay">
                 Просмотреть
               </button>
             </div>

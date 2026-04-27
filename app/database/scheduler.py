@@ -170,28 +170,10 @@ def process_day(date_str: str) -> Dict[str, int]:
     logger.info("Pipeline: архив протоколов скачан: %s", zip_path_protocols)
 
     purchases = parse_zip_archive_purchases(zip_path_purchases)
-    protocols = parse_zip_archive_protocols(zip_path_protocols)
 
     logger.info("Pipeline: после фильтров закупок: %s", len(purchases))
 
     added_registration_numbers = []
-
-    for protocol in protocols:
-        added_registration_numbers.append(protocol["registration_number"])
-        try:
-            requests.post(
-                f"{APP_URL}{API_BASE}/update_purchase",
-                json={"token": TOKEN, "registration_number": protocol["registration_number"], "result_info": protocol["result_info"],
-                      "documents_list": protocol["documents_list"], "publication_datetime": protocol["publication_datetime"]},
-                timeout=30,
-            )
-        except Exception as error:
-            logger.info(f"{protocol["registration_number"]} - у заявки не обновились поля: {error}")
-
-
-
-    if not purchases:
-        return {"created": 0, "updated": 0, "skipped": 0, "added_registration_numbers": added_registration_numbers}
 
     created = 0
     updated = 0
@@ -201,6 +183,7 @@ def process_day(date_str: str) -> Dict[str, int]:
         try:
             status = put_purchase_to_db(p)
             added_registration_numbers.append(p["registration_number"])
+
             if status == "created":
                 created += 1
             elif status == "updated":
@@ -216,16 +199,51 @@ def process_day(date_str: str) -> Dict[str, int]:
             )
             skipped += 1
 
-    logger.info(
-        "Pipeline: итог за %s | создано=%s | обновлено=%s | пропущено=%s",
-        date_str,
-        created,
-        updated,
-        skipped,
-    )
+    protocols = parse_zip_archive_protocols(zip_path_protocols)
+
+    logger.info("Pipeline: после фильтров протоколов: %s", len(protocols))
+
+    for protocol in protocols:
+        added_registration_numbers.append(protocol["registration_number"])
+
+        try:
+            response = requests.post(
+                f"{APP_URL}{API_BASE}/update_purchase",
+                json={
+                    "token": TOKEN,
+                    "registration_number": protocol["registration_number"],
+                    "result_info": protocol["result_info"],
+                    "documents_list": protocol["documents_list"],
+                    "publication_datetime": protocol["publication_datetime"],
+                },
+                timeout=30,
+            )
+            response.raise_for_status()
+
+            updated += 1
+
+            logger.info("Update response | %s", response.text)
+
+            logger.info(
+                "Pipeline: протокол обновил закупку | reg=%s",
+                protocol["registration_number"],
+            )
+
+        except Exception as error:
+            logger.exception(
+                "У заявки не обновились поля | reg=%s | error=%s",
+                protocol.get("registration_number"),
+                error,
+            )
+
     added_registration_numbers = list(set(added_registration_numbers))
 
-    return {"created": created, "updated": updated, "skipped": skipped, "added_registration_numbers": added_registration_numbers}
+    return {
+        "created": created,
+        "updated": updated,
+        "skipped": skipped,
+        "added_registration_numbers": added_registration_numbers,
+    }
 
 def run_daily_job() -> Dict[str, Any]:
     _set_status(
