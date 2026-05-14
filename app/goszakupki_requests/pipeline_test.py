@@ -136,8 +136,8 @@ if __name__ == "__main__":
     # get_all_purchases()
     from datetime import date, timedelta
 
-    current = date(2026, 3, 10)
-    end = date(2026, 3, 30)
+    current = date(2026, 4,2)
+    end = date(2026, 4, 30)
 
     while current < end:
         process_day(current.isoformat())

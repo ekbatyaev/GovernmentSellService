@@ -65,7 +65,6 @@ JOB_EXCLUDE_SOFT_PATTERNS = [
 TARGET_PATTERNS = [re.compile(p, re.IGNORECASE) for p in TARGET_OBJECT_PATTERNS]
 
 def filtration_results(examples):
-    count = 0
     accepted = []
     not_accepted = []
     for work_name in examples:
@@ -570,5 +569,5 @@ formulations_new = [
 ]
 
 # filtration_results(formulations_old_1)
-filtration_results(formulations_old_2)
-# filtration_results(formulations_new)
+# filtration_results(formulations_old_2)
+filtration_results(formulations_new)

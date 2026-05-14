@@ -58,11 +58,11 @@ FILTERS_JOB_EXCLUDE_HARD = [
     r"бензоинструмента",
     r"переустройств[а-я]*",
     r"кабельн[а-я]*\s+исполнени[а-я]*",
-    r"воздушн[а-я]*\s+участк[а-я]*",
+    r"воздушн[а-я]*\s+участк[а-я]*"
 ]
 
 FILTERS_JOB_EXCLUDE_SOFT = [
-    r"\bПС(?:-\s*|\s+)(?:110|220|500)(?:/\d+)*\s*кВ\b",
+    r"\bПС(?:-\s*|\s+)(?:110|220|500)(?:/\d+)*\s*кВ\b"
 ]
 
 TARGET_OBJECT_PATTERNS = [
@@ -82,7 +82,6 @@ JOB_EXCLUDE_SOFT_PATTERNS = [
     re.compile(p, re.IGNORECASE) for p in FILTERS_JOB_EXCLUDE_SOFT
 ]
 TARGET_PATTERNS = [re.compile(p, re.IGNORECASE) for p in TARGET_OBJECT_PATTERNS]
-
 
 FIELDS = [
     "Победитель",
@@ -120,12 +119,16 @@ def normalize_protocol(data: dict) -> dict:
     item = body.get("item", {}) or {}
     protocol = item.get("purchaseProtocolData", {}) or {}
     purchase_info = protocol.get("purchaseInfo", {}) or {}
+    lots_protocol_info = protocol.get("lotApplicationsList", {}).get("protocolLotApplications", {}) or {}
 
     result = {}
 
     result["guid"] = purchase_info.get("guid")
     result["registration_number"] = purchase_info.get("purchaseNoticeNumber")
     result["name"] = purchase_info.get("name")
+    result["publication_datetime"] = protocol.get("publicationDateTime")
+    result["submission_start_datetime"] = protocol.get("procedureDate", "")
+    result["submission_close_datetime"] = protocol.get("procedureDate", "")
 
     customer = (protocol.get("customer") or {}).get("mainInfo") or {}
     result["customer"] = {
@@ -134,6 +137,80 @@ def normalize_protocol(data: dict) -> dict:
         "kpp": customer.get("kpp"),
         "ogrn": customer.get("ogrn"),
     }
+
+    contact = protocol.get("contact") or {}
+    result["contact"] = {
+        "last_name": contact.get("lastName", ""),
+        "first_name": contact.get("firstName", ""),
+        "middle_name": contact.get("middleName", ""),
+        "phone": contact.get("phone", ""),
+        "email": contact.get("email", ""),
+    }
+
+    result["apply_request"] = {
+        "submission_order": protocol.get("applSubmisionOrder", ""),
+        "submission_place": protocol.get("applSubmisionPlace", "")
+    }
+
+    # начало работы с документами
+    attached_files = protocol.get("attachments") or {}
+    document = attached_files.get("document")
+    if isinstance(document, str):
+        try:
+            document = json.loads(document)
+        except Exception:
+            document = None
+    document = ensure_list(document)
+    docs = []
+
+    for doc in document:
+        docs.append({
+            "filename": doc["fileName"],
+            "description": doc["description"],
+            "url": doc["url"]
+        })
+
+    result["attached_files"] = docs
+    # окончание работы с документами
+
+    result["lots"] = []
+
+    protocol_lot_applications = ensure_list(lots_protocol_info)
+
+    for protocol_lot_application in protocol_lot_applications:
+        protocol_lot_application = (
+            protocol_lot_application
+            if isinstance(protocol_lot_application, dict)
+            else {}
+        )
+
+        lots = ensure_list(protocol_lot_application.get("lot"))
+
+        for lot in lots:
+            lot = lot if isinstance(lot, dict) else {}
+
+            initial_sum_raw = lot.get("initialSum", 0) or 0
+            try:
+                initial_sum_val = float(initial_sum_raw)
+            except Exception:
+                initial_sum_val = 0.0
+
+            lot_result = {
+                "guid": lot.get("guid", ""),
+                "ordinal_number": lot.get("ordinalNumber", ""),
+                "subject": lot.get("subject", ""),
+                "initial_sum": initial_sum_val,
+                "currency": (lot.get("currency") or {}).get("code", "")
+            }
+
+            result["lots"].append(lot_result)
+
+    # result["initial_sum"] = sum(
+    #     float(l.get("initial_sum") or 0)
+    #     for l in result.get("lots", [])
+    # )
+
+    result["initial_sum"] = sum(float(l.get("initial_sum") or 0) for l in result.get("lots", []))
 
     # начало работы с документами
     attached_files = protocol.get("attachments") or {}
@@ -240,8 +317,13 @@ def request_filters(customer_name, work_name)-> bool:
             or (has_tech_connection and has_rosseti_context)
     )
 
+    # has_from = bool(
+    #     re.search(r"\bот\s+(РП|ТП|РТП|БКТП|КТП)\b", work_name, re.IGNORECASE)
+    #
+    # )
+
     has_from = bool(
-        re.search(r"\bот\s+(РП|ТП|РТП|БКТП|КТП)\b", work_name, re.IGNORECASE)
+        re.search(r"\b(от|сооружаемой)\s+(ТП|ячейк[а-я]|РТП|РП|БКТП|КТП)\b", work_name, re.IGNORECASE)
     )
 
     is_land_release_line_work = bool(
@@ -270,8 +352,35 @@ def request_filters(customer_name, work_name)-> bool:
         flags=re.IGNORECASE
     )
 
-    has_without_from = bool(
-        re.search(r"\b(РП|ТП|РТП|БКТП|КТП)\b", work_name_without_from, re.IGNORECASE)
+    # has_without_from = bool(
+    #     re.search(r"\b(РП|ТП|РТП|БКТП|КТП)\b", work_name_without_from, re.IGNORECASE)
+    # )
+
+    from_to_ranges = [
+
+        match.span()
+
+        for match in re.finditer(r"\bот\b.*?\bдо\b", work_name_without_from, re.IGNORECASE)
+
+    ]
+
+    has_without_from = any(
+
+        not any(start <= match.start() < end for start, end in from_to_ranges)
+        and not re.search(
+            r"сооружаемой\s*$",
+            work_name_without_from[:match.start()],
+            re.IGNORECASE
+        )
+        for match in re.finditer(
+
+            r"(?<![А-Яа-яA-Za-z])(РП|ТП|РТП|БКТП|КТП)(?![А-Яа-яA-Za-z])",
+
+            work_name_without_from,
+
+            re.IGNORECASE
+
+        )
     )
 
     only_source_object = has_from and not has_without_from
@@ -289,6 +398,7 @@ def request_filters(customer_name, work_name)-> bool:
             or is_land_release_line_work
             or (excluded_soft and not has_target_object)
             or (only_source_object and not source_object_allowed)
+            or (only_source_object and not has_without_from)
     )
 
     if ok_customer and ok_job and not excluded_job:
@@ -318,7 +428,6 @@ def parse_zip_archive_protocols(zip_path: str) -> List[Dict[str, Any]]:
                 work_name = normalized.get("name", "") or ""
 
                 if request_filters(customer_name, work_name):
-                    print(normalized["registration_number"])
 
                     # Обращение, получение данных и передача
                     purchase_response = requests.post(
@@ -335,7 +444,6 @@ def parse_zip_archive_protocols(zip_path: str) -> List[Dict[str, Any]]:
                             "Протокол прошёл фильтр, но закупка не найдена в БД | reg=%s",
                             normalized.get("registration_number"),
                         )
-                        continue
 
                     result_info = purchase.get("result_info") or {}
 

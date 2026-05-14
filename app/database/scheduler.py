@@ -220,6 +220,24 @@ def process_day(date_str: str) -> Dict[str, int]:
             )
             response.raise_for_status()
 
+            database_answer = response.json()
+
+            if database_answer.get("message") == "Purchase not found" and not database_answer.get("data"):
+
+                status = put_purchase_to_db(protocol)
+
+                if status == "created":
+                    created += 1
+
+                logger.info("Create purchase from protocol response | %s", response.text)
+
+                logger.info(
+                    "Pipeline: протокол создал закупку | reg=%s",
+                    protocol["registration_number"],
+                )
+
+                continue
+
             updated += 1
 
             logger.info("Update response | %s", response.text)
