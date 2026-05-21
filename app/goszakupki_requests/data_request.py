@@ -2,11 +2,10 @@ import os
 import uuid
 import logging
 from datetime import datetime, timedelta
-from urllib.parse import urlparse, parse_qs
-
 import requests
+import xmltodict
 from dotenv import load_dotenv
-from lxml import etree
+from urllib.parse import urlparse, parse_qs
 
 load_dotenv()
 
@@ -78,31 +77,17 @@ def iso_datetime_now() -> str:
 def iso_date_today_minus(days: int = 1) -> str:
     return (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
 
-
 def parse_soap_response(xml_text: str) -> dict:
-    root = etree.fromstring(xml_text.encode("utf-8"))
+    data = xmltodict.parse(xml_text)
+    main_info_body = data.get('soap:Envelope', {}).get("soap:Body", {}).get("ns2:getDocsByOrgRegionResponse", {})
 
-    namespaces = {"soap": "http://schemas.xmlsoap.org/soap/envelope/"}
-    fault = root.xpath("//soap:Fault", namespaces=namespaces)
-    if fault:
-        fault_string = fault[0].xpath("faultstring/text()")
-        raise RuntimeError(f"SOAP Fault: {fault_string[0] if fault_string else 'Unknown'}")
+    data_info = main_info_body.get("dataInfo", {})
+    archive_urls = data_info.get('archiveUrl', [])
 
-    doc_uid = root.xpath("//*[local-name()='docRequestUid']/text()")
-    compound_uid = root.xpath("//*[local-name()='compoundUid']/text()")
+    if isinstance(archive_urls, str):
+        archive_urls = [archive_urls]
 
-    archive_url = root.xpath("//*[local-name()='archiveUrl']/text()")
-    archive_url = archive_url[0].strip() if archive_url else None
-
-    doc_request_uid = doc_uid[0] if doc_uid else None
-    compound_uid = compound_uid[0] if compound_uid else None
-
-    if archive_url and (not doc_request_uid or not compound_uid):
-        qs = parse_qs(urlparse(archive_url).query)
-        doc_request_uid = doc_request_uid or (qs.get("docRequestUid") or [None])[0]
-        compound_uid = compound_uid or (qs.get("compoundUid") or [None])[0]
-
-    return {"archiveUrl": archive_url, "docRequestUid": doc_request_uid, "compoundUid": compound_uid}
+    return {"archive_urls": archive_urls}
 
 
 def soap_post(envelope_xml: str) -> dict:
@@ -112,11 +97,11 @@ def soap_post(envelope_xml: str) -> dict:
     headers = {"Content-Type": "text/xml; charset=utf-8", "individualPerson_token": TOKEN}
 
     response = session.post(BASE_URL, data=envelope_xml, headers=headers, timeout=SOAP_TIMEOUT)
+
     response.raise_for_status()
 
     parsed = parse_soap_response(response.text)
     return {"httpStatus": response.status_code, **parsed}
-
 
 def get_docs_by_region(
     org_region: str,
@@ -155,13 +140,17 @@ def get_docs_by_region(
     return soap_post(envelope)
 
 
-def download_archive_from_result(result: dict, out_file: str | None = None) -> str:
+def download_archive_from_result(archive_url, out_file: str | None = None) -> str:
     _require_env("TOKEN")
     _require_env("DOWNLOAD_URL")
 
-    archive_url = result.get("archiveUrl")
-    doc_request_uid = result.get("docRequestUid")
-    compound_uid = result.get("compoundUid")
+    parsed = urlparse(archive_url)
+
+    params = parse_qs(parsed.query)
+
+    doc_request_uid = params.get("docRequestUid", [None])[0]
+
+    compound_uid = params.get("compoundUid", [None])[0]
 
     headers = {"individualPerson_token": TOKEN}
 

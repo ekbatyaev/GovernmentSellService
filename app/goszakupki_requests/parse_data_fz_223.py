@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 # Фильтры для отбора документов
 
-FILTERS_CUSTOMER = ["РОССЕТИ МОСКОВСКИЙ РЕГИОН"]
+FILTERS_CUSTOMER = [r"\b(?:ПАО\s+)?Россети\s+Московск(?:ий|ого|ому|им|ом)?\s+регион(?:а|у|ом|е)?\b"]
 
 FILTERS_JOB_NAME = [
     r"РТП-10/0,4\s*кВ",
@@ -73,6 +73,8 @@ TARGET_OBJECT_PATTERNS = [
     r"\bКТП\s*-?\s*\d*(?:[-/]\s*(?:6|10|20))?(?:\s*/\s*0\s*,?\s*4)?\s*(?:кВ)?\b",
 ]
 
+FILTERS_PATTERNS = [re.compile(p, re.IGNORECASE) for p in FILTERS_CUSTOMER]
+
 JOB_PATTERNS = [re.compile(p, re.IGNORECASE) for p in FILTERS_JOB_NAME]
 JOB_EXCLUDE_HARD_PATTERNS = [
     re.compile(p, re.IGNORECASE) for p in FILTERS_JOB_EXCLUDE_HARD
@@ -112,6 +114,174 @@ def ensure_list(value):
     if isinstance(value, list):
         return value
     return [value]
+
+def request_filters(customer_name, work_name)-> bool:
+
+    ok_customer = any(p.search(customer_name) for p in FILTERS_PATTERNS)
+    excluded_hard = any(p.search(work_name) for p in JOB_EXCLUDE_HARD_PATTERNS)
+    excluded_soft = any(p.search(work_name) for p in JOB_EXCLUDE_SOFT_PATTERNS)
+
+    ok_job_raw = any(p.search(work_name) for p in JOB_PATTERNS)
+    has_target_object = any(p.search(work_name) for p in TARGET_PATTERNS)
+
+    has_group_objects = bool(
+        re.search(
+            r"(?:по\s+[А-ЯЁа-яё\-]+(?:ому|ему)\s+району|по\s+приказу|по\s+распоряжени[а-я]*|по\s+программ[а-я]*)"
+            r".{0,250}"
+            r"\(\s*\d+\s+объект",
+            work_name,
+            re.IGNORECASE
+        )
+    )
+
+    has_metering = bool(
+        re.search(
+            r"установк[а-я]*\s+прибор[а-я]*",
+            work_name,
+            re.IGNORECASE
+        )
+    )
+
+    has_electro_supply = bool(
+        re.search(
+            r"поставк[а-я]*.*(?:коммутационн[а-я]*|электромонтажн[а-я]*|"
+            r"электроустановочн[а-я]*|электроизоляционн[а-я]*|"
+            r"светотехническ[а-я]*|электротехническ[а-я]*|электронн[а-я]*|"
+            r"фонар[а-я]*|запасн[а-я]*\s+част[а-я]*)",
+            work_name,
+            re.IGNORECASE
+        )
+    )
+
+    has_tech_connection = bool(
+        re.search(
+            r"(техническ[а-я]*\s+услови[а-я]*|технологическ[а-я]*\s+присоединени[а-я]*)",
+            work_name,
+            re.IGNORECASE
+        )
+    )
+
+    has_rosseti_context = bool(
+        re.search(
+            r"(Россети\s+Московск[а-я]*\s+регион|для\s+нужд\s+(?:МКС|Новая\s+Москва))",
+            work_name,
+            re.IGNORECASE
+        )
+    )
+
+    has_zes_order_objects = bool(
+        re.search(
+            r"по\s+объектам\s+ЗЭС\s+распоряжени[а-я]*",
+            work_name,
+            re.IGNORECASE
+        )
+    )
+
+    has_bktp_in_tu = bool(
+        re.search(
+            r"(техническ[а-я]*\s+услови[а-я]*|п\.\s*11).{0,120}\b\d*\s*БКТП\b",
+            work_name,
+            re.IGNORECASE
+        )
+    )
+
+    has_pir_by_titles = bool(
+        re.search(
+            r"\bПИР\b.{0,80}\bпо\s+(?:\d+|одному|двум|тр[её]м|четыр[её]м|пяти|шести|семи|восьми|девяти|десяти)\s+титул[а-я]*",
+            work_name,
+            re.IGNORECASE
+        )
+    )
+
+    ok_job = ok_job_raw and (
+            has_target_object
+            or has_group_objects
+            or has_metering
+            or has_electro_supply
+            or has_zes_order_objects
+            or has_bktp_in_tu
+            or has_pir_by_titles
+            or (has_tech_connection and has_rosseti_context)
+    )
+
+    # has_from = bool(
+    #     re.search(r"\bот\s+(РП|ТП|РТП|БКТП|КТП)\b", work_name, re.IGNORECASE)
+    #
+    # )
+    has_from = bool(
+        re.search(r"\b(от|сооружаемой)\s+(ТП|ячейк[а-я]|РТП|РП|БКТП|КТП)\b", work_name, re.IGNORECASE)
+    )
+
+    is_land_release_line_work = bool(
+        re.search(
+            r"для\s+освобождени[а-я]*\s+земельн[а-я]*\s+участк[а-я]*",
+            work_name,
+            re.IGNORECASE
+        )
+        and re.search(
+            r"\b(?:КВЛ|КЛ|ВЛЗ|ВЛ)\s*-?\s*\d+(?:\s*,\s*\d+)?\s*кВ\b",
+            work_name,
+            re.IGNORECASE
+        )
+        and not re.search(
+            r"\b(?:строительств[а-я]*|реконструкци[а-я]*|модернизаци[а-я]*)\s+"
+            r"(?:ТП|РТП|РП|БКТП|КТП)\b",
+            work_name,
+            re.IGNORECASE
+        )
+    )
+
+    object_pattern = r"(?<![А-Яа-яA-Za-z])(РТП|БКТП|КТП|РП|ТП)(?![А-Яа-яA-Za-z])"
+
+    from_to_pattern = (
+        r"\bот\b.*?\bдо\b.*?"
+        r"(?=,\s*(?:\d+\s*КЛ|\d+КЛ|в\s+т\.ч\.|ПИР\b|г\.\s|для\s+нужд\b)|$)"
+    )
+
+    from_to_ranges = [
+        match.span()
+        for match in re.finditer(
+            from_to_pattern,
+            work_name,
+            re.IGNORECASE
+        )
+    ]
+
+    has_without_from = any(
+        not any(start <= match.start() < end for start, end in from_to_ranges)
+        and not re.search(
+            r"сооружаемой\s*$",
+            work_name[:match.start()],
+            re.IGNORECASE
+        )
+        for match in re.finditer(
+            object_pattern,
+            work_name,
+            re.IGNORECASE
+        )
+    )
+
+    only_source_object = has_from and not has_without_from
+
+    source_object_allowed = bool(
+        re.search(
+            r"(для\s+нужд\s+МКС|ПИР|СМР|ПНР|строительств[а-я]*|технологическ[а-я]*\s+присоединени[а-я]*)",
+            work_name,
+            re.IGNORECASE
+        )
+    )
+
+    excluded_job = (
+            excluded_hard
+            or is_land_release_line_work
+            or (excluded_soft and not has_target_object)
+            or (only_source_object and not source_object_allowed)
+            or (only_source_object and not has_without_from)
+    )
+
+    if ok_customer and ok_job and not excluded_job:
+        return True
+    return False
 
 def normalize_protocol(data: dict) -> dict:
 
@@ -237,174 +407,6 @@ def normalize_protocol(data: dict) -> dict:
 
     return result
 
-def request_filters(customer_name, work_name)-> bool:
-
-    ok_customer = any(f in customer_name for f in FILTERS_CUSTOMER)
-    excluded_hard = any(p.search(work_name) for p in JOB_EXCLUDE_HARD_PATTERNS)
-    excluded_soft = any(p.search(work_name) for p in JOB_EXCLUDE_SOFT_PATTERNS)
-
-    ok_job_raw = any(p.search(work_name) for p in JOB_PATTERNS)
-    has_target_object = any(p.search(work_name) for p in TARGET_PATTERNS)
-
-    has_group_objects = bool(
-        re.search(
-            r"(?:по\s+[А-ЯЁа-яё\-]+(?:ому|ему)\s+району|по\s+приказу|по\s+распоряжени[а-я]*|по\s+программ[а-я]*)"
-            r".{0,250}"
-            r"\(\s*\d+\s+объект",
-            work_name,
-            re.IGNORECASE
-        )
-    )
-
-    has_metering = bool(
-        re.search(
-            r"установк[а-я]*\s+прибор[а-я]*",
-            work_name,
-            re.IGNORECASE
-        )
-    )
-
-    has_electro_supply = bool(
-        re.search(
-            r"поставк[а-я]*.*(?:коммутационн[а-я]*|электромонтажн[а-я]*|"
-            r"электроустановочн[а-я]*|электроизоляционн[а-я]*|"
-            r"светотехническ[а-я]*|электротехническ[а-я]*|электронн[а-я]*|"
-            r"фонар[а-я]*|запасн[а-я]*\s+част[а-я]*)",
-            work_name,
-            re.IGNORECASE
-        )
-    )
-
-    has_tech_connection = bool(
-        re.search(
-            r"(техническ[а-я]*\s+услови[а-я]*|технологическ[а-я]*\s+присоединени[а-я]*)",
-            work_name,
-            re.IGNORECASE
-        )
-    )
-
-    has_rosseti_context = bool(
-        re.search(
-            r"(Россети\s+Московск[а-я]*\s+регион|для\s+нужд\s+(?:МКС|Новая\s+Москва))",
-            work_name,
-            re.IGNORECASE
-        )
-    )
-
-    has_zes_order_objects = bool(
-        re.search(
-            r"по\s+объектам\s+ЗЭС\s+распоряжени[а-я]*",
-            work_name,
-            re.IGNORECASE
-        )
-    )
-
-    has_bktp_in_tu = bool(
-        re.search(
-            r"(техническ[а-я]*\s+услови[а-я]*|п\.\s*11).{0,120}\b\d*\s*БКТП\b",
-            work_name,
-            re.IGNORECASE
-        )
-    )
-
-    ok_job = ok_job_raw and (
-            has_target_object
-            or has_group_objects
-            or has_metering
-            or has_electro_supply
-            or has_zes_order_objects
-            or has_bktp_in_tu
-            or (has_tech_connection and has_rosseti_context)
-    )
-
-    # has_from = bool(
-    #     re.search(r"\bот\s+(РП|ТП|РТП|БКТП|КТП)\b", work_name, re.IGNORECASE)
-    #
-    # )
-
-    has_from = bool(
-        re.search(r"\b(от|сооружаемой)\s+(ТП|ячейк[а-я]|РТП|РП|БКТП|КТП)\b", work_name, re.IGNORECASE)
-    )
-
-    is_land_release_line_work = bool(
-        re.search(
-            r"для\s+освобождени[а-я]*\s+земельн[а-я]*\s+участк[а-я]*",
-            work_name,
-            re.IGNORECASE
-        )
-        and re.search(
-            r"\b(?:КВЛ|КЛ|ВЛЗ|ВЛ)\s*-?\s*\d+(?:\s*,\s*\d+)?\s*кВ\b",
-            work_name,
-            re.IGNORECASE
-        )
-        and not re.search(
-            r"\b(?:строительств[а-я]*|реконструкци[а-я]*|модернизаци[а-я]*)\s+"
-            r"(?:ТП|РТП|РП|БКТП|КТП)\b",
-            work_name,
-            re.IGNORECASE
-        )
-    )
-
-    work_name_without_from = re.sub(
-        r"\bот\s+(РП|ТП|РТП|БКТП|КТП)\b",
-        "",
-        work_name,
-        flags=re.IGNORECASE
-    )
-
-    # has_without_from = bool(
-    #     re.search(r"\b(РП|ТП|РТП|БКТП|КТП)\b", work_name_without_from, re.IGNORECASE)
-    # )
-
-    from_to_ranges = [
-
-        match.span()
-
-        for match in re.finditer(r"\bот\b.*?\bдо\b", work_name_without_from, re.IGNORECASE)
-
-    ]
-
-    has_without_from = any(
-
-        not any(start <= match.start() < end for start, end in from_to_ranges)
-        and not re.search(
-            r"сооружаемой\s*$",
-            work_name_without_from[:match.start()],
-            re.IGNORECASE
-        )
-        for match in re.finditer(
-
-            r"(?<![А-Яа-яA-Za-z])(РП|ТП|РТП|БКТП|КТП)(?![А-Яа-яA-Za-z])",
-
-            work_name_without_from,
-
-            re.IGNORECASE
-
-        )
-    )
-
-    only_source_object = has_from and not has_without_from
-
-    source_object_allowed = bool(
-        re.search(
-            r"(для\s+нужд\s+МКС|ПИР|СМР|ПНР|строительств[а-я]*|технологическ[а-я]*\s+присоединени[а-я]*)",
-            work_name,
-            re.IGNORECASE
-        )
-    )
-
-    excluded_job = (
-            excluded_hard
-            or is_land_release_line_work
-            or (excluded_soft and not has_target_object)
-            or (only_source_object and not source_object_allowed)
-            or (only_source_object and not has_without_from)
-    )
-
-    if ok_customer and ok_job and not excluded_job:
-        return True
-    return False
-
 def parse_zip_archive_protocols(zip_path: str) -> List[Dict[str, Any]]:
     zip_path = os.path.abspath(zip_path)
     all_data: List[Dict[str, Any]] = []
@@ -439,11 +441,15 @@ def parse_zip_archive_protocols(zip_path: str) -> List[Dict[str, Any]]:
                     purchase_response.raise_for_status()
 
                     purchase = purchase_response.json().get("data") or {}
+
                     if not purchase:
+
                         logger.info(
                             "Протокол прошёл фильтр, но закупка не найдена в БД | reg=%s",
                             normalized.get("registration_number"),
                         )
+
+                        continue
 
                     result_info = purchase.get("result_info") or {}
 
@@ -464,6 +470,21 @@ def parse_zip_archive_protocols(zip_path: str) -> List[Dict[str, Any]]:
 
                     print("documents_list - protocols")
                     print(normalized["documents_list"])
+
+                    # file_path = "protocols_coincidents.json"
+                    #
+                    # try:
+                    #     with open(file_path, "r", encoding="utf-8") as file:
+                    #         protocols_coin = json.load(file)
+                    # except FileNotFoundError:
+                    #     protocols_coin = {}
+                    #
+                    # if normalized.get("registration_number") in protocols_coin:
+                    #     protocols_coin[normalized.get("registration_number")] = normalized
+                    #
+                    # # Записываем обратно
+                    # with open(file_path, "w", encoding="utf-8") as file:
+                    #     json.dump(protocols_coin, file, indent=4, ensure_ascii=False)
 
                     all_data.append(normalized)
 
@@ -644,10 +665,26 @@ def parse_zip_archive_purchases(zip_path: str) -> List[Dict[str, Any]]:
 
                     del normalized["attached_files"]
 
-                    print("result_info")
-                    print(normalized["result_info"])
-                    print("documents_list")
-                    print(normalized["documents_list"])
+                    # print("result_info")
+                    # print(normalized["result_info"])
+                    # print("documents_list")
+                    # print(normalized["documents_list"])
+
+                    # file_path = "protocols_coincidents.json"
+                    #
+                    # try:
+                    #     with open(file_path, "r", encoding="utf-8") as file:
+                    #         protocols_coin = json.load(file)
+                    # except FileNotFoundError:
+                    #     protocols_coin = {}
+                    #
+                    # if normalized.get("registration_number") in protocols_coin:
+                    #     protocols_coin[normalized.get("registration_number")] = normalized
+                    #
+                    # # Записываем обратно
+                    # with open(file_path, "w", encoding="utf-8") as file:
+                    #     json.dump(protocols_coin, file, indent=4, ensure_ascii=False)
+
                     all_data.append(normalized)
 
             except Exception as e:

@@ -59,63 +59,91 @@ def get_all_purchases() -> List[Dict]:
 
 def process_day(date_str: str) -> int:
     logger.info("Обработка даты: %s", date_str)
+    count = 0
     try:
         # result_purchases = get_docs_by_region(
         #     org_region="77",
         #     document_type="purchaseNotice",
         #     exact_date=date_str,
-        #     subsystem_type="RI223",
+        #     subsystem_type="RI223"
         # )
 
         result_protocols = get_docs_by_region(
             org_region="77",
             document_type="purchaseProtocol",
             exact_date=date_str,
-            subsystem_type="RI223",
+            subsystem_type="RI223"
         )
-        #
-        # zip_path_purchases = download_archive_from_result(result_purchases)
+        # archive_urls_purchases = result_purchases.get("archive_urls", [])
+        # print(archive_urls_purchases)
 
-        zip_path_protocols = download_archive_from_result(result_protocols)
+        archive_urls_protocols = result_protocols.get("archive_urls", [])
+        print(archive_urls_protocols)
 
-        # purchases = parse_zip_archive_purchases(zip_path_purchases)
+        # for archive_url in archive_urls_purchases:
+        for archive_url in archive_urls_protocols:
 
-        protocols = parse_zip_archive_protocols(zip_path_protocols)
+            # zip_path_purchases = download_archive_from_result(archive_url)
+            zip_path_protocols = download_archive_from_result(archive_url)
 
-        # saved = 0
-        # for purchase in purchases:
-        #     # put_purchase_to_database(purchase)
-        #     saved += 1
-        #
-        # logger.info("Добавлено закупок: %s", saved)
-        # return saved
-        #
-        # protocols_new = parse_zip_archive_protocols(zip_path)
-        #
+            # purchases = parse_zip_archive_purchases(zip_path_purchases)
 
-        file_path = "protocols.json"  # или "/app/protocols.json"
+            protocols = parse_zip_archive_protocols(zip_path_protocols)
 
-        try:
-            with open(file_path, "r", encoding="utf-8") as file:
-                protocols_old = json.load(file)
-        except FileNotFoundError:
-            protocols_old = []  # если файла нет, начинаем с пустого списка
+            # saved = 0
+            # for purchase in purchases:
+            #     # put_purchase_to_database(purchase)
+            #     saved += 1
+            #
+            # logger.info("Добавлено закупок: %s", saved)
+            # return saved
+            #
+            #protocols_new = parse_zip_archive_protocols(zip_path)
+            #
 
-        # Убедимся, что это список
-        if not isinstance(protocols_old, list):
-            protocols_old = []
+            file_path = "protocols.json"  # или "/app/protocols.json"
 
-        # Добавляем новые протоколы (лучше extend, но можно и цикл)
-        protocols_old.extend(protocols)  # protocols — это ваш новый список
+            try:
+                with open(file_path, "r", encoding="utf-8") as file:
+                    protocols_old = json.load(file)
+            except FileNotFoundError:
+                protocols_old = []  # если файла нет, начинаем с пустого списка
 
-        # Записываем обратно
-        with open(file_path, "w", encoding="utf-8") as file:
-            json.dump(protocols_old, file, indent=4, ensure_ascii=False)
+            # Убедимся, что это список
+            if not isinstance(protocols_old, list):
+                protocols_old = []
 
-        return len(protocols)
+            # Добавляем новые протоколы (лучше extend, но можно и цикл)
+            protocols_old.extend(protocols)  # protocols — это ваш новый список
+
+            # Записываем обратно
+            with open(file_path, "w", encoding="utf-8") as file:
+                json.dump(protocols_old, file, indent=4, ensure_ascii=False)
+
+            count += len(protocols)
+
+            # file_path = "purchases.json"  # или "/app/protocols.json"
+            #
+            # try:
+            #     with open(file_path, "r", encoding="utf-8") as file:
+            #         purchases_old = json.load(file)
+            # except FileNotFoundError:
+            #     purchases_old = []  # если файла нет, начинаем с пустого списка
+            #
+            # # Убедимся, что это список
+            # if not isinstance(purchases_old, list):
+            #     protocols_old = []
+            #
+            # # Добавляем новые протоколы (лучше extend, но можно и цикл)
+            # purchases_old.extend(purchases)  # protocols — это ваш новый список
+            #
+            # # Записываем обратно
+            # with open(file_path, "w", encoding="utf-8") as file:
+            #     json.dump(purchases_old, file, indent=4, ensure_ascii=False)
+            # count += len(purchases)
+        return count
     except Exception as error:
         print(error)
-
 
 def run_pipeline(start_date: str, days: int = 10) -> int:
     start = datetime.strptime(start_date, "%Y-%m-%d")
@@ -136,8 +164,8 @@ if __name__ == "__main__":
     # get_all_purchases()
     from datetime import date, timedelta
 
-    current = date(2026, 4,2)
-    end = date(2026, 4, 30)
+    current = date(2026, 1,1)
+    end = date(2026, 1, 15)
 
     while current < end:
         process_day(current.isoformat())

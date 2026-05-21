@@ -156,6 +156,42 @@ def process_day(date_str: str) -> Dict[str, int]:
         subsystem_type="RI223",
     )
 
+    added_registration_numbers = []
+
+    created = 0
+    updated = 0
+    skipped = 0
+
+    archive_urls_purchases = result_purchases.get("archive_urls", [])
+    for archive_url in archive_urls_purchases:
+        zip_path_purchases = download_archive_from_result(archive_url)
+
+        logger.info("Pipeline: архив закупок скачан: %s", zip_path_purchases)
+
+        purchases = parse_zip_archive_purchases(zip_path_purchases)
+
+        logger.info("Pipeline: после фильтров закупок: %s", len(purchases))
+
+        for p in purchases:
+            try:
+                status = put_purchase_to_db(p)
+                added_registration_numbers.append(p["registration_number"])
+
+                if status == "created":
+                    created += 1
+                elif status == "updated":
+                    updated += 1
+                else:
+                    skipped += 1
+
+            except Exception:
+                logger.exception(
+                    "Pipeline: ошибка сохранения закупки | reg=%s | guid=%s",
+                    p.get("registration_number"),
+                    p.get("guid"),
+                )
+                skipped += 1
+
     result_protocols = get_docs_by_region(
         org_region="77",
         document_type="purchaseProtocol",
@@ -163,96 +199,67 @@ def process_day(date_str: str) -> Dict[str, int]:
         subsystem_type="RI223",
     )
 
-    zip_path_purchases = download_archive_from_result(result_purchases)
-    zip_path_protocols = download_archive_from_result(result_protocols)
+    archive_urls_protocols = result_protocols.get("archive_urls", [])
 
-    logger.info("Pipeline: архив закупок скачан: %s", zip_path_purchases)
-    logger.info("Pipeline: архив протоколов скачан: %s", zip_path_protocols)
+    for archive_url in archive_urls_protocols:
+        zip_path_protocols = download_archive_from_result(archive_url)
 
-    purchases = parse_zip_archive_purchases(zip_path_purchases)
+        logger.info("Pipeline: архив протоколов скачан: %s", zip_path_protocols)
 
-    logger.info("Pipeline: после фильтров закупок: %s", len(purchases))
+        protocols = parse_zip_archive_protocols(zip_path_protocols)
 
-    added_registration_numbers = []
+        logger.info("Pipeline: после фильтров протоколов: %s", len(protocols))
 
-    created = 0
-    updated = 0
-    skipped = 0
+        for protocol in protocols:
+            added_registration_numbers.append(protocol["registration_number"])
 
-    for p in purchases:
-        try:
-            status = put_purchase_to_db(p)
-            added_registration_numbers.append(p["registration_number"])
+            try:
+                response = requests.post(
+                    f"{APP_URL}{API_BASE}/update_purchase",
+                    json={
+                        "token": TOKEN,
+                        "registration_number": protocol["registration_number"],
+                        "result_info": protocol["result_info"],
+                        "documents_list": protocol["documents_list"],
+                        "publication_datetime": protocol["publication_datetime"],
+                    },
+                    timeout=30,
+                )
+                response.raise_for_status()
 
-            if status == "created":
-                created += 1
-            elif status == "updated":
+                database_answer = response.json()
+
+                if database_answer.get("message") == "Purchase not found" and not database_answer.get("data"):
+
+                    status = put_purchase_to_db(protocol)
+
+                    if status == "created":
+                        created += 1
+
+                    logger.info("Create purchase from protocol response | %s", response.text)
+
+                    logger.info(
+                        "Pipeline: протокол создал закупку | reg=%s",
+                        protocol["registration_number"],
+                    )
+
+                    continue
+
                 updated += 1
-            else:
-                skipped += 1
 
-        except Exception:
-            logger.exception(
-                "Pipeline: ошибка сохранения закупки | reg=%s | guid=%s",
-                p.get("registration_number"),
-                p.get("guid"),
-            )
-            skipped += 1
-
-    protocols = parse_zip_archive_protocols(zip_path_protocols)
-
-    logger.info("Pipeline: после фильтров протоколов: %s", len(protocols))
-
-    for protocol in protocols:
-        added_registration_numbers.append(protocol["registration_number"])
-
-        try:
-            response = requests.post(
-                f"{APP_URL}{API_BASE}/update_purchase",
-                json={
-                    "token": TOKEN,
-                    "registration_number": protocol["registration_number"],
-                    "result_info": protocol["result_info"],
-                    "documents_list": protocol["documents_list"],
-                    "publication_datetime": protocol["publication_datetime"],
-                },
-                timeout=30,
-            )
-            response.raise_for_status()
-
-            database_answer = response.json()
-
-            if database_answer.get("message") == "Purchase not found" and not database_answer.get("data"):
-
-                status = put_purchase_to_db(protocol)
-
-                if status == "created":
-                    created += 1
-
-                logger.info("Create purchase from protocol response | %s", response.text)
+                logger.info("Update response | %s", response.text)
 
                 logger.info(
-                    "Pipeline: протокол создал закупку | reg=%s",
+                    "Pipeline: протокол обновил закупку | reg=%s",
                     protocol["registration_number"],
                 )
 
-                continue
-
-            updated += 1
-
-            logger.info("Update response | %s", response.text)
-
-            logger.info(
-                "Pipeline: протокол обновил закупку | reg=%s",
-                protocol["registration_number"],
-            )
-
-        except Exception as error:
-            logger.exception(
-                "У заявки не обновились поля | reg=%s | error=%s",
-                protocol.get("registration_number"),
-                error,
-            )
+            except Exception as error:
+                logger.exception(
+                    "У заявки не обновились поля | reg=%s | error=%s",
+                    protocol.get("registration_number"),
+                    error,
+                )
 
     added_registration_numbers = list(set(added_registration_numbers))
 

@@ -871,8 +871,6 @@ function bindEvents(){
   $("btnExportJson").onclick = () => exportJson();
   $("btnExportXlsx").onclick = () => exportXlsx();
 
-  $("btnDeleteExpired").onclick = () => adminPost(`${API_BASE}/admin/delete_expired`);
-
   $("btnSubscribeEmailNewsLetter").onclick = () => openEmailModal("subscribe");
   $("btnUnsubscribeEmailNewsLetter").onclick = () => openEmailModal("unsubscribe");
   $("btnSendCode").onclick = sendAuthCode;

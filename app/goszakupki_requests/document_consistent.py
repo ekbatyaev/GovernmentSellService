@@ -727,9 +727,9 @@ def process_text_into_accumulator(
             extracted = run_coro_sync(get_model_extraction(text))
             merge_extracted_into_accumulator(accumulator, extracted)
 
-        elif path_name == ".pdf":
-            extracted = extract_tender_fields(text, ["Проектировщик"])
-            merge_extracted_into_accumulator(accumulator, extracted)
+        # elif path_name == ".pdf":
+        #     extracted = extract_tender_fields(text, ["Проектировщик"])
+        #     merge_extracted_into_accumulator(accumulator, extracted)
 
         add_processed_document(documents_accumulator, filename)
         return True
