@@ -13,11 +13,11 @@ RUN set -eux; \
         libreoffice-writer \
         fonts-dejavu-core \
         tzdata \
+        libglib2.0-0 \
+        libgl1 \
         tesseract-ocr \
         tesseract-ocr-rus \
-        tesseract-ocr-eng \
-        libglib2.0-0 \
-        libgl1; \
+        tesseract-ocr-eng; \
     rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .

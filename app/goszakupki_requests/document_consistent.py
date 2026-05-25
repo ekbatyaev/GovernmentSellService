@@ -38,16 +38,18 @@ MAX_TEXT_CHARS = 300_000
 MAX_TEXT_FILE_BYTES = 10 * 1024 * 1024
 LIBREOFFICE_MAX_PARALLEL = 1
 LIBREOFFICE_CONVERT_TIMEOUT = 20
+PDF_TITLE_PAGE_IMAGE_TEXT_TIMEOUT = 30
 
 # Логика титульника PDF:
 # 1. Читаем только первую страницу.
 # 2. Если есть нормальный текстовый слой — используем его.
-# 3. Если текстового слоя мало — пробуем OCR только первой страницы.
-# 4. Проектировщик вытаскивается из текста титульника в process_text_into_accumulator().
-PDF_TITLE_PAGE_OCR_ENABLED = True
-PDF_TITLE_PAGE_OCR_MIN_TEXT_CHARS = 80
-PDF_TITLE_PAGE_OCR_ZOOM = 2.5
-PDF_TITLE_PAGE_OCR_LANG = "rus+eng"
+# 3. Если текстовый слой пустой или короткий — рендерим первую страницу в изображение.
+# 4. Считываем текст с изображения.
+# 5. Проектировщик вытаскивается из текста титульника в process_text_into_accumulator().
+PDF_TITLE_PAGE_MIN_TEXT_CHARS = 80
+PDF_TITLE_PAGE_IMAGE_TEXT_ENABLED = True
+PDF_TITLE_PAGE_RENDER_ZOOM = 2.5
+PDF_TITLE_PAGE_IMAGE_TEXT_LANG = "rus+eng"
 
 SUPPORTED_EXTENSIONS = {".txt", ".pdf", ".docx", ".doc", ".xlsx", ".xls"}
 ARCHIVE_EXTENSIONS = {".zip", ".rar"}
@@ -117,42 +119,32 @@ def format_log_kv(**kwargs) -> str:
 def short_id(value: str) -> str:
     return hashlib.md5(value.encode("utf-8", errors="ignore")).hexdigest()[:8]
 
+
 def normalize_for_title_check(text: str) -> str:
-
     text = text or ""
-
     text = text.replace("\u00a0", " ")
-
     text = text.replace("Ё", "Е").replace("ё", "е")
-
     text = re.sub(r"\s+", " ", text)
-
     return text.strip().lower()
 
+
 def is_working_documentation_title_page(text: str) -> bool:
-
     """
-
     Проверяет, что текст похож на титульный лист рабочей документации.
-
     Основной маркер: "РАБОЧАЯ ДОКУМЕНТАЦИЯ"
-
     """
-
     normalized = normalize_for_title_check(text)
 
     if not normalized:
-
         return False
 
     has_working_doc = bool(
-
         re.search(r"рабочая\s+документация", normalized, flags=re.IGNORECASE)
-
     )
     if not has_working_doc:
         return False
     return True
+
 
 @contextmanager
 def log_timed(stage: str, **kwargs):
@@ -524,9 +516,8 @@ def read_text_file(path: Path) -> str:
 def read_pdf_file(path: Path, task_id: str | None = None) -> str:
     """
     Для PDF читаем только титульный лист.
-    Если есть нормальный текстовый слой — берём его.
-    Если текста мало — пробуем OCR первой страницы.
-
+    Сначала используем текстовый слой PDF.
+    Если текстовый слой пустой или слишком короткий — считываем текст с изображения первой страницы.
     Дальше извлечение проектировщика происходит в process_text_into_accumulator().
     """
     title_data = read_pdf_title_page_text(path, task_id=task_id)
@@ -597,18 +588,15 @@ def read_pdf_file_pymupdf(path: Path) -> str:
 
     return "\n".join(parts).strip()
 
-
 # =========================
 # PDF: титульный лист и проектировщик
 # =========================
 
-def ocr_pdf_title_page(page, path: Path, task_id: str | None = None) -> str:
+def extract_text_from_pdf_title_image(page, path: Path, task_id: str | None = None) -> str:
     """
-    OCR только первой страницы PDF.
-    Нужны зависимости:
-      pip install pymupdf pytesseract pillow
-    И системный пакет:
-      apt-get install tesseract-ocr tesseract-ocr-rus tesseract-ocr-eng
+    Рендерит первую страницу PDF в изображение и считывает с него текст.
+
+    Используется только как fallback, если текстовый слой PDF пустой или слишком короткий.
     """
     try:
         import fitz
@@ -617,11 +605,11 @@ def ocr_pdf_title_page(page, path: Path, task_id: str | None = None) -> str:
         import io
     except Exception as e:
         logger.warning(
-            "PDF TITLE OCR SKIP | %s",
+            "PDF TITLE IMAGE_TEXT SKIP | %s",
             format_log_kv(
                 task_id=task_id,
                 path=path.name,
-                reason="ocr_deps_not_installed",
+                reason="deps_not_installed",
                 error=str(e),
             )
         )
@@ -630,21 +618,23 @@ def ocr_pdf_title_page(page, path: Path, task_id: str | None = None) -> str:
     started = time.perf_counter()
 
     try:
-        matrix = fitz.Matrix(PDF_TITLE_PAGE_OCR_ZOOM, PDF_TITLE_PAGE_OCR_ZOOM)
+        matrix = fitz.Matrix(PDF_TITLE_PAGE_RENDER_ZOOM, PDF_TITLE_PAGE_RENDER_ZOOM)
         pix = page.get_pixmap(matrix=matrix, alpha=False)
 
-        img = Image.open(io.BytesIO(pix.tobytes("png")))
+        image = Image.open(io.BytesIO(pix.tobytes("png")))
 
         text = pytesseract.image_to_string(
-            img,
-            lang=PDF_TITLE_PAGE_OCR_LANG,
-            config="--psm 6"
+            image,
+            lang=PDF_TITLE_PAGE_IMAGE_TEXT_LANG,
+            config="--psm 6",
+            timeout=PDF_TITLE_PAGE_IMAGE_TEXT_TIMEOUT,
         ) or ""
 
+        text = text.strip()
         elapsed = time.perf_counter() - started
 
         logger.info(
-            "PDF TITLE OCR DONE | %s",
+            "PDF TITLE IMAGE_TEXT DONE | %s",
             format_log_kv(
                 task_id=task_id,
                 path=path.name,
@@ -653,13 +643,13 @@ def ocr_pdf_title_page(page, path: Path, task_id: str | None = None) -> str:
             )
         )
 
-        return text.strip()
+        return text
 
     except Exception as e:
         elapsed = time.perf_counter() - started
 
         logger.warning(
-            "PDF TITLE OCR ERROR | %s",
+            "PDF TITLE IMAGE_TEXT ERROR | %s",
             format_log_kv(
                 task_id=task_id,
                 path=path.name,
@@ -675,13 +665,14 @@ def read_pdf_title_page_text(path: Path, task_id: str | None = None) -> dict:
     """
     Читает только первую страницу PDF.
 
-    Сначала пробует текстовый слой.
-    Если текста мало — запускает OCR только первой страницы.
+    Сначала использует текстовый слой PDF.
+    Если текстовый слой пустой или слишком короткий — рендерит первую страницу
+    в изображение и считывает текст с изображения.
 
     Возвращает:
     {
         "text": "...",
-        "source": "text_layer" | "ocr" | "text_layer_short" | "empty",
+        "source": "text_layer" | "image_text" | "text_layer_short" | "empty",
         "page": 1
     }
     """
@@ -697,13 +688,21 @@ def read_pdf_title_page_text(path: Path, task_id: str | None = None) -> dict:
                 error=str(e),
             )
         )
-        return {"text": "", "source": "empty", "page": 1}
+        return {
+            "text": "",
+            "source": "empty",
+            "page": 1,
+        }
 
     doc = fitz.open(str(path))
 
     try:
         if doc.page_count < 1:
-            return {"text": "", "source": "empty", "page": 1}
+            return {
+                "text": "",
+                "source": "empty",
+                "page": 1,
+            }
 
         page = doc[0]
 
@@ -723,7 +722,7 @@ def read_pdf_title_page_text(path: Path, task_id: str | None = None) -> dict:
 
         text_layer_text = text_layer_text.strip()
 
-        if len(text_layer_text) >= PDF_TITLE_PAGE_OCR_MIN_TEXT_CHARS:
+        if len(text_layer_text) >= PDF_TITLE_PAGE_MIN_TEXT_CHARS:
             logger.info(
                 "PDF TITLE READ DONE | %s",
                 format_log_kv(
@@ -740,44 +739,39 @@ def read_pdf_title_page_text(path: Path, task_id: str | None = None) -> dict:
                 "page": 1,
             }
 
-        if not PDF_TITLE_PAGE_OCR_ENABLED:
-            return {
-                "text": text_layer_text,
-                "source": "text_layer_short",
-                "page": 1,
-            }
-
         logger.info(
-            "PDF TITLE NEED OCR | %s",
+            "PDF TITLE TEXT_LAYER SHORT | %s",
             format_log_kv(
                 task_id=task_id,
                 path=path.name,
-                text_layer_len=len(text_layer_text),
+                text_len=len(text_layer_text),
             )
         )
 
-        ocr_text = ocr_pdf_title_page(
-            page=page,
-            path=path,
-            task_id=task_id,
-        )
+        image_text = ""
 
-        if ocr_text.strip():
+        if PDF_TITLE_PAGE_IMAGE_TEXT_ENABLED:
+            image_text = extract_text_from_pdf_title_image(
+                page=page,
+                path=path,
+                task_id=task_id,
+            )
+
+        if image_text.strip():
             return {
-                "text": ocr_text.strip(),
-                "source": "ocr",
+                "text": image_text.strip(),
+                "source": "image_text",
                 "page": 1,
             }
 
         return {
             "text": text_layer_text,
-            "source": "text_layer_short",
+            "source": "text_layer_short" if text_layer_text else "empty",
             "page": 1,
         }
 
     finally:
         doc.close()
-
 
 def normalize_designer_name(value: str) -> str:
     value = value or ""
@@ -786,7 +780,7 @@ def normalize_designer_name(value: str) -> str:
     value = value.replace("“", "«").replace("”", "»")
     value = value.replace('"', "«", 1).replace('"', "»", 1) if value.count('"') >= 2 else value
 
-    # Нормализуем частые OCR/форматные варианты кавычек и пробелов
+    # Нормализуем частые форматные варианты кавычек и пробелов
     value = value.replace("« ", "«").replace(" »", "»")
     value = re.sub(r"\s+", " ", value).strip()
 
@@ -814,8 +808,8 @@ def extract_designer_from_title_text(text: str) -> str:
       « М - ЭНЕРГО »
 
       ООО «М-ЭНЕРГО»
-      АО «...»
-      ПАО «...»
+      АО «..."
+      ПАО «..."
 
     Если явного кандидата нет — возвращает "".
     """
@@ -838,7 +832,7 @@ def extract_designer_from_title_text(text: str) -> str:
         # Полная форма + название в кавычках. Работает и через перенос строки.
         r"(Общество\s+с\s+Ограниченной\s+Ответственностью\s*[«\"“]\s*[^»\"”\n]{2,120}\s*[»\"”])",
 
-        # Полная форма без открывающей кавычки, если OCR её потерял.
+        # Полная форма без открывающей кавычки.
         r"(Общество\s+с\s+Ограниченной\s+Ответственностью\s+[A-ZА-ЯЁ0-9][A-ZА-ЯЁа-яё0-9\s\-]{2,120})",
 
         # Краткие формы.
@@ -1103,7 +1097,7 @@ def process_text_into_accumulator(
             extracted = run_coro_sync(get_model_extraction(text))
             merge_extracted_into_accumulator(accumulator, extracted)
 
-        elif path_name == ".pdf" and is_working_documentation_title_page(text):
+        elif not protocol_mode and path_name == ".pdf" and is_working_documentation_title_page(text):
             designer = extract_designer_from_title_text(text)
 
             if designer:
