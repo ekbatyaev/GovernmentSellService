@@ -160,7 +160,7 @@ def download_archive_from_result(archive_url, out_file: str | None = None) -> st
     else:
 
         if not doc_request_uid or not compound_uid:
-            raise ValueError(f"Archive info missing (docRequestUid/compoundUid), httpStatus: {result.get("httpStatus")}")
+            raise ValueError(f"Archive info missing (docRequestUid/compoundUid)")
         url = DOWNLOAD_URL
         params = {"docRequestUid": doc_request_uid, "compoundUid": compound_uid}
 

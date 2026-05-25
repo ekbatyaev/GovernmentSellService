@@ -61,6 +61,23 @@ FILTERS_JOB_EXCLUDE_HARD = [
     r"воздушн[а-я]*\s+участк[а-я]*"
 ]
 
+FILTERS_LINE_ONLY_ACTION = [
+    r"\b(?:строительств[а-я]*|реконструкци[а-я]*|модернизаци[а-я]*)\s+"
+    r"(?:\d+\s*)?(?:КЛ|РКЛ|ВЛ|ВЛЗ|КВЛ|ЛЭП)\s*-?\s*\d+(?:\s*[,/]\s*\d+)?\s*кВ\b"
+]
+
+
+FILTERS_TARGET_OBJECT_ACTION = [
+    r"\b(?:строительств[а-я]*|реконструкци[а-я]*|модернизаци[а-я]*)\s+"
+    r"(?:нов[а-я]*\s+|встроенн[а-я]*\s+|выносн[а-я]*\s+)?"
+    r"(?:\d+\s*)?"
+    r"(?:РТП|БКТП|КТП|РП|ТП|РЩ)"
+    r"\s*-?\s*"
+    r"(?:№\s*\d+[А-ЯA-Zа-яa-z]?\s*)?"
+    r"(?:\d+\s*/\s*0\s*,?\s*4|\d+)?"
+    r"\s*(?:кВ)?\b"
+]
+
 FILTERS_JOB_EXCLUDE_SOFT = [
     r"\bПС(?:-\s*|\s+)(?:110|220|500)(?:/\d+)*\s*кВ\b"
 ]
@@ -76,8 +93,17 @@ TARGET_OBJECT_PATTERNS = [
 FILTERS_PATTERNS = [re.compile(p, re.IGNORECASE) for p in FILTERS_CUSTOMER]
 
 JOB_PATTERNS = [re.compile(p, re.IGNORECASE) for p in FILTERS_JOB_NAME]
+
 JOB_EXCLUDE_HARD_PATTERNS = [
     re.compile(p, re.IGNORECASE) for p in FILTERS_JOB_EXCLUDE_HARD
+]
+
+LINE_ONLY_ACTION_PATTERNS = [
+    re.compile(p, re.IGNORECASE) for p in FILTERS_LINE_ONLY_ACTION
+]
+
+TARGET_OBJECT_ACTION_PATTERNS = [
+    re.compile(p, re.IGNORECASE) for p in FILTERS_TARGET_OBJECT_ACTION
 ]
 
 JOB_EXCLUDE_SOFT_PATTERNS = [
@@ -122,7 +148,29 @@ def request_filters(customer_name, work_name)-> bool:
     excluded_soft = any(p.search(work_name) for p in JOB_EXCLUDE_SOFT_PATTERNS)
 
     ok_job_raw = any(p.search(work_name) for p in JOB_PATTERNS)
-    has_target_object = any(p.search(work_name) for p in TARGET_PATTERNS)
+
+    title_part = work_name
+
+    m_title = re.search(r"по\s+титулу\s*:\s*(.+)", title_part, re.IGNORECASE)
+    if m_title:
+        title_part = m_title.group(1)
+
+    title_part = re.split(
+        r",\s*в\s+т\.?\s*ч\.?|;\s*в\s+т\.?\s*ч\.?|для\s+нужд|г\.\s*Москва|МО,",
+        title_part,
+        maxsplit=1,
+        flags=re.IGNORECASE
+    )[0]
+
+    has_line_only_action = any(
+        p.search(title_part) for p in LINE_ONLY_ACTION_PATTERNS
+    )
+
+    has_target_object_action = any(
+        p.search(title_part) for p in TARGET_OBJECT_ACTION_PATTERNS
+    )
+
+    is_line_only_work = has_line_only_action and not has_target_object_action
 
     has_group_objects = bool(
         re.search(
@@ -193,21 +241,26 @@ def request_filters(customer_name, work_name)-> bool:
         )
     )
 
+    has_tp_contract_pir = bool(
+        re.search(
+            r"\bПИР\b.{0,80}\bпо\s+договор[а-я]*\s+ТП\b",
+            work_name,
+            re.IGNORECASE
+        )
+    )
+
     ok_job = ok_job_raw and (
-            has_target_object
+            has_target_object_action
             or has_group_objects
             or has_metering
             or has_electro_supply
             or has_zes_order_objects
             or has_bktp_in_tu
             or has_pir_by_titles
+            or has_tp_contract_pir
             or (has_tech_connection and has_rosseti_context)
     )
 
-    # has_from = bool(
-    #     re.search(r"\bот\s+(РП|ТП|РТП|БКТП|КТП)\b", work_name, re.IGNORECASE)
-    #
-    # )
     has_from = bool(
         re.search(r"\b(от|сооружаемой)\s+(ТП|ячейк[а-я]|РТП|РП|БКТП|КТП)\b", work_name, re.IGNORECASE)
     )
@@ -274,9 +327,9 @@ def request_filters(customer_name, work_name)-> bool:
     excluded_job = (
             excluded_hard
             or is_land_release_line_work
-            or (excluded_soft and not has_target_object)
+            or is_line_only_work
+            or (excluded_soft and not has_target_object_action)
             or (only_source_object and not source_object_allowed)
-            or (only_source_object and not has_without_from)
     )
 
     if ok_customer and ok_job and not excluded_job:
@@ -375,10 +428,6 @@ def normalize_protocol(data: dict) -> dict:
 
             result["lots"].append(lot_result)
 
-    # result["initial_sum"] = sum(
-    #     float(l.get("initial_sum") or 0)
-    #     for l in result.get("lots", [])
-    # )
 
     result["initial_sum"] = sum(float(l.get("initial_sum") or 0) for l in result.get("lots", []))
 

@@ -24,7 +24,6 @@ from pypdf import PdfReader
 from charset_normalizer import from_bytes
 from docx.table import Table
 from docx.text.paragraph import Paragraph
-from .extractor_pipeline import extract_tender_fields
 from .exctractor_ai import get_model_extraction
 
 logger = logging.getLogger(__name__)
@@ -39,6 +38,16 @@ MAX_TEXT_CHARS = 300_000
 MAX_TEXT_FILE_BYTES = 10 * 1024 * 1024
 LIBREOFFICE_MAX_PARALLEL = 1
 LIBREOFFICE_CONVERT_TIMEOUT = 20
+
+# Логика титульника PDF:
+# 1. Читаем только первую страницу.
+# 2. Если есть нормальный текстовый слой — используем его.
+# 3. Если текстового слоя мало — пробуем OCR только первой страницы.
+# 4. Проектировщик вытаскивается из текста титульника в process_text_into_accumulator().
+PDF_TITLE_PAGE_OCR_ENABLED = True
+PDF_TITLE_PAGE_OCR_MIN_TEXT_CHARS = 80
+PDF_TITLE_PAGE_OCR_ZOOM = 2.5
+PDF_TITLE_PAGE_OCR_LANG = "rus+eng"
 
 SUPPORTED_EXTENSIONS = {".txt", ".pdf", ".docx", ".doc", ".xlsx", ".xls"}
 ARCHIVE_EXTENSIONS = {".zip", ".rar"}
@@ -95,6 +104,7 @@ def run_coro_sync(coro):
         raise error["exc"]
     return result.get("value")
 
+
 def format_log_kv(**kwargs) -> str:
     parts = []
     for k, v in kwargs.items():
@@ -107,6 +117,42 @@ def format_log_kv(**kwargs) -> str:
 def short_id(value: str) -> str:
     return hashlib.md5(value.encode("utf-8", errors="ignore")).hexdigest()[:8]
 
+def normalize_for_title_check(text: str) -> str:
+
+    text = text or ""
+
+    text = text.replace("\u00a0", " ")
+
+    text = text.replace("Ё", "Е").replace("ё", "е")
+
+    text = re.sub(r"\s+", " ", text)
+
+    return text.strip().lower()
+
+def is_working_documentation_title_page(text: str) -> bool:
+
+    """
+
+    Проверяет, что текст похож на титульный лист рабочей документации.
+
+    Основной маркер: "РАБОЧАЯ ДОКУМЕНТАЦИЯ"
+
+    """
+
+    normalized = normalize_for_title_check(text)
+
+    if not normalized:
+
+        return False
+
+    has_working_doc = bool(
+
+        re.search(r"рабочая\s+документация", normalized, flags=re.IGNORECASE)
+
+    )
+    if not has_working_doc:
+        return False
+    return True
 
 @contextmanager
 def log_timed(stage: str, **kwargs):
@@ -275,6 +321,7 @@ def split_merged_value(value: str):
 def init_result_accumulator() -> dict:
     return {field: OrderedDict() for field in FIELDS}
 
+
 def init_documents_accumulator(documents_list_old=None):
     return OrderedDict((str(x).strip(), None) for x in (documents_list_old or []) if str(x).strip())
 
@@ -299,14 +346,17 @@ def add_processed_document(documents_accumulator, filename: str):
     if filename:
         documents_accumulator[filename] = None
 
+
 def finalize_result_accumulator(accumulator: dict) -> dict:
     return {
         field: "; ".join(values.keys()) if values else ""
         for field, values in accumulator.items()
     }
 
+
 def finalize_documents_accumulator(documents_accumulator):
     return list(documents_accumulator.keys())
+
 
 def run_libreoffice_convert(src: Path, outdir: Path, target_ext: str, task_id: str | None = None) -> Path:
     with _libreoffice_semaphore:
@@ -363,6 +413,7 @@ def run_libreoffice_convert(src: Path, outdir: Path, target_ext: str, task_id: s
                 f"Не удалось конвертировать {src.suffix.lower()} -> {target_ext}. "
                 f"returncode={result.returncode}; stdout={stdout}; stderr={stderr}"
             )
+
 
 # =========================
 # Скачивание
@@ -470,20 +521,31 @@ def read_text_file(path: Path) -> str:
     return data.decode(enc, errors="replace").strip()
 
 
-def read_pdf_file(path: Path) -> str:
-    logger.debug("PDF READ TRY | %s", format_log_kv(path=path, reader="pymupdf"))
-    text = read_pdf_file_pymupdf(path)
-    if text.strip():
-        logger.debug("PDF READ SUCCESS | %s", format_log_kv(path=path, reader="pymupdf", text_len=len(text)))
-        return text
+def read_pdf_file(path: Path, task_id: str | None = None) -> str:
+    """
+    Для PDF читаем только титульный лист.
+    Если есть нормальный текстовый слой — берём его.
+    Если текста мало — пробуем OCR первой страницы.
 
-    logger.debug("PDF READ FALLBACK | %s", format_log_kv(path=path, from_reader="pymupdf", to_reader="pypdf"))
-    text = read_pdf_file_pypdf(path)
-    if text.strip():
-        logger.debug("PDF READ SUCCESS | %s", format_log_kv(path=path, reader="pypdf", text_len=len(text)))
-        return text
+    Дальше извлечение проектировщика происходит в process_text_into_accumulator().
+    """
+    title_data = read_pdf_title_page_text(path, task_id=task_id)
+    text = title_data.get("text") or ""
 
-    raise ValueError("Текст не извлечен")
+    if text.strip():
+        logger.debug(
+            "PDF TITLE READ SUCCESS | %s",
+            format_log_kv(
+                task_id=task_id,
+                path=path,
+                source=title_data.get("source"),
+                page=title_data.get("page"),
+                text_len=len(text),
+            )
+        )
+        return text.strip()
+
+    raise ValueError("Текст титульного листа PDF не извлечен")
 
 
 def read_pdf_file_pypdf(path: Path) -> str:
@@ -534,6 +596,320 @@ def read_pdf_file_pymupdf(path: Path) -> str:
         doc.close()
 
     return "\n".join(parts).strip()
+
+
+# =========================
+# PDF: титульный лист и проектировщик
+# =========================
+
+def ocr_pdf_title_page(page, path: Path, task_id: str | None = None) -> str:
+    """
+    OCR только первой страницы PDF.
+    Нужны зависимости:
+      pip install pymupdf pytesseract pillow
+    И системный пакет:
+      apt-get install tesseract-ocr tesseract-ocr-rus tesseract-ocr-eng
+    """
+    try:
+        import fitz
+        import pytesseract
+        from PIL import Image
+        import io
+    except Exception as e:
+        logger.warning(
+            "PDF TITLE OCR SKIP | %s",
+            format_log_kv(
+                task_id=task_id,
+                path=path.name,
+                reason="ocr_deps_not_installed",
+                error=str(e),
+            )
+        )
+        return ""
+
+    started = time.perf_counter()
+
+    try:
+        matrix = fitz.Matrix(PDF_TITLE_PAGE_OCR_ZOOM, PDF_TITLE_PAGE_OCR_ZOOM)
+        pix = page.get_pixmap(matrix=matrix, alpha=False)
+
+        img = Image.open(io.BytesIO(pix.tobytes("png")))
+
+        text = pytesseract.image_to_string(
+            img,
+            lang=PDF_TITLE_PAGE_OCR_LANG,
+            config="--psm 6"
+        ) or ""
+
+        elapsed = time.perf_counter() - started
+
+        logger.info(
+            "PDF TITLE OCR DONE | %s",
+            format_log_kv(
+                task_id=task_id,
+                path=path.name,
+                text_len=len(text),
+                elapsed=f"{elapsed:.3f}s",
+            )
+        )
+
+        return text.strip()
+
+    except Exception as e:
+        elapsed = time.perf_counter() - started
+
+        logger.warning(
+            "PDF TITLE OCR ERROR | %s",
+            format_log_kv(
+                task_id=task_id,
+                path=path.name,
+                elapsed=f"{elapsed:.3f}s",
+                error=str(e),
+            )
+        )
+
+        return ""
+
+
+def read_pdf_title_page_text(path: Path, task_id: str | None = None) -> dict:
+    """
+    Читает только первую страницу PDF.
+
+    Сначала пробует текстовый слой.
+    Если текста мало — запускает OCR только первой страницы.
+
+    Возвращает:
+    {
+        "text": "...",
+        "source": "text_layer" | "ocr" | "text_layer_short" | "empty",
+        "page": 1
+    }
+    """
+    try:
+        import fitz
+    except Exception as e:
+        logger.warning(
+            "PDF TITLE READ SKIP | %s",
+            format_log_kv(
+                task_id=task_id,
+                path=path,
+                reason="fitz_not_installed",
+                error=str(e),
+            )
+        )
+        return {"text": "", "source": "empty", "page": 1}
+
+    doc = fitz.open(str(path))
+
+    try:
+        if doc.page_count < 1:
+            return {"text": "", "source": "empty", "page": 1}
+
+        page = doc[0]
+
+        try:
+            text_layer_text = page.get_text("text") or ""
+        except Exception as e:
+            text_layer_text = ""
+            logger.warning(
+                "PDF TITLE TEXT_LAYER ERROR | %s",
+                format_log_kv(
+                    task_id=task_id,
+                    path=path.name,
+                    page=1,
+                    error=str(e),
+                )
+            )
+
+        text_layer_text = text_layer_text.strip()
+
+        if len(text_layer_text) >= PDF_TITLE_PAGE_OCR_MIN_TEXT_CHARS:
+            logger.info(
+                "PDF TITLE READ DONE | %s",
+                format_log_kv(
+                    task_id=task_id,
+                    path=path.name,
+                    source="text_layer",
+                    text_len=len(text_layer_text),
+                )
+            )
+
+            return {
+                "text": text_layer_text,
+                "source": "text_layer",
+                "page": 1,
+            }
+
+        if not PDF_TITLE_PAGE_OCR_ENABLED:
+            return {
+                "text": text_layer_text,
+                "source": "text_layer_short",
+                "page": 1,
+            }
+
+        logger.info(
+            "PDF TITLE NEED OCR | %s",
+            format_log_kv(
+                task_id=task_id,
+                path=path.name,
+                text_layer_len=len(text_layer_text),
+            )
+        )
+
+        ocr_text = ocr_pdf_title_page(
+            page=page,
+            path=path,
+            task_id=task_id,
+        )
+
+        if ocr_text.strip():
+            return {
+                "text": ocr_text.strip(),
+                "source": "ocr",
+                "page": 1,
+            }
+
+        return {
+            "text": text_layer_text,
+            "source": "text_layer_short",
+            "page": 1,
+        }
+
+    finally:
+        doc.close()
+
+
+def normalize_designer_name(value: str) -> str:
+    value = value or ""
+
+    value = value.replace("\u00a0", " ")
+    value = value.replace("“", "«").replace("”", "»")
+    value = value.replace('"', "«", 1).replace('"', "»", 1) if value.count('"') >= 2 else value
+
+    # Нормализуем частые OCR/форматные варианты кавычек и пробелов
+    value = value.replace("« ", "«").replace(" »", "»")
+    value = re.sub(r"\s+", " ", value).strip()
+
+    # Частые варианты названия с пробелами вокруг дефиса
+    value = re.sub(r"\bМ\s*-\s*ЭНЕРГО\b", "М-ЭНЕРГО", value, flags=re.IGNORECASE)
+    value = re.sub(r"\bМ\s+ЭНЕРГО\b", "М-ЭНЕРГО", value, flags=re.IGNORECASE)
+
+    # Приведём правовую форму к более привычному виду, но не ломаем исходное название
+    value = re.sub(
+        r"Общество\s+с\s+Ограниченной\s+Ответственностью",
+        "Общество с Ограниченной Ответственностью",
+        value,
+        flags=re.IGNORECASE,
+    )
+
+    return value.strip(" ,.;:-")
+
+
+def extract_designer_from_title_text(text: str) -> str:
+    """
+    Достаёт проектировщика с титульного листа.
+
+    Основная цель — находить варианты:
+      Общество с Ограниченной Ответственностью
+      « М - ЭНЕРГО »
+
+      ООО «М-ЭНЕРГО»
+      АО «...»
+      ПАО «...»
+
+    Если явного кандидата нет — возвращает "".
+    """
+    if not text or not text.strip():
+        return ""
+
+    raw = text.replace("\u00a0", " ")
+    lines = [
+        re.sub(r"\s+", " ", line).strip()
+        for line in raw.splitlines()
+        if line and line.strip()
+    ]
+
+    joined = "\n".join(lines)
+    joined_one_line = " ".join(lines)
+
+    candidates = []
+
+    patterns = [
+        # Полная форма + название в кавычках. Работает и через перенос строки.
+        r"(Общество\s+с\s+Ограниченной\s+Ответственностью\s*[«\"“]\s*[^»\"”\n]{2,120}\s*[»\"”])",
+
+        # Полная форма без открывающей кавычки, если OCR её потерял.
+        r"(Общество\s+с\s+Ограниченной\s+Ответственностью\s+[A-ZА-ЯЁ0-9][A-ZА-ЯЁа-яё0-9\s\-]{2,120})",
+
+        # Краткие формы.
+        r"(ООО\s*[«\"“]\s*[^»\"”\n]{2,120}\s*[»\"”])",
+        r"(ПАО\s*[«\"“]\s*[^»\"”\n]{2,120}\s*[»\"”])",
+        r"(АО\s*[«\"“]\s*[^»\"”\n]{2,120}\s*[»\"”])",
+    ]
+
+    for source_text in (joined, joined_one_line):
+        for pattern in patterns:
+            for match in re.finditer(pattern, source_text, flags=re.IGNORECASE | re.MULTILINE):
+                candidate = normalize_designer_name(match.group(1))
+                if candidate:
+                    candidates.append(candidate)
+
+    # Частый случай: правовая форма и название лежат на соседних строках.
+    for i, line in enumerate(lines):
+        if re.fullmatch(r"Общество\s+с\s+Ограниченной\s+Ответственностью", line, flags=re.IGNORECASE):
+            next_line = lines[i + 1] if i + 1 < len(lines) else ""
+            if next_line:
+                candidate = normalize_designer_name(f"{line} {next_line}")
+                candidates.append(candidate)
+
+    # Если на титульнике первым блоком стоит ООО/АО/ПАО без кавычек.
+    for line in lines[:8]:
+        if re.search(r"^(ООО|АО|ПАО)\b", line, flags=re.IGNORECASE):
+            candidates.append(normalize_designer_name(line))
+
+    cleaned = []
+    seen = set()
+
+    stop_words = (
+        "генеральный директор",
+        "главный инженер",
+        "инн",
+        "кпп",
+        "огрн",
+        "e-mail",
+        "email",
+        "лист",
+        "стадия",
+        "раздел",
+        "объект",
+    )
+
+    for candidate in candidates:
+        candidate = normalize_designer_name(candidate)
+
+        if len(candidate) < 5:
+            continue
+
+        lower = candidate.lower()
+        if any(word in lower for word in stop_words):
+            continue
+
+        if not re.search(
+            r"(ООО|АО|ПАО|Общество\s+с\s+Ограниченной\s+Ответственностью)",
+            candidate,
+            flags=re.IGNORECASE,
+        ):
+            continue
+
+        key = lower
+        if key not in seen:
+            cleaned.append(candidate)
+            seen.add(key)
+
+    if not cleaned:
+        return ""
+
+    return max(cleaned, key=len)
 
 
 def iter_block_items(parent):
@@ -619,7 +995,7 @@ def read_file(path: Path, task_id: str | None = None) -> str:
     if ext == ".txt":
         return read_text_file(path)
     if ext == ".pdf":
-        return read_pdf_file(path)
+        return read_pdf_file(path, task_id=task_id)
     if ext == ".docx":
         return read_docx_file(path)
     if ext == ".doc":
@@ -727,9 +1103,32 @@ def process_text_into_accumulator(
             extracted = run_coro_sync(get_model_extraction(text))
             merge_extracted_into_accumulator(accumulator, extracted)
 
-        # elif path_name == ".pdf":
-        #     extracted = extract_tender_fields(text, ["Проектировщик"])
-        #     merge_extracted_into_accumulator(accumulator, extracted)
+        elif path_name == ".pdf" and is_working_documentation_title_page(text):
+            designer = extract_designer_from_title_text(text)
+
+            if designer:
+                merge_extracted_into_accumulator(
+                    accumulator,
+                    {"Проектировщик": designer}
+                )
+
+                logger.info(
+                    "PDF DESIGNER EXTRACTED | %s",
+                    format_log_kv(
+                        task_id=task_id,
+                        filename=filename,
+                        designer=designer,
+                    )
+                )
+            else:
+                logger.info(
+                    "PDF DESIGNER NOT FOUND | %s",
+                    format_log_kv(
+                        task_id=task_id,
+                        filename=filename,
+                        text_len=len(text),
+                    )
+                )
 
         add_processed_document(documents_accumulator, filename)
         return True
@@ -741,7 +1140,14 @@ def process_text_into_accumulator(
         )
         return False
 
-def read_supported_file_and_merge(target: Path, accumulator: dict, documents_accumulator, protocol_mode: bool = False, task_id: str | None = None) -> Dict:
+
+def read_supported_file_and_merge(
+    target: Path,
+    accumulator: dict,
+    documents_accumulator,
+    protocol_mode: bool = False,
+    task_id: str | None = None
+) -> Dict:
     ext = target.suffix.lower()
     size_bytes = target.stat().st_size if target.exists() and target.is_file() else None
     started = time.perf_counter()
@@ -834,6 +1240,7 @@ def read_supported_file_and_merge(target: Path, accumulator: dict, documents_acc
             "error": error_text,
             "skipped": is_lo_timeout,
         }
+
 
 def read_path_and_merge(path: str | Path, accumulator: dict, documents_accumulator, protocol_mode: bool = False, task_id: str | None = None) -> Dict:
     path = Path(path)
@@ -1217,7 +1624,7 @@ def process_one_attached_file_and_merge(item: dict, tmp_dir: Path, accumulator: 
             logger.warning("Не удалось удалить временную папку %s: %s", work_dir, cleanup_error)
 
 
-def process_attached_files_and_merge(attached_files: list, tmp_dir: str | Path, result_info_old, documents_list_old, protocol_mode = False) -> Tuple[Dict, List]:
+def process_attached_files_and_merge(attached_files: list, tmp_dir: str | Path, result_info_old, documents_list_old, protocol_mode=False) -> Tuple[Dict, List]:
     tmp_dir = ensure_dir(tmp_dir)
     accumulator = init_result_accumulator()
     merge_extracted_into_accumulator(accumulator, result_info_old)
@@ -1292,7 +1699,6 @@ def process_attached_files_and_merge(attached_files: list, tmp_dir: str | Path, 
     documents_list = finalize_documents_accumulator(documents_accumulator)
 
     return result, documents_list
-
 
 
 if __name__ == "__main__":

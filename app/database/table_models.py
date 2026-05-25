@@ -34,4 +34,4 @@ class NewsLetter(Base):
 
     id = Column(Integer, primary_key=True)
 
-    email = Column(String(64), unique = True,nullable=False, index = True )
+    email = Column(String(64), unique = True,nullable=False, index = True)

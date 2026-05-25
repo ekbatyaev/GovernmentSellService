@@ -1,6 +1,8 @@
 import logging
 from datetime import  timezone
 from time import sleep
+
+from dateutil.relativedelta import relativedelta
 from sqlalchemy import delete, func, select
 from .connection_to_database import db_session
 from .table_models import Purchase
@@ -33,6 +35,7 @@ BACKFILL_ON_STARTUP = os.getenv("PIPELINE_BACKFILL_ON_STARTUP", "true").lower() 
 APP_URL = os.getenv("APP_URL")
 API_BASE = os.getenv("API_BASE")
 TOKEN = os.getenv("SYSTEM_TOKEN")
+
 if not TOKEN:
     raise RuntimeError("SYSTEM_TOKEN is required")
 
@@ -322,6 +325,42 @@ def run_daily_job() -> Dict[str, Any]:
         added_registration_numbers = day_result["added_registration_numbers"]
 
         now = datetime.now()
+
+        # Получение старых заявок и их удаление
+
+        delete_date_to = now - relativedelta(years=1)
+
+        purchases_response = requests.post(
+            f"{APP_URL}{API_BASE}/get_all_purchases",
+            json={"token": TOKEN,
+                  "publication_datetime_to": delete_date_to.replace(microsecond=0).isoformat()},
+            timeout=30,
+        )
+
+        purchases_response.raise_for_status()
+        purchases = purchases_response.json().get("data", [])
+
+        count = 0
+        for purchase in purchases:
+            try:
+                delete_response = requests.post(
+                    f"{APP_URL}{API_BASE}/delete_purchase",
+                    json={"token": TOKEN, "guid": purchase["guid"]},
+                    timeout=30,
+                )
+
+                count += 1
+
+                delete_response.raise_for_status()
+            except Exception as e:
+                logger.info(
+                    f"При удалении {purchase["guid"]}, произошла ошибка {e}",
+                )
+                continue
+
+        logger.info(
+            f"Daily job: успешно удалено {count} заявок"
+        )
 
         emails_response = requests.post(
             f"{APP_URL}{API_BASE}/get_all_newsletters",
