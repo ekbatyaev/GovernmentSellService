@@ -18,6 +18,10 @@ os.makedirs(TMP_DIR, exist_ok=True)
 
 logger = logging.getLogger(__name__)
 
+# Регионы для фильтров
+
+REGIONS_ROSSETI = {"77": True}
+
 # Фильтры для отбора документов
 
 FILTERS_CUSTOMER = [r"\b(?:ПАО\s+)?Россети\s+Московск(?:ий|ого|ому|им|ом)?\s+регион(?:а|у|ом|е)?\b"]
@@ -111,6 +115,638 @@ JOB_EXCLUDE_SOFT_PATTERNS = [
 ]
 TARGET_PATTERNS = [re.compile(p, re.IGNORECASE) for p in TARGET_OBJECT_PATTERNS]
 
+FILTERS_OBJECTS = [
+
+    # Щиты и шкафы управления
+
+    r"\bшкаф\s+управлени[яа]\b",
+
+    r"\bщит\s+управлени[яа]\b",
+
+    r"\bШУ\b",
+
+    r"\bЩУ\b",
+
+    # Шкафы и щиты автоматики
+
+    r"\bшкаф\s+автоматик[иа]\b",
+
+    r"\bщит\s+автоматик[иа]\b",
+
+    r"\bША\b",
+
+    r"\bЩА\b",
+
+    # НКУ
+
+    r"\bНКУ\b",
+
+    r"\bнизковольтн[а-я]*\s+комплектн[а-я]*\s+устройств[а-я]*\b",
+
+    r"\bшкаф\s+НКУ\b",
+
+    r"\bщит\s+НКУ\b",
+
+    # АВР
+
+    r"\bщит\s+АВР\b",
+
+    r"\bшкаф\s+АВР\b",
+
+    r"\bавтоматическ[а-я]*\s+ввод[а-я]*\s+резерв[а-я]*\b",
+
+    # КИПиА
+
+    r"\bщит\s+КИПи?А\b",
+
+    r"\bшкаф\s+КИПи?А\b",
+
+    r"\bКИПи?А\b",
+
+    # Пульты и посты
+
+    r"\bпульт\s+управлени[яа]\b",
+
+    r"\bпульт\s+оператор[а-я]*\b",
+
+    r"\bпост\s+управлени[яа]\b",
+
+    r"\bвыносн[а-я]*\s+пульт\b",
+
+    # Системы и аббревиатуры
+
+    r"\bАСУ\s*ТП\b",
+
+    r"\bАСУТП\b",
+
+    r"\bАСУ\s*Э\b",
+
+    r"\bСУЗ\b",
+
+    r"\bсистем[а-я]*\s+управлени[яа]\s+задвижк[а-я]*\b",
+
+    r"\bСАУ\b",
+
+    r"\bсистем[а-я]*\s+автоматическ[а-я]*\s+управлени[яа]\b",
+
+    r"\bСАК\b",
+
+    r"\bсистем[а-я]*\s+автоматическ[а-я]*\s+контрол[яа]\b",
+
+    r"\bАСДУ\b",
+
+    r"\bавтоматизированн[а-я]*\s+систем[а-я]*\s+диспетчерск[а-я]*\s+управлени[яа]\b",
+
+    r"\bSCADA\b",
+
+    r"\bSCADA\s*[-–—]?\s*систем[а-я]*\b",
+
+    r"\bСКАД[Аа]?\b",
+
+    # Области применения
+
+    r"\bавтоматизаци[а-я]*\s+котельн[а-я]*\b",
+
+    r"\bавтоматизаци[а-я]*\s+(?:ИТП|ЦТП)\b",
+
+    r"\bавтоматизаци[а-я]*\s+насосн[а-я]*\s+станци[а-я]*\b",
+
+    r"\bавтоматизаци[а-я]*\s+вентиляци[а-я]*\b",
+
+    r"\bавтоматизаци[а-я]*\s+очистн[а-я]*\s+сооружени[а-я]*\b",
+
+    r"\bавтоматизаци[а-я]*\s+водоподготовк[иа]\b",
+
+    r"\bэлектроснабжени[а-я]*\s+ЦОД\b",
+
+]
+
+# ------------------------------------------------------------
+
+# Группа 2. Объекты управления: машины, установки, механизмы
+
+# ------------------------------------------------------------
+
+FILTERS_CONTROL_OBJECTS = [
+
+    # Водоснабжение и водоотведение
+
+    r"\bнасос[а-я]*\b",
+
+    r"\bциркуляционн[а-я]*\s+насос[а-я]*\b",
+
+    r"\bподпиточн[а-я]*\s+насос[а-я]*\b",
+
+    r"\bпожарн[а-я]*\s+насос[а-я]*\b",
+
+    r"\bдренажн[а-я]*\s+насос[а-я]*\b",
+
+    r"\bскважинн[а-я]*\s+насос[а-я]*\b",
+
+    r"\bсетев[а-я]*\s+насос[а-я]*\b",
+
+    r"\bнасосн[а-я]*\s+станци[а-я]*\b",
+
+    r"\bнасосн[а-я]*\s+групп[а-я]*\b",
+
+    r"\bканализационн[а-я]*\s+насосн[а-я]*\s+станци[а-я]*\b",
+
+    r"\bКНС\b",
+
+    r"\bстанци[а-я]*\s+водоподготовк[иа]\b",
+
+    r"\bочистн[а-я]*\s+сооружени[а-я]*\b",
+
+    r"\bаэротенк[а-я]*\b",
+
+    # ОВиК
+
+    r"\bприточно\s*[-–—]?\s*вытяжн[а-я]*\s+установк[а-я]*\b",
+
+    r"\bПВУ\b",
+
+    r"\bприточн[а-я]*\s+установк[а-я]*\b",
+
+    r"\bвытяжн[а-я]*\s+установк[а-я]*\b",
+
+    r"\bкрышн[а-я]*\s+вентилятор[а-я]*\b",
+
+    r"\bцентральн[а-я]*\s+систем[а-я]*\s+кондиционировани[а-я]*\b",
+
+    r"\bчиллер[а-я]*\b",
+
+    r"\bфанкойл[а-я]*\b",
+
+    r"\bпрецизионн[а-я]*\s+кондиционер[а-я]*\b",
+
+    r"\bградирн[а-я]*\b",
+
+    r"\bузел\s+обвязк[иа]\b",
+
+    # Промышленные механизмы
+
+    r"\bконвейер[а-я]*\b",
+
+    r"\bтранспортер[а-я]*\b",
+
+    r"\bтранспорт[её]р[а-я]*\b",
+
+    r"\bленточн[а-я]*\s+конвейер[а-я]*\b",
+
+    r"\bдробилк[а-я]*\b",
+
+    r"\bмельниц[а-я]*\b",
+
+    r"\bсмесител[а-я]*\b",
+
+    r"\bпитател[а-я]*\b",
+
+    r"\bдозатор[а-я]*\b",
+
+    r"\bсилос[а-я]*\b",
+
+    r"\bкомпрессор[а-я]*\b",
+
+    r"\bкомпрессорн[а-я]*\s+станци[а-я]*\b",
+
+    r"\bцентрифуг[а-я]*\b",
+
+    r"\bсепаратор[а-я]*\b",
+
+    # Теплогенерация
+
+    r"\bкот[её]л[а-я]*\b",
+
+    r"\bгазов[а-я]*\s+кот[её]л[а-я]*\b",
+
+    r"\bэлектрическ[а-я]*\s+кот[её]л[а-я]*\b",
+
+    r"\bтвердотопливн[а-я]*\s+кот[её]л[а-я]*\b",
+
+    r"\bблочно\s*[-–—]?\s*модульн[а-я]*\s+котельн[а-я]*\b",
+
+    r"\bБМК\b",
+
+    r"\bгорелк[а-я]*\b",
+
+    r"\bгазораспределительн[а-я]*\s+пункт[а-я]*\b",
+
+    r"\bГРПШ\b",
+
+    r"\bтеплообменн[а-я]*\s+узел\b",
+
+]
+
+# ------------------------------------------------------------
+
+# Группа 3. Продукция: начинка шкафов, компоненты
+
+# ------------------------------------------------------------
+
+FILTERS_COMPONENTS = [
+
+    # Силовое оборудование
+
+    r"\bпреобразователь\s+частот[ыа]\b",
+
+    r"\bПЧ\b",
+
+    r"\bЧРП\b",
+
+    r"\bчастотно\s*[-–—]?\s*регулируем[а-я]*\s+привод\b",
+
+    r"\bинвертор[а-я]*\b",
+
+    r"\bустройств[а-я]*\s+плавн[а-я]*\s+пуск[а-я]*\b",
+
+    r"\bУПП\b",
+
+    r"\bсофт\s*[-–—]?\s*стартер[а-я]*\b",
+
+    r"\bавтоматическ[а-я]*\s+выключател[а-я]*\b",
+
+    r"\bвыключател[а-я]*\s+автоматическ[а-я]*\b",
+
+    r"\bавтомат[а-я]*\b",
+
+    r"\bВА\b",
+
+    r"\bдифавтомат[а-я]*\b",
+
+    r"\bУЗО\b",
+
+    r"\bрубильник[а-я]*\b",
+
+    r"\bразъединител[а-я]*\b",
+
+    r"\bвыключател[а-я]*\s+нагрузк[иа]\b",
+
+    r"\bконтактор[а-я]*\b",
+
+    r"\bмагнитн[а-я]*\s+пускател[а-я]*\b",
+
+    # Логика и визуализация
+
+    r"\bПЛК\b",
+
+    r"\bпрограммируем[а-я]*\s+логическ[а-я]*\s+контроллер[а-я]*\b",
+
+    r"\bконтроллер\s+управлени[яа]\b",
+
+    r"\bмодул[ьи]\s+ввода\s*[-–—]?\s*вывода\b",
+
+    r"\bУСО\b",
+
+    r"\bудаленн[а-я]*\s+ввод\s*[-–—]?\s*вывод\b",
+
+    r"\bдискретн[а-я]*\s+ввод\s*[-–—]?\s*вывод\b",
+
+    r"\bаналогов[а-я]*\s+ввод\s*[-–—]?\s*вывод\b",
+
+    r"\bHMI\b",
+
+    r"\bпанел[ьи]\s+оператор[а-я]*\b",
+
+    r"\bсенсорн[а-я]*\s+панел[ьа-я]*\b",
+
+    r"\bграфическ[а-я]*\s+панел[ьа-я]*\b",
+
+    r"\bтерминал\s+оператор[а-я]*\b",
+
+    # Реле и защита
+
+    r"\bреле\s+промежуточн[а-я]*\b",
+
+    r"\bреле\s+времени\b",
+
+    r"\bреле\s+контрол[яа]\s+фаз\b",
+
+    r"\bреле\s+напряжени[яа]\b",
+
+    r"\bреле\s+ток[а-я]*\b",
+
+    r"\bтеплов[а-я]*\s+реле\b",
+
+    r"\bреле\s+перегрузк[иа]\b",
+
+    r"\bтвердотельн[а-я]*\s+реле\b",
+
+    r"\bТТР\b",
+
+    # Коммутация и индикация
+
+    r"\bсветосигнальн[а-я]*\s+арматур[а-я]*\b",
+
+    r"\bкнопк[а-я]*\s+(?:пуск|стоп)\b",
+
+    r"\bпереключател[а-я]*\b",
+
+    r"\bселекторн[а-я]*\s+переключател[а-я]*\b",
+
+    r"\bкулачков[а-я]*\s+переключател[а-я]*\b",
+
+    r"\bпост\s+кнопочн[а-я]*\b",
+
+    r"\bджойстик[а-я]*\b",
+
+    r"\bиндикатор[а-я]*\b",
+
+    r"\bсирен[а-я]*\b",
+
+    r"\bзуммер[а-я]*\b",
+
+    # Корпуса и монтаж
+
+    r"\bшкаф\s+навесн[а-я]*\b",
+
+    r"\bшкаф\s+напольн[а-я]*\b",
+
+    r"\bоболочк[а-я]*\b",
+
+    r"\bметаллокорпус[а-я]*\b",
+
+]
+
+# ------------------------------------------------------------
+
+# Группа 4. Конкуренты и аналоги: бренды
+
+# ------------------------------------------------------------
+
+FILTERS_BRANDS = [
+
+    # Щитовые компоненты / НВА
+
+    r"\bESQ\b",
+
+    r"\bNader\b",
+
+    r"\bAKEL\b",
+
+    r"\bIEK\b",
+
+    r"\bИЕК\b",
+
+    r"\bEKF\b",
+
+    r"\bЕКФ\b",
+
+    r"\bDKC\b",
+
+    r"\bДКС\b",
+
+    r"\bКЭАЗ\b",
+
+    r"\bKEAZ\b",
+
+    r"\bTengen\b",
+
+    r"\bTDM\s*Electric\b",
+
+    r"\bChint\b",
+
+    r"\bЧинт\b",
+
+    r"\bABB\b",
+
+    r"\bАББ\b",
+
+    r"\bSchneider\s*Electric\b",
+
+    r"\bШнайдер\s*Электрик\b",
+
+    r"\bSiemens\b",
+
+    r"\bСименс\b",
+
+    r"\bLS\s*Electric\b",
+
+    r"\bHyundai\b",
+
+    # Автоматизация / ПЛК / ПЧ / HMI
+
+    r"\bInstart\b",
+
+    r"\bОВЕН\b",
+
+    r"\bOwen\b",
+
+    r"\bOven\b",
+
+    r"\bVeda\b",
+
+    r"\bВеда\b",
+
+    r"\bINVT\b",
+
+    r"\bMaster\s*SCADA\b",
+
+    r"\bDelta\s*Electronics\b",
+
+    r"\bДельта\b",
+
+    r"\bWeintek\b",
+
+    r"\bВейнтек\b",
+
+    r"\bWeinview\b",
+
+    r"\bFatek\b",
+
+    r"\bUnitronics\b",
+
+    r"\bWago\b",
+
+    r"\bВаго\b",
+
+    r"\bBeckhoff\b",
+
+    r"\bPhoenix\s*Contact\b",
+
+    r"\bФеникс\s*Контакт\b",
+
+    r"\bMitsubishi\b",
+
+    r"\bOmron\b",
+
+    r"\bYaskawa\b",
+
+    r"\bLenze\b",
+
+    r"\bDanfoss\b",
+
+    r"\bДанфосс\b",
+
+    r"\bGrundfos\b",
+
+    r"\bInnovance\b",
+
+    r"\bVeichi\b",
+
+    r"\bVichi\b",
+
+    r"\bSAJ\b",
+
+    r"\bSinvel\b",
+
+    r"\bElhart\b",
+
+    r"\bIDS\b",
+
+    r"\bInnovert\b",
+
+    r"\bOptimus\s*Drive\b",
+
+    r"\bОптимус\s*Драйв\b",
+
+    r"\bPromPower\b",
+
+    r"\bРусэлком\b",
+
+    r"\bADL\b",
+
+    # Российские производители ПЧ / УПП
+
+    r"\bВеспер\b",
+
+    r"\bVesper\b",
+
+    r"\bЭлектротекс\b",
+
+    r"\bНПО\s+Стоик\b",
+
+    r"\bСтоик\b",
+
+    r"\bТриол\b",
+
+    r"\bСибирь\s*[-–—]?\s*М\b",
+
+    r"\bЭлком\b",
+
+    # Корпуса
+
+    r"\bRittal\b",
+
+    r"\bРитал\b",
+
+    r"\bESB\b",
+
+    r"\bПровенто\b",
+
+]
+
+# ------------------------------------------------------------
+
+# Контекстные признаки
+
+# ------------------------------------------------------------
+
+FILTERS_WORK_CONTEXT = [
+
+    r"\bпоставк[а-я]*\b",
+
+    r"\bзакупк[а-я]*\b",
+
+    r"\bизготовлени[а-я]*\b",
+
+    r"\bпроизводств[а-я]*\b",
+
+    r"\bсборк[а-я]*\b",
+
+    r"\bмонтаж[а-я]*\b",
+
+    r"\bшефмонтаж[а-я]*\b",
+
+    r"\bпусконаладочн[а-я]*\b",
+
+    r"\bПНР\b",
+
+    r"\bпроектировани[а-я]*\b",
+
+    r"\bразработк[а-я]*\b",
+
+    r"\bмодернизаци[а-я]*\b",
+
+    r"\bреконструкци[а-я]*\b",
+
+    r"\bремонт[а-я]*\b",
+
+    r"\bтехническ[а-я]*\s+обслуживани[а-я]*\b",
+
+    r"\bТО\b",
+
+    r"\bавтоматизаци[а-я]*\b",
+
+    r"\bдиспетчеризаци[а-я]*\b",
+
+    r"\bуправлени[а-я]*\b",
+
+    r"\bэлектроснабжени[а-я]*\b",
+
+    r"\bэлектрооборудовани[а-я]*\b",
+
+]
+
+# ------------------------------------------------------------
+
+# Жесткие исключения
+
+# ------------------------------------------------------------
+
+FILTERS_EXCLUDE_HARD = [
+
+    # Мебельные / бытовые / офисные шкафы
+
+    r"\bшкаф\s+(?:одежн[а-я]*|платян[а-я]*|мебельн[а-я]*|офисн[а-я]*|архивн[а-я]*|книжн[а-я]*|медицинск[а-я]*|лабораторн[а-я]*|сушильн[а-я]*|жарочн[а-я]*|холодильн[а-я]*)\b",
+
+    r"\bшкаф\s+для\s+(?:одежд[ыа]|документ[а-я]*|инвентар[яа]|посуд[ыа])\b",
+
+    r"\bмебел[ьа-я]*\b",
+
+    r"\bофисн[а-я]*\s+мебел[ьа-я]*\b",
+
+    # Пожарные шкафы не как НКУ
+
+    r"\bпожарн[а-я]*\s+шкаф\b",
+
+    r"\bшкаф\s+пожарн[а-я]*\b",
+
+    # IT / телеком без автоматизации
+
+    r"\bсерверн[а-я]*\s+шкаф\b",
+
+    r"\bшкаф\s+серверн[а-я]*\b",
+
+    r"\bтелекоммуникационн[а-я]*\s+шкаф\b",
+
+    r"\bкроссов[а-я]*\s+шкаф\b",
+
+]
+
+OBJECT_PATTERNS = [re.compile(p, re.IGNORECASE) for p in FILTERS_OBJECTS]
+
+CONTROL_OBJECT_PATTERNS = [
+
+    re.compile(p, re.IGNORECASE) for p in FILTERS_CONTROL_OBJECTS
+
+]
+
+COMPONENT_PATTERNS = [re.compile(p, re.IGNORECASE) for p in FILTERS_COMPONENTS]
+
+BRAND_PATTERNS = [re.compile(p, re.IGNORECASE) for p in FILTERS_BRANDS]
+
+WORK_CONTEXT_PATTERNS = [
+
+    re.compile(p, re.IGNORECASE) for p in FILTERS_WORK_CONTEXT
+
+]
+
+EXCLUDE_HARD_PATTERNS = [
+
+    re.compile(p, re.IGNORECASE) for p in FILTERS_EXCLUDE_HARD
+
+]
+
 FIELDS = [
     "Победитель",
     "Другие участники",
@@ -141,7 +777,7 @@ def ensure_list(value):
         return value
     return [value]
 
-def request_filters(customer_name, work_name)-> bool:
+def request_filters_rosseti(customer_name, work_name)-> bool:
 
     ok_customer = any(p.search(customer_name) for p in FILTERS_PATTERNS)
     excluded_hard = any(p.search(work_name) for p in JOB_EXCLUDE_HARD_PATTERNS)
@@ -336,6 +972,42 @@ def request_filters(customer_name, work_name)-> bool:
         return True
     return False
 
+
+
+def request_filters_oem(work_name: str) -> bool:
+
+    has_object = any(p.search(work_name) for p in OBJECT_PATTERNS)
+
+    has_control_object = any(p.search(work_name) for p in CONTROL_OBJECT_PATTERNS)
+
+    has_component = any(p.search(work_name) for p in COMPONENT_PATTERNS)
+
+    has_brand = any(p.search(work_name) for p in BRAND_PATTERNS)
+
+    has_context = any(p.search(work_name) for p in WORK_CONTEXT_PATTERNS)
+
+    excluded = any(p.search(work_name) for p in EXCLUDE_HARD_PATTERNS)
+
+    if excluded:
+
+        return False
+
+    # Прямые признаки: шкафы, щиты, АСУТП, ПЛК, ПЧ, бренды.
+
+    if has_object or has_component or has_brand:
+
+        return True
+
+    # Косвенные признаки: насосы, котельные, вентиляция, конвейеры и т.п.
+
+    # Засчитываем только при наличии контекста работ / поставки / управления.
+
+    if has_control_object and has_context:
+
+        return True
+
+    return False
+
 def normalize_protocol(data: dict) -> dict:
 
     body = data.get("purchaseProtocol", {}).get("body", {})
@@ -456,7 +1128,7 @@ def normalize_protocol(data: dict) -> dict:
 
     return result
 
-def parse_zip_archive_protocols(zip_path: str) -> List[Dict[str, Any]]:
+def parse_zip_archive_protocols(zip_path: str, region: int) -> List[Dict[str, Any]]:
     zip_path = os.path.abspath(zip_path)
     all_data: List[Dict[str, Any]] = []
     logger.info("Открываем архив: %s", zip_path)
@@ -478,7 +1150,9 @@ def parse_zip_archive_protocols(zip_path: str) -> List[Dict[str, Any]]:
                 customer_name = (normalized.get("customer") or {}).get("full_name")
                 work_name = normalized.get("name", "") or ""
 
-                if request_filters(customer_name, work_name):
+                if REGIONS_ROSSETI.get(region, False) and request_filters_rosseti(customer_name, work_name):
+                    normalized["region_number"] = region
+                    normalized["filter_type_name"] = "Тендеры Россетей"
 
                     # Обращение, получение данных и передача
                     purchase_response = requests.post(
@@ -509,7 +1183,8 @@ def parse_zip_archive_protocols(zip_path: str) -> List[Dict[str, Any]]:
                         tmp_dir=TMP_DIR,
                         result_info_old=result_info,
                         documents_list_old=documents_list,
-                        protocol_mode=True
+                        protocol_mode=True,
+                        filter_type = 1
                     )
 
                     del normalized["attached_files"]
@@ -519,23 +1194,52 @@ def parse_zip_archive_protocols(zip_path: str) -> List[Dict[str, Any]]:
 
                     print("documents_list - protocols")
                     print(normalized["documents_list"])
-
-                    # file_path = "protocols_coincidents.json"
-                    #
-                    # try:
-                    #     with open(file_path, "r", encoding="utf-8") as file:
-                    #         protocols_coin = json.load(file)
-                    # except FileNotFoundError:
-                    #     protocols_coin = {}
-                    #
-                    # if normalized.get("registration_number") in protocols_coin:
-                    #     protocols_coin[normalized.get("registration_number")] = normalized
-                    #
-                    # # Записываем обратно
-                    # with open(file_path, "w", encoding="utf-8") as file:
-                    #     json.dump(protocols_coin, file, indent=4, ensure_ascii=False)
-
                     all_data.append(normalized)
+
+                # if request_filters_oem(work_name):
+                #     normalized["region_number"] = region
+                #     normalized["filter_type_name"] = "Тендеры для OEM"
+                #
+                #     # Обращение, получение данных и передача
+                #     purchase_response = requests.post(
+                #         f"{APP_URL}{API_BASE}/get_purchase",
+                #         json={"token": TOKEN, "registration_number": normalized["registration_number"]},
+                #         timeout=30,
+                #     )
+                #
+                #     purchase_response.raise_for_status()
+                #
+                #     purchase = purchase_response.json().get("data") or {}
+                #
+                #     if not purchase:
+                #         logger.info(
+                #             "Протокол прошёл фильтр, но закупка не найдена в БД | reg=%s",
+                #             normalized.get("registration_number"),
+                #         )
+                #
+                #         continue
+                #
+                #     normalized["result_info"] = purchase.get("result_info") or {}
+                #
+                #     normalized["documents_list"] = purchase.get("documents_list") or []
+                #
+                #     # normalized["result_info"], normalized["documents_list"] = process_attached_files_and_merge(
+                #     #     attached_files=normalized["attached_files"],
+                #     #     tmp_dir=TMP_DIR,
+                #     #     result_info_old=result_info,
+                #     #     documents_list_old=documents_list,
+                #     #     protocol_mode=True,
+                #     #     filter_type = 2
+                #     # )
+                #     #
+                #     # del normalized["attached_files"]
+                #     #
+                #     # print("result_info - protocols")
+                #     # print(normalized["result_info"])
+                #     #
+                #     # print("documents_list - protocols")
+                #     # print(normalized["documents_list"])
+                #     all_data.append(normalized)
 
 
             except Exception as e:
@@ -652,7 +1356,7 @@ def normalize_purchase(data: dict) -> dict:
     return result
 
 
-def parse_zip_archive_purchases(zip_path: str) -> List[Dict[str, Any]]:
+def parse_zip_archive_purchases(zip_path: str, region: int) -> List[Dict[str, Any]]:
     zip_path = os.path.abspath(zip_path)
     all_data: List[Dict[str, Any]] = []
     logger.info("Открываем архив: %s", zip_path)
@@ -674,7 +1378,9 @@ def parse_zip_archive_purchases(zip_path: str) -> List[Dict[str, Any]]:
                 customer_name = (normalized.get("customer") or {}).get("full_name")
                 work_name = normalized.get("name", "") or ""
 
-                if request_filters(customer_name, work_name):
+                if REGIONS_ROSSETI.get(region, False) and request_filters_rosseti(customer_name, work_name):
+                    normalized["region_number"] = region
+                    normalized["filter_type_name"] = "Тендеры Россетей"
 
                     # Обращение, получение данных и передача
                     purchase_response = requests.post(
@@ -709,30 +1415,47 @@ def parse_zip_archive_purchases(zip_path: str) -> List[Dict[str, Any]]:
                         attached_files=normalized["attached_files"],
                         tmp_dir=TMP_DIR,
                         result_info_old = result_info,
-                        documents_list_old = documents_list
+                        documents_list_old = documents_list,
+                        filter_type = 1
                     )
 
                     del normalized["attached_files"]
 
-                    # print("result_info")
-                    # print(normalized["result_info"])
-                    # print("documents_list")
-                    # print(normalized["documents_list"])
+                    all_data.append(normalized)
 
-                    # file_path = "protocols_coincidents.json"
+                if request_filters_oem(work_name):
+
+                    normalized["region_number"] = region
+                    normalized["filter_type_name"] = "Тендеры для OEM"
+
+                    # Обращение, получение данных и передача
+                    purchase_response = requests.post(
+                        f"{APP_URL}{API_BASE}/get_purchase",
+                        json={"token": TOKEN, "registration_number": normalized["registration_number"]},
+                        timeout=30,
+                    )
+
+                    purchase_response.raise_for_status()
+
+                    purchase = purchase_response.json().get("data", {})
+
+                    normalized["result_info"] = purchase.get("result_info") or {}
+
+                    normalized["documents_list"] = purchase.get("documents_list") or []
+
+                    # result_info = purchase.get("result_info") or {}
                     #
-                    # try:
-                    #     with open(file_path, "r", encoding="utf-8") as file:
-                    #         protocols_coin = json.load(file)
-                    # except FileNotFoundError:
-                    #     protocols_coin = {}
+                    # documents_list = purchase.get("documents_list") or []
                     #
-                    # if normalized.get("registration_number") in protocols_coin:
-                    #     protocols_coin[normalized.get("registration_number")] = normalized
-                    #
-                    # # Записываем обратно
-                    # with open(file_path, "w", encoding="utf-8") as file:
-                    #     json.dump(protocols_coin, file, indent=4, ensure_ascii=False)
+                    # normalized["result_info"], normalized["documents_list"] = process_attached_files_and_merge(
+                    #     attached_files=normalized["attached_files"],
+                    #     tmp_dir=TMP_DIR,
+                    #     result_info_old=result_info,
+                    #     documents_list_old=documents_list,
+                    #     filter_type = 2
+                    # )
+
+                    del normalized["attached_files"]
 
                     all_data.append(normalized)
 

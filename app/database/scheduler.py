@@ -1,7 +1,6 @@
 import logging
 from datetime import  timezone
 from time import sleep
-
 from dateutil.relativedelta import relativedelta
 from sqlalchemy import delete, func, select
 from .connection_to_database import db_session
@@ -35,6 +34,150 @@ BACKFILL_ON_STARTUP = os.getenv("PIPELINE_BACKFILL_ON_STARTUP", "true").lower() 
 APP_URL = os.getenv("APP_URL")
 API_BASE = os.getenv("API_BASE")
 TOKEN = os.getenv("SYSTEM_TOKEN")
+
+ALL_REGION_CODES = [
+    "01", "02", "03", "04", "05", "06", "07", "08", "09",
+    "10", "11", "12", "13", "14", "15", "16", "17", "18", "19",
+    "20", "21", "22", "23", "24", "25", "26", "27", "28", "29",
+    "30", "31", "32", "33", "34", "35", "36", "37", "38", "39",
+    "40", "41", "42", "43", "44", "45", "46", "47", "48", "49",
+    "50", "51", "52", "53", "54", "55", "56", "57", "58", "59",
+    "60", "61", "62", "63", "64", "65", "66", "67", "68", "69",
+    "70", "71", "72", "73", "74", "75", "76", "77", "78", "79",
+    "80", "81", "82", "83", "85", "86", "87", "89", "92", "95"
+]
+
+REGION_CODES_BY_FEDERAL_DISTRICT = {
+    "Центральный федеральный округ": [
+        "31",  # Белгородская область
+        "32",  # Брянская область
+        "33",  # Владимирская область
+        "36",  # Воронежская область
+        "37",  # Ивановская область
+        "40",  # Калужская область
+        "44",  # Костромская область
+        "46",  # Курская область
+        "48",  # Липецкая область
+        "50",  # Московская область
+        "57",  # Орловская область
+        "62",  # Рязанская область
+        "67",  # Смоленская область
+        "68",  # Тамбовская область
+        "69",  # Тверская область
+        "71",  # Тульская область
+        "76",  # Ярославская область
+        "77",  # Москва
+    ],
+
+    "Северо-Западный федеральный округ": [
+        "10",  # Республика Карелия
+        "11",  # Республика Коми
+        "29",  # Архангельская область
+        "35",  # Вологодская область
+        "39",  # Калининградская область
+        "47",  # Ленинградская область
+        "51",  # Мурманская область
+        "53",  # Новгородская область
+        "60",  # Псковская область
+        "78",  # Санкт-Петербург
+        "83",  # Ненецкий автономный округ
+    ],
+
+    "Южный федеральный округ": [
+        "01",  # Республика Адыгея
+        "08",  # Республика Калмыкия
+        "23",  # Краснодарский край
+        "30",  # Астраханская область
+        "34",  # Волгоградская область
+        "61",  # Ростовская область
+        "82",  # Республика Крым
+        "92",  # Севастополь
+    ],
+
+    "Северо-Кавказский федеральный округ": [
+        "05",  # Республика Дагестан
+        "06",  # Республика Ингушетия
+        "07",  # Кабардино-Балкарская Республика
+        "09",  # Карачаево-Черкесская Республика
+        "15",  # Республика Северная Осетия — Алания
+        "20",  # Чеченская Республика, старый код
+        "26",  # Ставропольский край
+        "95",  # Чеченская Республика
+    ],
+
+    "Приволжский федеральный округ": [
+        "02",  # Республика Башкортостан
+        "12",  # Республика Марий Эл
+        "13",  # Республика Мордовия
+        "16",  # Республика Татарстан
+        "18",  # Удмуртская Республика
+        "21",  # Чувашская Республика
+        "43",  # Кировская область
+        "52",  # Нижегородская область
+        "56",  # Оренбургская область
+        "58",  # Пензенская область
+        "59",  # Пермский край
+        "63",  # Самарская область
+        "64",  # Саратовская область
+        "73",  # Ульяновская область
+        "81",  # бывший Коми-Пермяцкий АО, сейчас в составе Пермского края
+    ],
+
+    "Уральский федеральный округ": [
+        "45",  # Курганская область
+        "66",  # Свердловская область
+        "72",  # Тюменская область
+        "74",  # Челябинская область
+        "86",  # Ханты-Мансийский автономный округ — Югра
+        "89",  # Ямало-Ненецкий автономный округ
+    ],
+
+    "Сибирский федеральный округ": [
+        "04",  # Республика Алтай
+        "17",  # Республика Тыва
+        "19",  # Республика Хакасия
+        "22",  # Алтайский край
+        "24",  # Красноярский край
+        "38",  # Иркутская область
+        "42",  # Кемеровская область — Кузбасс
+        "54",  # Новосибирская область
+        "55",  # Омская область
+        "70",  # Томская область
+        "85",  # бывший Усть-Ордынский Бурятский АО, сейчас в составе Иркутской области
+    ],
+
+    "Дальневосточный федеральный округ": [
+        "03",  # Республика Бурятия
+        "14",  # Республика Саха (Якутия)
+        "25",  # Приморский край
+        "27",  # Хабаровский край
+        "28",  # Амурская область
+        "41",  # Камчатский край
+        "49",  # Магаданская область
+        "65",  # Сахалинская область
+        "75",  # Забайкальский край
+        "79",  # Еврейская автономная область
+        "80",  # бывший Агинский Бурятский АО, сейчас в составе Забайкальского края
+        "87",  # Чукотский автономный округ
+    ],
+}
+
+
+REGIONS_OF_THE_FILTERS = \
+    {
+        "Тендеры Россетей": ["77"],
+        "Тендеры для OEM": [
+    "01", "02", "03", "04", "05", "06", "07", "08", "09",
+    "10", "11", "12", "13", "14", "15", "16", "17", "18", "19",
+    "20", "21", "22", "23", "24", "25", "26", "27", "28", "29",
+    "30", "31", "32", "33", "34", "35", "36", "37", "38", "39",
+    "40", "41", "42", "43", "44", "45", "46", "47", "48", "49",
+    "50", "51", "52", "53", "54", "55", "56", "57", "58", "59",
+    "60", "61", "62", "63", "64", "65", "66", "67", "68", "69",
+    "70", "71", "72", "73", "74", "75", "76", "77", "78", "79",
+    "80", "81", "82", "83", "85", "86", "87", "89", "92", "95"
+    ]
+    }
 
 if not TOKEN:
     raise RuntimeError("SYSTEM_TOKEN is required")
@@ -149,129 +292,228 @@ def delete_expired(db) -> int:
     return res.rowcount or 0
 
 
-def process_day(date_str: str) -> Dict[str, int]:
+def process_day(date_str: str) -> Dict:
     logger.info("Pipeline: обработка даты %s", date_str)
 
-    result_purchases = get_docs_by_region(
-        org_region="77",
-        document_type="purchaseNotice",
-        exact_date=date_str,
-        subsystem_type="RI223",
-    )
+    registration_numbers_dict_per_day = {}
 
-    added_registration_numbers = []
+    for filter_name in REGIONS_OF_THE_FILTERS.keys():
+        registration_numbers_dict_per_day[filter_name] = {}
+        for region_code in REGIONS_OF_THE_FILTERS[filter_name]:
+            registration_numbers_dict_per_day[filter_name][region_code] = {
+                "created": [],
+                "updated": [],
+                "skipped": []
+            }
 
-    created = 0
-    updated = 0
-    skipped = 0
+    for region in ALL_REGION_CODES:
 
-    archive_urls_purchases = result_purchases.get("archive_urls", [])
-    for archive_url in archive_urls_purchases:
-        zip_path_purchases = download_archive_from_result(archive_url)
+        result_purchases = get_docs_by_region(
+            org_region=region,
+            document_type="purchaseNotice",
+            exact_date=date_str,
+            subsystem_type="RI223",
+        )
 
-        logger.info("Pipeline: архив закупок скачан: %s", zip_path_purchases)
+        archive_urls_purchases = result_purchases.get("archive_urls", [])
+        for archive_url in archive_urls_purchases:
+            zip_path_purchases = download_archive_from_result(archive_url)
 
-        purchases = parse_zip_archive_purchases(zip_path_purchases)
+            logger.info("Pipeline: архив закупок скачан: %s", zip_path_purchases)
 
-        logger.info("Pipeline: после фильтров закупок: %s", len(purchases))
+            purchases = parse_zip_archive_purchases(zip_path_purchases, region)
 
-        for p in purchases:
-            try:
-                status = put_purchase_to_db(p)
-                added_registration_numbers.append(p["registration_number"])
+            logger.info("Pipeline: после фильтров закупок: %s", len(purchases))
 
-                if status == "created":
-                    created += 1
-                elif status == "updated":
-                    updated += 1
-                else:
-                    skipped += 1
+            for purchase in purchases:
+                try:
+                    status = put_purchase_to_db(purchase)
 
-            except Exception:
-                logger.exception(
-                    "Pipeline: ошибка сохранения закупки | reg=%s | guid=%s",
-                    p.get("registration_number"),
-                    p.get("guid"),
-                )
-                skipped += 1
+                    registration_numbers_dict_per_day[purchase["filter_type_name"]][purchase["region_number"]][status].append(purchase["registration_number"])
 
-    result_protocols = get_docs_by_region(
-        org_region="77",
-        document_type="purchaseProtocol",
-        exact_date=date_str,
-        subsystem_type="RI223",
-    )
+                except Exception:
+                    logger.exception(
+                        "Pipeline: ошибка сохранения закупки | reg=%s | guid=%s",
+                        purchase.get("registration_number"),
+                        purchase.get("guid"),
+                    )
+                    registration_numbers_dict_per_day[purchase["filter_type_name"]][purchase["region_number"]][
+                        "skipped"].append(purchase["registration_number"])
 
-    archive_urls_protocols = result_protocols.get("archive_urls", [])
 
-    for archive_url in archive_urls_protocols:
-        zip_path_protocols = download_archive_from_result(archive_url)
+        result_protocols = get_docs_by_region(
+            org_region=region,
+            document_type="purchaseProtocol",
+            exact_date=date_str,
+            subsystem_type="RI223",
+        )
 
-        logger.info("Pipeline: архив протоколов скачан: %s", zip_path_protocols)
+        archive_urls_protocols = result_protocols.get("archive_urls", [])
 
-        protocols = parse_zip_archive_protocols(zip_path_protocols)
+        for archive_url in archive_urls_protocols:
+            zip_path_protocols = download_archive_from_result(archive_url)
 
-        logger.info("Pipeline: после фильтров протоколов: %s", len(protocols))
+            logger.info("Pipeline: архив протоколов скачан: %s", zip_path_protocols)
 
-        for protocol in protocols:
-            added_registration_numbers.append(protocol["registration_number"])
+            protocols = parse_zip_archive_protocols(zip_path_protocols, region)
 
-            try:
-                response = requests.post(
-                    f"{APP_URL}{API_BASE}/update_purchase",
-                    json={
-                        "token": TOKEN,
-                        "registration_number": protocol["registration_number"],
-                        "result_info": protocol["result_info"],
-                        "documents_list": protocol["documents_list"],
-                        "publication_datetime": protocol["publication_datetime"],
-                    },
-                    timeout=30,
-                )
-                response.raise_for_status()
+            logger.info("Pipeline: после фильтров протоколов: %s", len(protocols))
 
-                database_answer = response.json()
+            for protocol in protocols:
 
-                if database_answer.get("message") == "Purchase not found" and not database_answer.get("data"):
 
-                    status = put_purchase_to_db(protocol)
+                try:
+                    response = requests.post(
+                        f"{APP_URL}{API_BASE}/update_purchase",
+                        json={
+                            "token": TOKEN,
+                            "registration_number": protocol["registration_number"],
+                            "result_info": protocol["result_info"],
+                            "documents_list": protocol["documents_list"],
+                            "publication_datetime": protocol["publication_datetime"],
+                        },
+                        timeout=30,
+                    )
+                    response.raise_for_status()
 
-                    if status == "created":
-                        created += 1
+                    database_answer = response.json()
 
-                    logger.info("Create purchase from protocol response | %s", response.text)
+                    if database_answer.get("message") == "Purchase not found" and not database_answer.get("data"):
+                        try:
+                            status = put_purchase_to_db(protocol)
+
+                            registration_numbers_dict_per_day[protocol["filter_type_name"]][protocol["region_number"]][
+                                status].append(protocol["registration_number"])
+
+                            logger.info("Create purchase from protocol response | %s", response.text)
+
+                            logger.info(
+                                "Pipeline: протокол создал закупку | reg=%s",
+                                protocol["registration_number"],
+                            )
+                        except Exception:
+                            logger.exception(
+                                "Pipeline: ошибка сохранения закупки | reg=%s | guid=%s",
+                                protocol.get("registration_number"),
+                                protocol.get("guid"),
+                            )
+                            registration_numbers_dict_per_day[protocol["filter_type_name"]][protocol["region_number"]][
+                                "skipped"].append(protocol["registration_number"])
+                        finally:
+                            continue
+
+                    registration_numbers_dict_per_day[protocol["filter_type_name"]][protocol["region_number"]][
+                        "updated"].append(protocol["registration_number"])
+
+                    logger.info("Update response | %s", response.text)
 
                     logger.info(
-                        "Pipeline: протокол создал закупку | reg=%s",
+                        "Pipeline: протокол обновил закупку | reg=%s",
                         protocol["registration_number"],
                     )
 
-                    continue
+                except Exception as error:
+                    logger.exception(
+                        "У заявки не обновились поля | reg=%s | error=%s",
+                        protocol.get("registration_number"),
+                        error,
+                    )
+                    registration_numbers_dict_per_day[protocol["filter_type_name"]][protocol["region_number"]][
+                        "skipped"].append(protocol["registration_number"])
 
-                updated += 1
+    return registration_numbers_dict_per_day
 
-                logger.info("Update response | %s", response.text)
+def create_analysis(rows, emails, created, updated, skipped):
 
-                logger.info(
-                    "Pipeline: протокол обновил закупку | reg=%s",
-                    protocol["registration_number"],
-                )
+    html_content = f"""
+                    <html><body style="font-family:Arial;">
+                    <h2 style="color:#2E86C1;">Уведомление о заявках с госзакупок</h2>
+                    <p>Новых заявок добавлено: <b style="color:#E74C3C;font-size:18px;">{created}</b></p>
+                    <p>Заявок обновлено: <b style="color:#F39C12;font-size:18px;">{updated}</b></p>
+                    <p>Пропущено: <b style="color:#7F8C8D;font-size:18px;">{skipped}</b></p>
+                    <hr><p style="color:#888;font-size:12px;">Это письмо сформировано автоматически, отвечать на него не нужно</p>
+                    </body></html>
+                    """
 
-            except Exception as error:
-                logger.exception(
-                    "У заявки не обновились поля | reg=%s | error=%s",
-                    protocol.get("registration_number"),
-                    error,
-                )
+    analysis_path = "analysis.xlsx"
 
-    added_registration_numbers = list(set(added_registration_numbers))
+    try:
+        df = pd.DataFrame(rows)
+        df.to_excel(analysis_path, index=False)
 
-    return {
-        "created": created,
-        "updated": updated,
-        "skipped": skipped,
-        "added_registration_numbers": added_registration_numbers,
-    }
+        wb = load_workbook(analysis_path)
+        ws = wb.active
+
+        header_fill = PatternFill("solid", fgColor="366092")
+        header_font = Font(color="FFFFFF", bold=True)
+        cell_font = Font(size=10)
+        align = Alignment(wrap_text=True, vertical="center")
+        thin_side = Side(style="thin")
+        border = Border(
+            left=thin_side,
+            right=thin_side,
+            top=thin_side,
+            bottom=thin_side,
+        )
+
+        for col in range(1, ws.max_column + 1):
+            c = ws.cell(1, col)
+            c.font = header_font
+            c.fill = header_fill
+            c.alignment = align
+            c.border = border
+
+        for r in range(2, ws.max_row + 1):
+            ws.row_dimensions[r].height = 30
+            for c in range(1, ws.max_column + 1):
+                cell = ws.cell(r, c)
+                cell.font = cell_font
+                cell.alignment = align
+                cell.border = border
+
+        for col in range(1, ws.max_column + 1):
+            letter = get_column_letter(col)
+            max_len = max(
+                len(str(ws.cell(r, col).value or ""))
+                for r in range(1, ws.max_row + 1)
+            )
+            ws.column_dimensions[letter].width = min(max_len + 2, 50)
+
+        last = ws.max_row + 2
+        ws.cell(last, 1, "Сноска: данные по закупкам, лотам и позициям")
+        ws.merge_cells(
+            start_row=last,
+            start_column=1,
+            end_row=last,
+            end_column=ws.max_column,
+        )
+
+        footnote_cell = ws.cell(last, 1)
+        footnote_cell.font = Font(italic=True, size=9, color="555555")
+        footnote_cell.alignment = Alignment(horizontal="center")
+        footnote_cell.border = Border(top=Side(style="thin", color="AAAAAA"))
+
+        wb.save(analysis_path)
+
+        now = datetime.now()
+
+        subject = f"Заявки с госзакупок за {now.strftime('%d.%m.%Y')}"
+
+        for u in emails:
+            email = u.get("email")
+            if not email:
+                continue
+
+            send_email(
+                email,
+                subject,
+                html_content,
+                attachments=[analysis_path] if (created or updated) else None,
+            )
+
+    finally:
+        if os.path.exists(analysis_path):
+            os.remove(analysis_path)
 
 def run_daily_job() -> Dict[str, Any]:
     _set_status(
@@ -319,10 +561,6 @@ def run_daily_job() -> Dict[str, Any]:
         if day_result is None:
             raise RuntimeError("Daily job finished without result")
 
-        created = day_result["created"]
-        updated = day_result["updated"]
-        skipped = day_result["skipped"]
-        added_registration_numbers = day_result["added_registration_numbers"]
 
         now = datetime.now()
 
@@ -362,145 +600,162 @@ def run_daily_job() -> Dict[str, Any]:
             f"Daily job: успешно удалено {count} заявок"
         )
 
-        emails_response = requests.post(
-            f"{APP_URL}{API_BASE}/get_all_newsletters",
-            json={"token": TOKEN},
-            timeout=30,
-        )
-        emails_response.raise_for_status()
-        emails = emails_response.json().get("data", [])
+        # Рассылка сообщений адрессантам
 
-        html_content = f"""
-                <html><body style="font-family:Arial;">
-                <h2 style="color:#2E86C1;">Уведомление о заявках с госзакупок</h2>
-                <p>Новых заявок добавлено: <b style="color:#E74C3C;font-size:18px;">{created}</b></p>
-                <p>Заявок обновлено: <b style="color:#F39C12;font-size:18px;">{updated}</b></p>
-                <p>Пропущено: <b style="color:#7F8C8D;font-size:18px;">{skipped}</b></p>
-                <hr><p style="color:#888;font-size:12px;">Это письмо сформировано автоматически, отвечать на него не нужно</p>
-                </body></html>
-                """
+        # Высылаем информацию по Россетям
 
-        rows = []
+        for filter_name in REGIONS_OF_THE_FILTERS:
+            # Cобираем нужные регионы по списку и отсылаем
 
-        for registration_number in added_registration_numbers:
-            purchase_response = requests.post(
-                f"{APP_URL}{API_BASE}/get_purchase",
-                json={"token": TOKEN, "registration_number": registration_number},
-                timeout=30,
-            )
+            if filter_name == "Тендеры Россетей":
 
-            purchase_response.raise_for_status()
+                created = 0
+                updated = 0
+                skipped = 0
 
-            purchase = purchase_response.json().get("data", {})
+                registration_numbers = []
 
-            customer = purchase.get("customer") or {}
-            result_info = purchase.get("result_info") or {}
+                for region in day_result[filter_name].keys():
 
-            base = {
-                "Реестровый номер": purchase.get("registration_number"),
-                "Название закупки": purchase.get("name"),
-                "Сумма закупки": purchase.get("initial_sum"),
-                "Дата начала подачи заявок": purchase.get("submission_start_datetime"),
-                "Дата окончания подачи заявок": purchase.get("submission_close_datetime"),
-                "Дата публикации": purchase.get("publication_datetime"),
-                "Заказчик название": customer.get("full_name"),
-                "Победитель": result_info.get("Победитель"),
-                "Другие участники": result_info.get("Другие участники"),
-                "Ячейки": result_info.get("Ячейки"),
-                "Кол-во ячеек": result_info.get("Кол-во ячеек"),
-                "Типовой проект": result_info.get("Типовой проект"),
-                "Проектировщик": result_info.get("Проектировщик"),
-                "Дата исполнения договора": result_info.get("Дата исполнения договора"),
-                "Филиал/РЭС": result_info.get("Филиал/РЭС")
-            }
+                    created += len(day_result[filter_name][region]["created"])
+                    updated += len(day_result[filter_name][region]["updated"])
+                    skipped += len(day_result[filter_name][region]["skipped"])
 
-            rows.append(base)
+                    registration_numbers += (day_result[filter_name][region]["created"] +
+                                             day_result[filter_name][region]["updated"] +
+                                             day_result[filter_name][region]["skipped"])
 
-        result = {
-            "ok": True,
-            "created": created,
-            "updated": updated,
-            "skipped": skipped,
-            "date": date_str,
-        }
-
-        analysis_path = "analysis.xlsx"
-
-        try:
-            df = pd.DataFrame(rows)
-            df.to_excel(analysis_path, index=False)
-
-            wb = load_workbook(analysis_path)
-            ws = wb.active
-
-            header_fill = PatternFill("solid", fgColor="366092")
-            header_font = Font(color="FFFFFF", bold=True)
-            cell_font = Font(size=10)
-            align = Alignment(wrap_text=True, vertical="center")
-            thin_side = Side(style="thin")
-            border = Border(
-                left=thin_side,
-                right=thin_side,
-                top=thin_side,
-                bottom=thin_side,
-            )
-
-            for col in range(1, ws.max_column + 1):
-                c = ws.cell(1, col)
-                c.font = header_font
-                c.fill = header_fill
-                c.alignment = align
-                c.border = border
-
-            for r in range(2, ws.max_row + 1):
-                ws.row_dimensions[r].height = 30
-                for c in range(1, ws.max_column + 1):
-                    cell = ws.cell(r, c)
-                    cell.font = cell_font
-                    cell.alignment = align
-                    cell.border = border
-
-            for col in range(1, ws.max_column + 1):
-                letter = get_column_letter(col)
-                max_len = max(
-                    len(str(ws.cell(r, col).value or ""))
-                    for r in range(1, ws.max_row + 1)
-                )
-                ws.column_dimensions[letter].width = min(max_len + 2, 50)
-
-            last = ws.max_row + 2
-            ws.cell(last, 1, "Сноска: данные по закупкам, лотам и позициям")
-            ws.merge_cells(
-                start_row=last,
-                start_column=1,
-                end_row=last,
-                end_column=ws.max_column,
-            )
-
-            footnote_cell = ws.cell(last, 1)
-            footnote_cell.font = Font(italic=True, size=9, color="555555")
-            footnote_cell.alignment = Alignment(horizontal="center")
-            footnote_cell.border = Border(top=Side(style="thin", color="AAAAAA"))
-
-            wb.save(analysis_path)
-
-            subject = f"Заявки с госзакупок за {now.strftime('%d.%m.%Y')}"
-
-            for u in emails:
-                email = u.get("email")
-                if not email:
-                    continue
-
-                send_email(
-                    email,
-                    subject,
-                    html_content,
-                    attachments=[analysis_path] if (created or updated) else None,
+                emails_response = requests.post(
+                    f"{APP_URL}{API_BASE}/get_all_newsletters",
+                    json={"token": TOKEN, "filter_type_name": filter_name},
+                    timeout=30,
                 )
 
-        finally:
-            if os.path.exists(analysis_path):
-                os.remove(analysis_path)
+                emails_response.raise_for_status()
+                emails = emails_response.json().get("data", [])
+
+                rows = []
+
+                for registration_number in registration_numbers:
+                    purchase_response = requests.post(
+                        f"{APP_URL}{API_BASE}/get_purchase",
+                        json={"token": TOKEN, "registration_number": registration_number},
+                        timeout=30,
+                    )
+
+                    purchase_response.raise_for_status()
+
+                    purchase = purchase_response.json().get("data", {})
+
+                    customer = purchase.get("customer") or {}
+                    result_info = purchase.get("result_info") or {}
+
+                    base = {
+                        "Реестровый номер": purchase.get("registration_number"),
+                        "Название закупки": purchase.get("name"),
+                        "Сумма закупки": purchase.get("initial_sum"),
+                        "Дата начала подачи заявок": purchase.get("submission_start_datetime"),
+                        "Дата окончания подачи заявок": purchase.get("submission_close_datetime"),
+                        "Дата публикации": purchase.get("publication_datetime"),
+                        "Заказчик название": customer.get("full_name"),
+                        "Победитель": result_info.get("Победитель"),
+                        "Другие участники": result_info.get("Другие участники"),
+                        "Ячейки": result_info.get("Ячейки"),
+                        "Кол-во ячеек": result_info.get("Кол-во ячеек"),
+                        "Типовой проект": result_info.get("Типовой проект"),
+                        "Проектировщик": result_info.get("Проектировщик"),
+                        "Дата исполнения договора": result_info.get("Дата исполнения договора"),
+                        "Филиал/РЭС": result_info.get("Филиал/РЭС")
+                    }
+
+                    rows.append(base)
+
+                result = {
+                    "ok": True,
+                    "created": created,
+                    "updated": updated,
+                    "skipped": skipped,
+                    "date": date_str,
+                }
+
+                create_analysis(rows=rows, emails=emails,
+                                created=created, updated=updated, skipped=skipped)
+
+            elif filter_name == "Тендеры для OEM":
+
+                for district in REGION_CODES_BY_FEDERAL_DISTRICT.keys():
+
+                    created = 0
+                    updated = 0
+                    skipped = 0
+
+                    registration_numbers = []
+
+                    for region in REGION_CODES_BY_FEDERAL_DISTRICT[district]:
+
+                        created += len(day_result[filter_name][region]["created"])
+                        updated += len(day_result[filter_name][region]["updated"])
+                        skipped += len(day_result[filter_name][region]["skipped"])
+
+                        registration_numbers += (day_result[filter_name][region]["created"] +
+                                                 day_result[filter_name][region]["updated"] +
+                                                 day_result[filter_name][region]["skipped"])
+
+                    emails_response = requests.post(
+                        f"{APP_URL}{API_BASE}/get_all_newsletters",
+                        json={"token": TOKEN, "filter_type_name": filter_name, "district_name": district},
+                        timeout=30,
+                    )
+
+                    emails_response.raise_for_status()
+                    emails = emails_response.json().get("data", [])
+
+                    rows = []
+
+                    for registration_number in registration_numbers:
+                        purchase_response = requests.post(
+                            f"{APP_URL}{API_BASE}/get_purchase",
+                            json={"token": TOKEN, "registration_number": registration_number},
+                            timeout=30,
+                        )
+
+                        purchase_response.raise_for_status()
+
+                        purchase = purchase_response.json().get("data", {})
+
+                        customer = purchase.get("customer") or {}
+                        result_info = purchase.get("result_info") or {}
+
+                        base = {
+                            "Реестровый номер": purchase.get("registration_number"),
+                            "Название закупки": purchase.get("name"),
+                            "Сумма закупки": purchase.get("initial_sum"),
+                            "Дата начала подачи заявок": purchase.get("submission_start_datetime"),
+                            "Дата окончания подачи заявок": purchase.get("submission_close_datetime"),
+                            "Дата публикации": purchase.get("publication_datetime"),
+                            "Заказчик название": customer.get("full_name")
+                            # "Победитель": result_info.get("Победитель"),
+                            # "Другие участники": result_info.get("Другие участники"),
+                            # "Ячейки": result_info.get("Ячейки"),
+                            # "Кол-во ячеек": result_info.get("Кол-во ячеек"),
+                            # "Типовой проект": result_info.get("Типовой проект"),
+                            # "Проектировщик": result_info.get("Проектировщик"),
+                            # "Дата исполнения договора": result_info.get("Дата исполнения договора"),
+                            # "Филиал/РЭС": result_info.get("Филиал/РЭС")
+                        }
+
+                        rows.append(base)
+
+                    result = {
+                        "ok": True,
+                        "created": created,
+                        "updated": updated,
+                        "skipped": skipped,
+                        "date": date_str,
+                    }
+
+                    create_analysis(rows=rows, emails=emails,
+                                    created=created, updated=updated, skipped=skipped)
 
         _set_status(
             running=False,
@@ -569,9 +824,13 @@ def run_backfill(days: int | None = None) -> Dict[str, Any]:
             for attempt in range(RETRY_COUNT):
                 try:
                     day_result = process_day(date_str)
-                    created_total += day_result["created"]
-                    updated_total += day_result["updated"]
-                    skipped_total += day_result["skipped"]
+                    for filter_name in REGIONS_OF_THE_FILTERS:
+
+                        for region in day_result[filter_name].keys():
+                            created_total += len(day_result[filter_name][region]["created"])
+                            updated_total += len(day_result[filter_name][region]["updated"])
+                            skipped_total += len(day_result[filter_name][region]["skipped"])
+
                     success = True
                     break
                 except Exception as e:

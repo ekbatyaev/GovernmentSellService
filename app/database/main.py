@@ -92,17 +92,25 @@ class PutPurchaseModel(BaseModel):
     apply_request: Any
     result_info: Any
     documents_list: List[Any]
+
+    filter_type_name: Optional[str] = None
+    region_number: Optional[str] = None
+
     lots: List[Any]
 
 
 class DeletePurchaseModel(BaseModel):
     token: str
+    filter_type_name: Optional[str] = None
+    region_number: Optional[str] = None
     guid: str
 
 
 class GetPurchaseModel(BaseModel):
     token: str
     guid: Optional[str] = None
+    filter_type_name: Optional[str] = None
+    region_number: Optional[str] = None
     registration_number: Optional[str] = None
 
 
@@ -122,6 +130,8 @@ class GetAllPurchasesModel(BaseModel):
     submission_close_datetime_to: Optional[datetime] = None
     source_file: Optional[str] = None
 
+    filter_type_name: Optional[str] = None
+    region_number: Optional[str] = None
 
 class UpdatePurchaseModel(BaseModel):
     token: str
@@ -139,6 +149,8 @@ class UpdatePurchaseModel(BaseModel):
     result_info: Optional[Any] = None
     documents_list: Optional[Any] = None
     lots: Optional[Any] = None
+    filter_type_name: Optional[str] = None
+    region_number: Optional[str] = None
 
 
 class PurchaseResponseModel(BaseModel):
@@ -156,6 +168,8 @@ class PurchaseResponseModel(BaseModel):
     result_info: Any
     documents_list: List[Any]
     lots: List[Any]
+    filter_type_name: Optional[str]
+    region_number: Optional[str]
 
     class Config:
         from_attributes = True
@@ -178,19 +192,29 @@ class DeleteExpiredModel(BaseModel):
 
 class AdminProcessDay(BaseModel):
     token: str
-    date: Optional[datetime] = None
+    date: datetime
 
 class PutNewsLetterModel(BaseModel):
     token: str
+    filter_type_name: str
+    district_name: str
     email: str
 
 class DeleteNewsLetterModel(BaseModel):
     token: str
     email: str
+    filter_type_name: Optional[str] = None
 
 class GetNewsLetterModel(BaseModel):
     token: str
+    filter_type_name: Optional[str] = None
+    district_name: Optional[str] = None
     email: str
+
+class GetAllNewsLettersModel(BaseModel):
+    token: str
+    filter_type_name: Optional[str] = None
+    district_name: Optional[str] = None
 
 class BaseTokenModel(BaseModel):
     token: str
@@ -294,6 +318,9 @@ def put_purchase(purchase_data: PutPurchaseModel, db: Session = Depends(get_db))
         existing_purchase.documents_list = purchase_data.documents_list or []
         existing_purchase.lots = purchase_data.lots or []
 
+        existing_purchase.filter_type_name = purchase_data.filter_type_name
+        existing_purchase.region_number = purchase_data.region_number
+
         db.commit()
         db.refresh(existing_purchase)
 
@@ -317,7 +344,9 @@ def put_purchase(purchase_data: PutPurchaseModel, db: Session = Depends(get_db))
         apply_request=purchase_data.apply_request or {},
         result_info=purchase_data.result_info or {},
         documents_list=purchase_data.documents_list or [],
-        lots=purchase_data.lots or []
+        lots=purchase_data.lots or [],
+        filter_type_name=purchase_data.filter_type_name,
+        region_number=purchase_data.region_number
     )
 
     try:
@@ -351,14 +380,13 @@ def delete_purchase(purchase_data: DeletePurchaseModel, db: Session = Depends(ge
 def get_purchase(purchase_data: GetPurchaseModel, db: Session = Depends(get_db)):
     verify_token(purchase_data.token)
 
+
     guid = purchase_data.guid.strip() if purchase_data.guid else None
     registration_number = (
         purchase_data.registration_number.strip()
         if purchase_data.registration_number
         else None
     )
-
-
 
     if registration_number:
         purchase = (
@@ -398,6 +426,12 @@ def get_all_purchases(purchase_data: GetAllPurchasesModel, db: Session = Depends
 
     if purchase_data.name:
         query = query.where(Purchase.name.ilike(f"%{purchase_data.name}%"))
+
+    if purchase_data.filter_type_name:
+        query = query.where(Purchase.filter_type_name == purchase_data.filter_type_name)
+
+    if purchase_data.region_number:
+        query = query.where(Purchase.region_number == purchase_data.region_number)
 
     if purchase_data.initial_sum_from is not None:
         query = query.where(Purchase.initial_sum >= purchase_data.initial_sum_from)
@@ -579,7 +613,11 @@ def admin_delete_expired(body: DeleteExpiredModel, db: Session = Depends(get_db)
 def put_newsletter(data: PutNewsLetterModel, db: Session = Depends(get_db)):
     verify_token(data.token)
 
-    newsletter = NewsLetter(email=data.email)
+    newsletter = NewsLetter(
+        email=data.email,
+        filter_type_name=data.filter_type_name,
+        district_name=data.district_name,
+    )
 
     try:
         db.add(newsletter)
@@ -589,7 +627,11 @@ def put_newsletter(data: PutNewsLetterModel, db: Session = Depends(get_db)):
         return SuccessResponseModel(
             status="success",
             message="Email added",
-            data={"email": newsletter.email},
+            data={
+                "email": newsletter.email,
+                "filter_type_name": newsletter.filter_type_name,
+                "district_name": newsletter.district_name,
+            },
         )
 
     except IntegrityError:
@@ -600,7 +642,11 @@ def put_newsletter(data: PutNewsLetterModel, db: Session = Depends(get_db)):
             return SuccessResponseModel(
                 status="success",
                 message="Email already exists",
-                data={"email": existing.email},
+                data={
+                    "email": existing.email,
+                    "filter_type_name": existing.filter_type_name,
+                    "district_name": existing.district_name,
+                },
             )
 
         raise HTTPException(status_code=400, detail="Failed to add email")
@@ -609,45 +655,91 @@ def put_newsletter(data: PutNewsLetterModel, db: Session = Depends(get_db)):
 def delete_newsletter(data: DeleteNewsLetterModel, db: Session = Depends(get_db)):
     verify_token(data.token)
 
-    newsletter = db.query(NewsLetter).filter_by(email=data.email).first()
+    query = db.query(NewsLetter).filter(NewsLetter.email == data.email)
 
-    if not newsletter:
+    if data.filter_type_name:
+        query = query.filter(NewsLetter.filter_type_name == data.filter_type_name)
+
+    newsletters = query.all()
+
+    if not newsletters:
         raise HTTPException(status_code=404, detail="Email not found")
 
-    db.delete(newsletter)
+    if len(newsletters) > 1 and not data.filter_type_name:
+        raise HTTPException(
+            status_code=400,
+            detail="У email несколько подписок. Передайте filter_type_name для удаления конкретной подписки.",
+        )
+
+    for newsletter in newsletters:
+        db.delete(newsletter)
+
     db.commit()
 
     return SuccessResponseModel(
         status="success",
         message="Deleted",
-        data={"email": data.email},
+        data={
+            "email": data.email,
+            "deleted_count": len(newsletters),
+        },
     )
 
 @app.post(f"{API_BASE}/get_newsletter", response_model=SuccessResponseModel)
 def get_newsletter(data: GetNewsLetterModel, db: Session = Depends(get_db)):
     verify_token(data.token)
 
-    newsletter = db.query(NewsLetter).filter_by(email=data.email).first()
+    query = db.query(NewsLetter).filter(NewsLetter.email == data.email)
 
-    if not newsletter:
+    if data.filter_type_name:
+        query = query.filter(NewsLetter.filter_type_name == data.filter_type_name)
+
+    if data.district_name:
+        query = query.filter(NewsLetter.district_name == data.district_name)
+
+    newsletters = query.all()
+
+    if not newsletters:
         raise HTTPException(status_code=404, detail="Email not found")
+
+    result = [
+        {
+            "email": n.email,
+            "filter_type_name": n.filter_type_name,
+            "district_name": n.district_name,
+        }
+        for n in newsletters
+    ]
 
     return SuccessResponseModel(
         status="success",
         message="Ok",
-        data={"email": newsletter.email},
+        data=result,
     )
 
 @app.post(f"{API_BASE}/get_all_newsletters", response_model=SuccessResponseModel)
-def get_all_newsletters(data: BaseTokenModel, db: Session = Depends(get_db)):
+def get_all_newsletters(data: GetAllNewsLettersModel, db: Session = Depends(get_db)):
     verify_token(data.token)
 
-    newsletters = db.query(NewsLetter).all()
+    query = db.query(NewsLetter)
+
+    if data.filter_type_name:
+        query = query.filter(NewsLetter.filter_type_name == data.filter_type_name)
+
+    if data.district_name:
+        query = query.filter(NewsLetter.district_name == data.district_name)
+
+    newsletters = query.all()
+
+    result = [n.email  for n in newsletters]
 
     return SuccessResponseModel(
+
         status="success",
+
         message="Ok",
-        data=[{"email": n.email} for n in newsletters],
+
+        data=result,
     )
 
 @app.post(f"{API_BASE}/send_auth_code", response_model=SuccessResponseModel)

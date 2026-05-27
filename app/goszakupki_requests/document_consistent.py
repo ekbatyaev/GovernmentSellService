@@ -1077,6 +1077,7 @@ def process_text_into_accumulator(
     documents_accumulator,
     filename: str,
     protocol_mode: bool = False,
+    filter_type: int = 0,
     task_id: str | None = None
 ) -> bool:
     if not text or not text.strip():
@@ -1093,11 +1094,11 @@ def process_text_into_accumulator(
             )
             return True
 
-        if "протокол" in filename.lower() and protocol_mode:
+        if filter_type == 1 and "протокол" in filename.lower() and protocol_mode:
             extracted = run_coro_sync(get_model_extraction(text))
             merge_extracted_into_accumulator(accumulator, extracted)
 
-        elif not protocol_mode and path_name == ".pdf" and is_working_documentation_title_page(text):
+        elif filter_type == 1 and not protocol_mode and path_name == ".pdf" and is_working_documentation_title_page(text):
             designer = extract_designer_from_title_text(text)
 
             if designer:
@@ -1140,6 +1141,7 @@ def read_supported_file_and_merge(
     accumulator: dict,
     documents_accumulator,
     protocol_mode: bool = False,
+    filter_type: int = 0,
     task_id: str | None = None
 ) -> Dict:
     ext = target.suffix.lower()
@@ -1175,7 +1177,8 @@ def read_supported_file_and_merge(
             documents_accumulator=documents_accumulator,
             filename=target.name,
             task_id=task_id,
-            protocol_mode=protocol_mode
+            protocol_mode=protocol_mode,
+            filter_type = filter_type
         )
 
         del text
@@ -1236,7 +1239,7 @@ def read_supported_file_and_merge(
         }
 
 
-def read_path_and_merge(path: str | Path, accumulator: dict, documents_accumulator, protocol_mode: bool = False, task_id: str | None = None) -> Dict:
+def read_path_and_merge(path: str | Path, accumulator: dict, documents_accumulator, protocol_mode: bool = False, filter_type: int = 0, task_id: str | None = None) -> Dict:
     path = Path(path)
 
     logger.info("READ_PATH START | %s", format_log_kv(task_id=task_id, path=path, is_dir=path.is_dir() if path.exists() else None))
@@ -1286,7 +1289,7 @@ def read_path_and_merge(path: str | Path, accumulator: dict, documents_accumulat
 
             for file_path in regular_files:
                 stats["total"] += 1
-                result = read_supported_file_and_merge(file_path, accumulator, documents_accumulator, protocol_mode, task_id)
+                result = read_supported_file_and_merge(file_path, accumulator, documents_accumulator, protocol_mode, filter_type, task_id)
                 if result["ok"]:
                     stats["ok"] += 1
                 elif result.get("skipped"):
@@ -1320,7 +1323,7 @@ def read_path_and_merge(path: str | Path, accumulator: dict, documents_accumulat
                 return
 
             stats["total"] += 1
-            result = read_supported_file_and_merge(target, accumulator, documents_accumulator, protocol_mode, task_id)
+            result = read_supported_file_and_merge(target, accumulator, documents_accumulator, protocol_mode, filter_type, task_id)
             if result["ok"]:
                 stats["ok"] += 1
             elif result.get("skipped"):
@@ -1495,7 +1498,7 @@ def download_multipart_rar(parts: list, work_dir: Path, task_id: str | None = No
 # Интеграция
 # =========================
 
-def process_one_attached_file_and_merge(item: dict, tmp_dir: Path, accumulator: dict, documents_accumulator, protocol_mode: bool = False) -> dict:
+def process_one_attached_file_and_merge(item: dict, tmp_dir: Path, accumulator: dict, documents_accumulator, protocol_mode: bool = False, filter_type: int = 1) -> dict:
     work_dir = None
     session = get_thread_session()
     started = time.perf_counter()
@@ -1532,7 +1535,7 @@ def process_one_attached_file_and_merge(item: dict, tmp_dir: Path, accumulator: 
                 task_id=task_id,
             )
 
-            stats = read_path_and_merge(downloaded_path, accumulator, documents_accumulator, protocol_mode, task_id=task_id)
+            stats = read_path_and_merge(downloaded_path, accumulator, documents_accumulator, protocol_mode, filter_type, task_id=task_id)
 
             elapsed = time.perf_counter() - started
             logger.info(
@@ -1576,7 +1579,7 @@ def process_one_attached_file_and_merge(item: dict, tmp_dir: Path, accumulator: 
             )
 
             first_part_path = download_multipart_rar(parts, work_dir, task_id=task_id)
-            stats = read_path_and_merge(first_part_path, accumulator, documents_accumulator, protocol_mode, task_id=task_id)
+            stats = read_path_and_merge(first_part_path, accumulator, documents_accumulator, protocol_mode, filter_type, task_id=task_id)
 
             elapsed = time.perf_counter() - started
             logger.info(
@@ -1618,7 +1621,7 @@ def process_one_attached_file_and_merge(item: dict, tmp_dir: Path, accumulator: 
             logger.warning("Не удалось удалить временную папку %s: %s", work_dir, cleanup_error)
 
 
-def process_attached_files_and_merge(attached_files: list, tmp_dir: str | Path, result_info_old, documents_list_old, protocol_mode=False) -> Tuple[Dict, List]:
+def process_attached_files_and_merge(attached_files: list, tmp_dir: str | Path, result_info_old, documents_list_old, protocol_mode=False, filter_type = 0) -> Tuple[Dict, List]:
     tmp_dir = ensure_dir(tmp_dir)
     accumulator = init_result_accumulator()
     merge_extracted_into_accumulator(accumulator, result_info_old)
@@ -1658,7 +1661,7 @@ def process_attached_files_and_merge(attached_files: list, tmp_dir: str | Path, 
         )
 
         item_started = time.perf_counter()
-        process_one_attached_file_and_merge(item, tmp_dir, accumulator, documents_accumulator, protocol_mode)
+        process_one_attached_file_and_merge(item, tmp_dir, accumulator, documents_accumulator, protocol_mode, filter_type)
         item_elapsed = time.perf_counter() - item_started
 
         logger.info(

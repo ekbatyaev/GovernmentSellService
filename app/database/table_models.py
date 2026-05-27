@@ -27,11 +27,17 @@ class Purchase(Base):
     documents_list = Column(ARRAY(String), nullable=False, default=list)
     lots = Column(ARRAY(JSONB), nullable=False, default=list)
 
+    filter_type_name = Column(String(1000), nullable=False)
+    region_number = Column(Integer, nullable=False)
+
     source_file = Column(String(255), nullable=True)
 
 class NewsLetter(Base):
     __tablename__ = "newsletter"
 
     id = Column(Integer, primary_key=True)
+
+    filter_type_name = Column(String(1000), nullable=False)
+    district_name = Column(String(1000), nullable=False)
 
     email = Column(String(64), unique = True,nullable=False, index = True)
