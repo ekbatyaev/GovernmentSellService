@@ -24,7 +24,8 @@ from pypdf import PdfReader
 from charset_normalizer import from_bytes
 from docx.table import Table
 from docx.text.paragraph import Paragraph
-from .exctractor_ai import get_model_extraction
+from .ai_requests.rosseti_protocol_extractor import rosseti_get_model_extraction
+from .ai_requests.itm_protocol_extractor import itm_get_model_extraction
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,7 @@ REQUEST_TIMEOUT = (15, 90)
 CHUNK_SIZE = 1024 * 1024
 
 MAX_TOP_LEVEL_WORKERS = 1
-MAX_ARCHIVE_FILE_WORKERS = 8
+MAX_ARCHIVE_FILE_WORKERS = 12
 MAX_PDF_PAGES = 30
 MAX_TEXT_CHARS = 300_000
 MAX_TEXT_FILE_BYTES = 10 * 1024 * 1024
@@ -67,16 +68,24 @@ rarfile.UNRAR_TOOL = "unrar"
 _thread_local = threading.local()
 _libreoffice_semaphore = threading.Semaphore(LIBREOFFICE_MAX_PARALLEL)
 
-FIELDS = [
-    "Победитель",
-    "Другие участники",
-    "Ячейки",
-    "Кол-во ячеек",
-    "Типовой проект",
-    "Проектировщик",
-    "Дата исполнения договора",
-    "Филиал/РЭС",
-]
+FIELDS = \
+    {
+        "rosseti": [
+                "Победитель",
+                "Другие участники",
+                "Ячейки",
+                "Кол-во ячеек",
+                "Типовой проект",
+                "Проектировщик",
+                "Дата исполнения договора",
+                "Филиал/РЭС",
+                ],
+        "itm": [
+            "Победитель",
+            "ИНН",
+            "Итоговая цена контракта",
+            "Другие участники"]
+}
 
 
 # =========================
@@ -310,8 +319,13 @@ def split_merged_value(value: str):
     return parts
 
 
-def init_result_accumulator() -> dict:
-    return {field: OrderedDict() for field in FIELDS}
+def init_result_accumulator(field_mode = 1) -> dict:
+    if field_mode == 1:
+        return {field: OrderedDict() for field in FIELDS["rosseti"]}
+    elif field_mode == 2:
+        return {field: OrderedDict() for field in FIELDS["rosseti"]}
+    elif field_mode == 3:
+        return {field: OrderedDict() for field in FIELDS["itm"]}
 
 
 def init_documents_accumulator(documents_list_old=None):
@@ -1095,7 +1109,7 @@ def process_text_into_accumulator(
             return True
 
         if filter_type == 1 and "протокол" in filename.lower() and protocol_mode:
-            extracted = run_coro_sync(get_model_extraction(text))
+            extracted = run_coro_sync(rosseti_get_model_extraction(text))
             merge_extracted_into_accumulator(accumulator, extracted)
 
         elif filter_type == 1 and not protocol_mode and path_name == ".pdf" and is_working_documentation_title_page(text):
@@ -1124,6 +1138,11 @@ def process_text_into_accumulator(
                         text_len=len(text),
                     )
                 )
+
+        if filter_type == 3 and "протокол" in filename.lower() and protocol_mode:
+
+            extracted = run_coro_sync(itm_get_model_extraction(text))
+            merge_extracted_into_accumulator(accumulator, extracted)
 
         add_processed_document(documents_accumulator, filename)
         return True
@@ -1621,9 +1640,9 @@ def process_one_attached_file_and_merge(item: dict, tmp_dir: Path, accumulator: 
             logger.warning("Не удалось удалить временную папку %s: %s", work_dir, cleanup_error)
 
 
-def process_attached_files_and_merge(attached_files: list, tmp_dir: str | Path, result_info_old, documents_list_old, protocol_mode=False, filter_type = 0) -> Tuple[Dict, List]:
+def process_attached_files_and_merge(attached_files: list, tmp_dir: str | Path, result_info_old, documents_list_old, protocol_mode=False, filter_type = 1) -> Tuple[Dict, List]:
     tmp_dir = ensure_dir(tmp_dir)
-    accumulator = init_result_accumulator()
+    accumulator = init_result_accumulator(field_mode=filter_type)
     merge_extracted_into_accumulator(accumulator, result_info_old)
 
     documents_accumulator = init_documents_accumulator(documents_list_old)
@@ -1685,13 +1704,14 @@ def process_attached_files_and_merge(attached_files: list, tmp_dir: str | Path, 
 
     result = finalize_result_accumulator(accumulator)
 
-    parts = []
-    for x in result["Проектировщик"].split(";"):
-        x = x.strip()
-        if x and x not in parts:
-            parts.append(x)
+    if filter_type == 1:
+        parts = []
+        for x in result["Проектировщик"].split(";"):
+            x = x.strip()
+            if x and x not in parts:
+                parts.append(x)
 
-    result["Проектировщик"] = max(parts, key=len) if parts else ""
+        result["Проектировщик"] = max(parts, key=len) if parts else ""
 
     documents_list = finalize_documents_accumulator(documents_accumulator)
 

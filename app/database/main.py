@@ -133,6 +133,8 @@ class GetAllPurchasesModel(BaseModel):
     filter_type_name: Optional[str] = None
     region_number: Optional[str] = None
 
+    region_numbers: Optional[list[str]] = None
+
 class UpdatePurchaseModel(BaseModel):
     token: str
     guid: Optional[str] = None
@@ -197,13 +199,14 @@ class AdminProcessDay(BaseModel):
 class PutNewsLetterModel(BaseModel):
     token: str
     filter_type_name: str
-    district_name: str
+    district_name: Optional[str] = ""
     email: str
 
 class DeleteNewsLetterModel(BaseModel):
     token: str
     email: str
     filter_type_name: Optional[str] = None
+    district_name: Optional[str] = None
 
 class GetNewsLetterModel(BaseModel):
     token: str
@@ -430,7 +433,9 @@ def get_all_purchases(purchase_data: GetAllPurchasesModel, db: Session = Depends
     if purchase_data.filter_type_name:
         query = query.where(Purchase.filter_type_name == purchase_data.filter_type_name)
 
-    if purchase_data.region_number:
+    if purchase_data.region_numbers:
+        query = query.where(Purchase.region_number.in_(purchase_data.region_numbers))
+    elif purchase_data.region_number is not None:
         query = query.where(Purchase.region_number == purchase_data.region_number)
 
     if purchase_data.initial_sum_from is not None:
@@ -771,7 +776,6 @@ def send_auth_code(data: SendAuthCode):
             subject,
             html_content
         )
-        # send_email(data.email, "Проверочный код", f"Ваш проверочный код для регистрации почты в рассылке госзакупок: {code}")
     except:
         raise HTTPException(status_code=500, detail="Email not found")
 

@@ -17,6 +17,113 @@ let sendCodeTimer = null;
 let sendCodeSeconds = 60;
 
 const SOON_HOURS = 48;
+const FILTER_TYPE_ROSSETI = "Тендеры Россетей";
+const FILTER_TYPE_OEM = "Тендеры для OEM";
+const FILTER_TYPE_ITM = "Тендеры для ITM";
+
+const REGION_CODES_BY_FEDERAL_DISTRICT = {
+  "Все округа": [],
+  "Центральный федеральный округ": ["31", "32", "33", "36", "37", "40", "44", "46", "48", "50", "57", "62", "67", "68", "69", "71", "76", "77"],
+  "Северо-Западный федеральный округ": ["10", "11", "29", "35", "39", "47", "51", "53", "60", "78", "83"],
+  "Южный федеральный округ": ["01", "08", "23", "30", "34", "61", "82", "92"],
+  "Северо-Кавказский федеральный округ": ["05", "06", "07", "09", "15", "20", "26", "95"],
+  "Приволжский федеральный округ": ["02", "12", "13", "16", "18", "21", "43", "52", "56", "58", "59", "63", "64", "73", "81"],
+  "Уральский федеральный округ": ["45", "66", "72", "74", "86", "89"],
+  "Сибирский федеральный округ": ["04", "17", "19", "22", "24", "38", "42", "54", "55", "70", "85"],
+  "Дальневосточный федеральный округ": ["03", "14", "25", "27", "28", "41", "49", "65", "75", "79", "80", "87"],
+};
+
+const REGION_NAMES_BY_CODE = {
+    "01": "Республика Адыгея",
+    "02": "Республика Башкортостан",
+    "03": "Республика Бурятия",
+    "04": "Республика Алтай",
+    "05": "Республика Дагестан",
+    "06": "Республика Ингушетия",
+    "07": "Кабардино-Балкарская Республика",
+    "08": "Республика Калмыкия",
+    "09": "Карачаево-Черкесская Республика",
+    "10": "Республика Карелия",
+    "11": "Республика Коми",
+    "12": "Республика Марий Эл",
+    "13": "Республика Мордовия",
+    "14": "Республика Саха (Якутия)",
+    "15": "Республика Северная Осетия — Алания",
+    "16": "Республика Татарстан",
+    "17": "Республика Тыва",
+    "18": "Удмуртская Республика",
+    "19": "Республика Хакасия",
+    "20": "Чеченская Республика, старый код",
+    "21": "Чувашская Республика",
+    "22": "Алтайский край",
+    "23": "Краснодарский край",
+    "24": "Красноярский край",
+    "25": "Приморский край",
+    "26": "Ставропольский край",
+    "27": "Хабаровский край",
+    "28": "Амурская область",
+    "29": "Архангельская область",
+    "30": "Астраханская область",
+    "31": "Белгородская область",
+    "32": "Брянская область",
+    "33": "Владимирская область",
+    "34": "Волгоградская область",
+    "35": "Вологодская область",
+    "36": "Воронежская область",
+    "37": "Ивановская область",
+    "38": "Иркутская область",
+    "39": "Калининградская область",
+    "40": "Калужская область",
+    "41": "Камчатский край",
+    "42": "Кемеровская область — Кузбасс",
+    "43": "Кировская область",
+    "44": "Костромская область",
+    "45": "Курганская область",
+    "46": "Курская область",
+    "47": "Ленинградская область",
+    "48": "Липецкая область",
+    "49": "Магаданская область",
+    "50": "Московская область",
+    "51": "Мурманская область",
+    "52": "Нижегородская область",
+    "53": "Новгородская область",
+    "54": "Новосибирская область",
+    "55": "Омская область",
+    "56": "Оренбургская область",
+    "57": "Орловская область",
+    "58": "Пензенская область",
+    "59": "Пермский край",
+    "60": "Псковская область",
+    "61": "Ростовская область",
+    "62": "Рязанская область",
+    "63": "Самарская область",
+    "64": "Саратовская область",
+    "65": "Сахалинская область",
+    "66": "Свердловская область",
+    "67": "Смоленская область",
+    "68": "Тамбовская область",
+    "69": "Тверская область",
+    "70": "Томская область",
+    "71": "Тульская область",
+    "72": "Тюменская область",
+    "73": "Ульяновская область",
+    "74": "Челябинская область",
+    "75": "Забайкальский край",
+    "76": "Ярославская область",
+    "77": "Москва",
+    "78": "Санкт-Петербург",
+    "79": "Еврейская автономная область",
+    "80": "бывший Агинский Бурятский АО, сейчас в составе Забайкальского края",
+    "81": "бывший Коми-Пермяцкий АО, сейчас в составе Пермского края",
+    "82": "Республика Крым",
+    "83": "Ненецкий автономный округ",
+    "85": "бывший Усть-Ордынский Бурятский АО, сейчас в составе Иркутской области",
+    "86": "Ханты-Мансийский автономный округ — Югра",
+    "87": "Чукотский автономный округ",
+    "89": "Ямало-Ненецкий автономный округ",
+    "92": "Севастополь",
+    "95": "Чеченская Республика",
+};
 
 function $(id){ return document.getElementById(id); }
 
@@ -109,6 +216,101 @@ function fmtDateOnly(iso){
 function val(id){
   const v = $(id)?.value;
   return v && String(v).trim().length ? String(v).trim() : null;
+}
+
+function selectedFilterType(){
+  return val("filter_type_name") || FILTER_TYPE_ROSSETI;
+}
+
+function selectedDistrictName(){
+  return val("district_name");
+}
+
+function isOemFilterType(filterType = selectedFilterType()){
+  return filterType === FILTER_TYPE_OEM;
+}
+
+function isItmFilterType(filterType = selectedFilterType()){
+  return filterType === FILTER_TYPE_ITM;
+}
+
+function getRegionNumbersByDistrict(districtName){
+  return REGION_CODES_BY_FEDERAL_DISTRICT[districtName] || [];
+}
+
+function fillDistrictSelect(selectId){
+  const select = $(selectId);
+  if (!select) return;
+
+  const current = select.value;
+  select.innerHTML = "";
+
+  Object.keys(REGION_CODES_BY_FEDERAL_DISTRICT).forEach((districtName) => {
+    const option = document.createElement("option");
+    option.value = districtName;
+    option.textContent = districtName;
+    select.appendChild(option);
+  });
+
+  if (current && REGION_CODES_BY_FEDERAL_DISTRICT[current]) {
+    select.value = current;
+  }
+}
+
+function syncDistrictVisibility(){
+  const filterType = selectedFilterType();
+  const districtField = $("districtFilterField");
+
+  if (districtField) {
+    districtField.classList.toggle(
+      "hidden",
+      !(isOemFilterType(filterType) || isItmFilterType(filterType))
+    );
+  }
+
+  const emailFilterType = val("emailFilterTypeName") || filterType;
+  const emailDistrictField = $("emailDistrictField");
+
+  if (emailDistrictField) {
+    emailDistrictField.classList.toggle(
+      "hidden",
+      !(isOemFilterType(emailFilterType) || isItmFilterType(emailFilterType))
+    );
+  }
+}
+
+function buildPurchaseRequestBody(){
+  const filterType = selectedFilterType();
+  const districtName = selectedDistrictName();
+
+  const body = {
+    token: SYSTEM_TOKEN,
+    filter_type_name: filterType,
+
+    initial_sum_from: num("initial_sum_from"),
+    initial_sum_to: num("initial_sum_to"),
+
+    publication_datetime_from: dateToIsoRangeStart("publication_datetime_from"),
+    publication_datetime_to: dateToIsoRangeEnd("publication_datetime_to"),
+
+    submission_start_datetime_from: dateToIsoRangeStart("submission_start_datetime_from"),
+    submission_start_datetime_to: dateToIsoRangeEnd("submission_start_datetime_to"),
+
+    submission_close_datetime_from: dateToIsoRangeStart("submission_close_datetime_from"),
+    submission_close_datetime_to: dateToIsoRangeEnd("submission_close_datetime_to"),
+  };
+
+  if (isOemFilterType(filterType) || isItmFilterType(filterType)) {
+    const regionNumbers = getRegionNumbersByDistrict(districtName);
+
+    body.district_name = districtName || "Все округа";
+    body.region_numbers = regionNumbers.length ? regionNumbers : null;
+  } else {
+    body.district_name = null;
+    body.region_numbers = null;
+  }
+
+  return body;
 }
 
 function num(id){
@@ -260,6 +462,7 @@ function openModal(p){
   const c = p.customer || {};
   const contact = p.contact || {};
   const st = getDeadlineStatus(p);
+  const registryUrl = buildGosRegistryUrl(p.registration_number);
 
   $("modalContent").innerHTML = `
       <div class="kv"><div class="kv__k">Статус</div><div class="kv__v">${st.label}</div></div>
@@ -275,8 +478,8 @@ function openModal(p){
       <div class="kv"><div class="kv__k">Контакт</div><div class="kv__v">${[contact.last_name, contact.first_name, contact.middle_name].filter(Boolean).join(" ") || "—"}</div></div>
       <div class="kv"><div class="kv__k">Телефон</div><div class="kv__v">${contact.phone || "—"}</div></div>
       <div class="kv"><div class="kv__k">Email</div><div class="kv__v">${contact.email || "—"}</div></div>
+      <div class="kv"><div class="kv__k">Регион заявки</div><div class="kv__v">${REGION_NAMES_BY_CODE[p.region_number] || p.region_number || "—"}</div></div>
 
-      <div class="kv"><div class="kv__k">Лоты</div><div class="kv__v">${Array.isArray(p.lots) ? p.lots.length : "—"}</div></div>
   `;
 
   $("btnCopyGuid").onclick = async (e) => {
@@ -301,6 +504,19 @@ function openModal(p){
       console.error(err);
       setStatus("Не удалось скопировать рег. номер", "error");
     }
+  };
+
+  $("btnOpenRegistry").onclick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!registryUrl) {
+      setStatus("Нет реестрового номера для ссылки", "error");
+      return;
+    }
+
+    window.open(registryUrl, "_blank", "noopener,noreferrer");
+    setStatus("Открываю заявку в госреестре", "ok");
   };
 
   $("modal").classList.remove("hidden");
@@ -445,6 +661,7 @@ function saveStateToUrl(){
   const params = new URLSearchParams();
 
   [
+    "filter_type_name","district_name",
     "initial_sum_from","initial_sum_to",
     "publication_datetime_from","publication_datetime_to",
     "submission_start_datetime_from","submission_start_datetime_to",
@@ -473,12 +690,15 @@ function loadStateFromUrl(){
   };
 
   [
+    "filter_type_name","district_name",
     "initial_sum_from","initial_sum_to",
     "publication_datetime_from","publication_datetime_to",
     "submission_start_datetime_from","submission_start_datetime_to",
     "submission_close_datetime_from","submission_close_datetime_to",
     "q","sort","pageSize","statusFilter"
   ].forEach(setIf);
+
+  syncDistrictVisibility();
 
   const v = params.get("view");
   if (v === "cards") setView("cards");
@@ -523,7 +743,7 @@ async function fetchAllPurchasesForExport(){
   const res = await fetch(`${API_BASE}/get_all_purchases`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ token: SYSTEM_TOKEN })
+    body: JSON.stringify(buildPurchaseRequestBody())
   });
 
   let json = {};
@@ -544,6 +764,13 @@ function safeExportValue(v){
   return v ?? "";
 }
 
+function buildGosRegistryUrl(registrationNumber){
+  const regNumber = String(registrationNumber || "").trim();
+  if (!regNumber) return "";
+
+  return `https://zakupki.gov.ru/epz/order/notice/notice223/common-info.html?regNumber=${encodeURIComponent(regNumber)}`;
+}
+
 function formatExportDate(value){
   if (!value) return "";
 
@@ -553,9 +780,8 @@ function formatExportDate(value){
   return d;
 }
 
-function buildExportRows(purchases){
+function buildRossetiExportRows(purchases){
   const rows = [];
-  let lotSequence = 1;
 
   for (const p of purchases) {
     const resultInfo = p?.result_info || {};
@@ -564,11 +790,11 @@ function buildExportRows(purchases){
     for (const lot of lots) {
       rows.push({
         "Реестровый номер закупки": safeExportValue(p?.registration_number),
-        "Порядковый номер лота": lotSequence++,
         "Наименование лота": safeExportValue(lot?.subject || p?.name),
         "Начальная (максимальная) цена контракта": Number(p?.initial_sum) || 0,
         "Валюта": safeExportValue(lot?.currency || p?.currency || "RUB"),
         "Наименование Заказчика": safeExportValue(p?.customer?.full_name),
+        "Регион заявки": safeExportValue(REGION_NAMES_BY_CODE[p?.region_number]),
         "Организация, осуществляющая размещение ": safeExportValue(
           p?.customer?.placement_organization || p?.customer?.full_name
         ),
@@ -584,11 +810,122 @@ function buildExportRows(purchases){
         "Проектировщик": safeExportValue(resultInfo?.["Проектировщик"]),
         "Дата исполнения договора": safeExportValue(resultInfo?.["Дата исполнения договора"]),
         "Филиал/РЭС": safeExportValue(resultInfo?.["Филиал/РЭС"]),
+        "Ссылка на заявку в госреестре": buildGosRegistryUrl(p?.registration_number)
       });
     }
   }
 
   return rows;
+}
+
+function buildOemExportRows(purchases){
+  return purchases.map((purchase) => {
+    const customer = purchase?.customer || {};
+
+    return {
+      "Реестровый номер": safeExportValue(purchase?.registration_number),
+      "Название закупки": safeExportValue(purchase?.name),
+      "Сумма закупки": Number(purchase?.initial_sum) || 0,
+      "Дата начала подачи заявок": formatExportDate(purchase?.submission_start_datetime),
+      "Дата окончания подачи заявок": formatExportDate(purchase?.submission_close_datetime),
+      "Дата публикации": formatExportDate(purchase?.publication_datetime),
+      "Заказчик название": safeExportValue(customer?.full_name),
+      "Регион заявки": safeExportValue(REGION_NAMES_BY_CODE[purchase?.region_number]),
+      "Ссылка на заявку в госреестре": buildGosRegistryUrl(purchase?.registration_number)
+    };
+  });
+}
+
+function buildItmExportRows(purchases){
+  return purchases.map((purchase) => {
+    const customer = purchase?.customer || {};
+    const resultInfo = purchase?.result_info || {};
+
+    return {
+      "Реестровый номер": safeExportValue(purchase?.registration_number),
+      "Название закупки": safeExportValue(purchase?.name),
+      "Сумма закупки": Number(purchase?.initial_sum) || 0,
+      "Дата начала подачи заявок": formatExportDate(purchase?.submission_start_datetime),
+      "Дата окончания подачи заявок": formatExportDate(purchase?.submission_close_datetime),
+      "Дата публикации": formatExportDate(purchase?.publication_datetime),
+      "Заказчик название": safeExportValue(customer?.full_name),
+      "Регион заявки": safeExportValue(REGION_NAMES_BY_CODE[purchase?.region_number]),
+      "Победитель": safeExportValue(resultInfo?.["Победитель"]),
+      "ИНН": safeExportValue(resultInfo?.["ИНН"]),
+      "Итоговая цена контракта": safeExportValue(resultInfo?.["Итоговая цена контракта"]),
+      "Другие участники": safeExportValue(resultInfo?.["Другие участники"]),
+      "Ссылка на заявку в госреестре": buildGosRegistryUrl(purchase?.registration_number)
+    };
+  });
+}
+
+function buildExportRows(purchases) {
+  if (isOemFilterType()) {
+    return buildOemExportRows(purchases);
+  }
+
+  if (isItmFilterType()) {
+    return buildItmExportRows(purchases);
+  }
+
+  return buildRossetiExportRows(purchases);
+}
+
+function getExportColumns(){
+  if (isOemFilterType()) {
+    return [
+      { header: "Реестровый номер", key: "Реестровый номер", width: 18 },
+      { header: "Название закупки", key: "Название закупки", width: 60 },
+      { header: "Сумма закупки", key: "Сумма закупки", width: 18 },
+      { header: "Дата начала подачи заявок", key: "Дата начала подачи заявок", width: 18 },
+      { header: "Дата окончания подачи заявок", key: "Дата окончания подачи заявок", width: 18 },
+      { header: "Дата публикации", key: "Дата публикации", width: 18 },
+      { header: "Заказчик название", key: "Заказчик название", width: 36 },
+      { header: "Регион заявки", key: "Регион заявки", width: 36 },
+      { header: "Ссылка на заявку в госреестре", key: "Ссылка на заявку в госреестре", width: 72 }
+    ];
+  }
+
+  if (isItmFilterType()) {
+    return [
+      { header: "Реестровый номер", key: "Реестровый номер", width: 18 },
+      { header: "Название закупки", key: "Название закупки", width: 60 },
+      { header: "Сумма закупки", key: "Сумма закупки", width: 18 },
+      { header: "Дата начала подачи заявок", key: "Дата начала подачи заявок", width: 18 },
+      { header: "Дата окончания подачи заявок", key: "Дата окончания подачи заявок", width: 18 },
+      { header: "Дата публикации", key: "Дата публикации", width: 18 },
+      { header: "Заказчик название", key: "Заказчик название", width: 36 },
+      { header: "Регион заявки", key: "Регион заявки", width: 36 },
+      { header: "Победитель", key: "Победитель", width: 14 },
+      { header: "ИНН", key: "ИНН", width: 9 },
+      { header: "Итоговая цена контракта", key: "Итоговая цена контракта", width: 13 },
+      { header: "Другие\nучастники", key: "Другие\nучастники", width: 15 },
+      { header: "Ссылка на заявку в госреестре", key: "Ссылка на заявку в госреестре", width: 72 }
+    ];
+  }
+
+  return [
+    { header: "Реестровый номер закупки", key: "Реестровый номер закупки", width: 16 },
+    { header: "Наименование лота", key: "Наименование лота", width: 55 },
+    { header: "Начальная (максимальная) цена контракта", key: "Начальная (максимальная) цена контракта", width: 16 },
+    { header: "Валюта", key: "Валюта", width: 9 },
+    { header: "Наименование Заказчика", key: "Наименование Заказчика", width: 28 },
+    { header: "Регион заявки", key: "Регион заявки", width: 36 },
+    { header: "Организация, осуществляющая размещение ", key: "Организация, осуществляющая размещение ", width: 21 },
+    { header: "Дата размещения", key: "Дата размещения", width: 13 },
+    { header: "Дата обновления", key: "Дата обновления", width: 13 },
+    { header: "Дата начала подачи заявок", key: "Дата начала подачи заявок", width: 11 },
+    { header: "Дата окончания подачи заявок", key: "Дата окончания подачи заявок", width: 13 },
+    { header: "Победитель ", key: "Победитель ", width: 14 },
+    { header: "Другие\nучастники", key: "Другие\nучастники", width: 15 },
+    { header: "Ячейки", key: "Ячейки", width: 9 },
+    { header: "Кол-во ячеек", key: "Кол-во ячеек", width: 13 },
+    { header: "Типовой проект", key: "Типовой проект", width: 15 },
+    { header: "Проектировщик", key: "Проектировщик", width: 29 },
+    { header: "Дата исполнения договора", key: "Дата исполнения договора", width: 13 },
+    { header: "Филиал/РЭС", key: "Филиал/РЭС", width: 14 },
+    { header: "Ссылка на заявку в госреестре", key: "Ссылка на заявку в госреестре", width: 72 }
+  ];
 }
 
 async function apiSearch(){
@@ -597,20 +934,7 @@ async function apiSearch(){
     return;
   }
 
-  const body = {
-    token: SYSTEM_TOKEN,
-    initial_sum_from: num("initial_sum_from"),
-    initial_sum_to: num("initial_sum_to"),
-
-    publication_datetime_from: dateToIsoRangeStart("publication_datetime_from"),
-    publication_datetime_to: dateToIsoRangeEnd("publication_datetime_to"),
-
-    submission_start_datetime_from: dateToIsoRangeStart("submission_start_datetime_from"),
-    submission_start_datetime_to: dateToIsoRangeEnd("submission_start_datetime_to"),
-
-    submission_close_datetime_from: dateToIsoRangeStart("submission_close_datetime_from"),
-    submission_close_datetime_to: dateToIsoRangeEnd("submission_close_datetime_to"),
-  };
+  const body = buildPurchaseRequestBody();
 
   try{
     setStatus("Загружаю данные…");
@@ -664,11 +988,12 @@ async function exportJson(){
       const normalized = { ...row };
 
       [
-        "Дата размещения",
-        "Дата обновления",
-        "Дата начала подачи заявок",
-        "Дата окончания подачи заявок"
-      ].forEach((key) => {
+      "Дата размещения",
+      "Дата обновления",
+      "Дата начала подачи заявок",
+      "Дата окончания подачи заявок",
+      "Дата публикации"
+    ].forEach((key) => {
         if (normalized[key] instanceof Date) {
           normalized[key] = normalized[key].toISOString();
         }
@@ -684,7 +1009,7 @@ async function exportJson(){
 
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = "purchases.json";
+    a.download = buildExportFileName("json");
     a.click();
     URL.revokeObjectURL(a.href);
   } catch (err) {
@@ -701,27 +1026,7 @@ async function exportXlsx() {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet("Purchases");
 
-    const columns = [
-      { header: "Реестровый номер закупки", key: "Реестровый номер закупки", width: 16 },
-      { header: "Порядковый номер лота", key: "Порядковый номер лота", width: 9 },
-      { header: "Наименование лота", key: "Наименование лота", width: 55 },
-      { header: "Начальная (максимальная) цена контракта", key: "Начальная (максимальная) цена контракта", width: 16 },
-      { header: "Валюта", key: "Валюта", width: 9 },
-      { header: "Наименование Заказчика", key: "Наименование Заказчика", width: 28 },
-      { header: "Организация, осуществляющая размещение ", key: "Организация, осуществляющая размещение ", width: 21 },
-      { header: "Дата размещения", key: "Дата размещения", width: 13 },
-      { header: "Дата обновления", key: "Дата обновления", width: 13 },
-      { header: "Дата начала подачи заявок", key: "Дата начала подачи заявок", width: 11 },
-      { header: "Дата окончания подачи заявок", key: "Дата окончания подачи заявок", width: 13 },
-      { header: "Победитель ", key: "Победитель ", width: 14 },
-      { header: "Другие\nучастники", key: "Другие\nучастники", width: 15 },
-      { header: "Ячейки", key: "Ячейки", width: 9 },
-      { header: "Кол-во ячеек", key: "Кол-во ячеек", width: 13 },
-      { header: "Типовой проект", key: "Типовой проект", width: 15 },
-      { header: "Проектировщик", key: "Проектировщик", width: 29 },
-      { header: "Дата исполнения договора", key: "Дата исполнения договора", width: 13 },
-      { header: "Филиал/РЭС", key: "Филиал/РЭС", width: 14 },
-    ];
+    const columns = getExportColumns();
 
     worksheet.columns = columns;
     worksheet.addRows(rows);
@@ -734,8 +1039,12 @@ async function exportXlsx() {
     };
 
     const yellowHeaderCols = new Set([
+      "Победитель",
       "Победитель ",
+      "Другие участники",
       "Другие\nучастники",
+      "ИНН",
+      "Итоговая цена контракта",
       "Ячейки",
       "Кол-во ячеек",
       "Типовой проект",
@@ -794,11 +1103,11 @@ async function exportXlsx() {
           cell.alignment.vertical = "middle";
         }
 
-        if (colNumber >= 8 && colNumber <= 11 && cell.value instanceof Date) {
+        if (cell.value instanceof Date) {
           cell.numFmt = "mm-dd-yy";
         }
 
-        if (colNumber === 4 && typeof cell.value === "number") {
+        if (typeof cell.value === "number") {
           cell.numFmt = "#,##0.00";
         }
       });
@@ -812,7 +1121,7 @@ async function exportXlsx() {
 
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = "purchases.xlsx";
+    a.download = buildExportFileName("xlsx");
     a.click();
     URL.revokeObjectURL(a.href);
   } catch (err) {
@@ -831,6 +1140,16 @@ function resetFilters(){
   ].forEach(id => {
     if ($(id)) $(id).value = "";
   });
+
+  if ($("filter_type_name")) {
+    $("filter_type_name").value = FILTER_TYPE_ROSSETI;
+  }
+
+  if ($("district_name")) {
+    $("district_name").value = "Все округа";
+  }
+
+  syncDistrictVisibility();
 
   $("sort").value = "submission_start_desc";
   $("pageSize").value = "20";
@@ -858,6 +1177,15 @@ function bindEvents(){
   $("btnRefresh").onclick = apiSearch;
   $("btnSearch").onclick = apiSearch;
   $("btnReset").onclick = () => { resetFilters(); apiSearch(); };
+
+  $("filter_type_name").onchange = () => {
+    page = 1;
+    syncDistrictVisibility();
+    apiSearch();
+  };
+  $("district_name").onchange = () => { page = 1; apiSearch(); };
+
+  $("emailFilterTypeName").onchange = syncDistrictVisibility;
 
   $("sort").onchange = () => { page = 1; render(); saveStateToUrl(); };
   $("pageSize").onchange = () => { page = 1; render(); saveStateToUrl(); };
@@ -958,6 +1286,9 @@ function openEmailModal(mode = "subscribe"){
 
   emailInput.value = "";
   codeInput.value = "";
+  if ($("emailFilterTypeName")) $("emailFilterTypeName").value = selectedFilterType();
+  if ($("emailDistrictName") && selectedDistrictName()) $("emailDistrictName").value = selectedDistrictName();
+  syncDistrictVisibility();
   codeField.style.display = "none";
   btnVerifyCode.style.display = "none";
   emailStatus.innerText = "";
@@ -980,6 +1311,30 @@ function closeEmailModal(){
   codeField.style.display = "none";
   btnVerifyCode.style.display = "none";
   emailStatus.innerText = "";
+}
+
+function slugifyRu(value){
+  return String(value || "")
+    .toLowerCase()
+    .replaceAll("ё", "е")
+    .replace(/[^a-zа-я0-9]+/gi, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function buildExportFileName(ext){
+  const filterType = selectedFilterType();
+
+  if (filterType === FILTER_TYPE_OEM) {
+    const district = selectedDistrictName() || "Все округа";
+    return `oem_purchases_${slugifyRu(district)}.${ext}`;
+  }
+
+  if (filterType === FILTER_TYPE_ITM) {
+    const district = selectedDistrictName() || "Все округа";
+    return `itm_purchases_${slugifyRu(district)}.${ext}`;
+  }
+
+  return `rosseti_purchases.${ext}`;
 }
 
 async function apiPost(url, body){
@@ -1034,6 +1389,18 @@ async function sendAuthCode(){
 async function verifyAuthCode(){
   const email = emailInput.value;
   const code = codeInput.value;
+  const filterTypeName = val("emailFilterTypeName") || FILTER_TYPE_ROSSETI;
+  const districtName = val("emailDistrictName");
+
+  if (isOemFilterType(filterTypeName) && !districtName) {
+    emailStatus.innerText = "Выберите федеральный округ";
+    return;
+  }
+
+  if (isItmFilterType(filterTypeName) && !districtName) {
+    emailStatus.innerText = "Выберите федеральный округ";
+    return;
+  }
 
   if (!code){
     emailStatus.innerText = "Введите код";
@@ -1049,17 +1416,19 @@ async function verifyAuthCode(){
       token: SYSTEM_TOKEN
     });
 
+    const newsletterPayload = {
+      email: email,
+      token: SYSTEM_TOKEN,
+      filter_type_name: filterTypeName,
+      district_name: isOemFilterType(filterTypeName) || isItmFilterType(filterTypeName)  ? districtName : "",
+    };
+
     if (emailMode === "subscribe"){
-      await apiPost(`${API_BASE}/put_newsletter`, {
-        email: email,
-        token: SYSTEM_TOKEN
-      });
+      await apiPost(`${API_BASE}/put_newsletter`, newsletterPayload);
     } else {
-      await apiPost(`${API_BASE}/delete_newsletter`, {
-        email: email,
-        token: SYSTEM_TOKEN
-      });
+      await apiPost(`${API_BASE}/delete_newsletter`, newsletterPayload);
     }
+
 
     emailStatus.innerText =
       emailMode === "subscribe"
@@ -1074,6 +1443,8 @@ async function verifyAuthCode(){
 
 async function init(){
   loadTheme();
+  fillDistrictSelect("district_name");
+  fillDistrictSelect("emailDistrictName");
   initEmailModal();
   bindEvents();
   loadStateFromUrl();

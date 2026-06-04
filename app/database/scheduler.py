@@ -5,8 +5,8 @@ from dateutil.relativedelta import relativedelta
 from sqlalchemy import delete, func, select
 from .connection_to_database import db_session
 from .table_models import Purchase
-from goszakupki_requests.data_request import get_docs_by_region, download_archive_from_result
-from goszakupki_requests.parse_data_fz_223 import parse_zip_archive_purchases, parse_zip_archive_protocols
+from goszakupki_requests.xml_archives_request import get_docs_by_region, download_archive_from_result
+from goszakupki_requests.parse_xml_archive_223fz import parse_zip_archive_purchases, parse_zip_archive_protocols
 from .email_handles import send_email
 from dotenv import load_dotenv
 import os
@@ -167,6 +167,17 @@ REGIONS_OF_THE_FILTERS = \
     {
         "Тендеры Россетей": ["77"],
         "Тендеры для OEM": [
+    "01", "02", "03", "04", "05", "06", "07", "08", "09",
+    "10", "11", "12", "13", "14", "15", "16", "17", "18", "19",
+    "20", "21", "22", "23", "24", "25", "26", "27", "28", "29",
+    "30", "31", "32", "33", "34", "35", "36", "37", "38", "39",
+    "40", "41", "42", "43", "44", "45", "46", "47", "48", "49",
+    "50", "51", "52", "53", "54", "55", "56", "57", "58", "59",
+    "60", "61", "62", "63", "64", "65", "66", "67", "68", "69",
+    "70", "71", "72", "73", "74", "75", "76", "77", "78", "79",
+    "80", "81", "82", "83", "85", "86", "87", "89", "92", "95"
+    ],
+        "Тендеры для ITM": [
     "01", "02", "03", "04", "05", "06", "07", "08", "09",
     "10", "11", "12", "13", "14", "15", "16", "17", "18", "19",
     "20", "21", "22", "23", "24", "25", "26", "27", "28", "29",
@@ -604,158 +615,222 @@ def run_daily_job() -> Dict[str, Any]:
 
         # Высылаем информацию по Россетям
 
-        for filter_name in REGIONS_OF_THE_FILTERS:
-            # Cобираем нужные регионы по списку и отсылаем
+        result = {
+            "ok": True,
+            "created": 0,
+            "updated": 0,
+            "skipped": 0,
+            "date": date_str,
+        }
 
-            if filter_name == "Тендеры Россетей":
+        created = 0
+        updated = 0
+        skipped = 0
 
-                created = 0
-                updated = 0
-                skipped = 0
+        registration_numbers = []
 
-                registration_numbers = []
+        filter_name = "Тендеры Россетей"
 
-                for region in day_result[filter_name].keys():
+        for region in day_result[filter_name].keys():
+            created += len(day_result[filter_name][region]["created"])
+            updated += len(day_result[filter_name][region]["updated"])
+            skipped += len(day_result[filter_name][region]["skipped"])
 
-                    created += len(day_result[filter_name][region]["created"])
-                    updated += len(day_result[filter_name][region]["updated"])
-                    skipped += len(day_result[filter_name][region]["skipped"])
+            registration_numbers += (day_result[filter_name][region]["created"] +
+                                     day_result[filter_name][region]["updated"] +
+                                     day_result[filter_name][region]["skipped"])
 
-                    registration_numbers += (day_result[filter_name][region]["created"] +
-                                             day_result[filter_name][region]["updated"] +
-                                             day_result[filter_name][region]["skipped"])
+        emails_response = requests.post(
+            f"{APP_URL}{API_BASE}/get_all_newsletters",
+            json={"token": TOKEN, "filter_type_name": filter_name},
+            timeout=30,
+        )
 
-                emails_response = requests.post(
-                    f"{APP_URL}{API_BASE}/get_all_newsletters",
-                    json={"token": TOKEN, "filter_type_name": filter_name},
+        emails_response.raise_for_status()
+        emails = emails_response.json().get("data", [])
+
+        rows = []
+
+        for registration_number in registration_numbers:
+            purchase_response = requests.post(
+                f"{APP_URL}{API_BASE}/get_purchase",
+                json={"token": TOKEN, "registration_number": registration_number},
+                timeout=30,
+            )
+
+            purchase_response.raise_for_status()
+
+            purchase = purchase_response.json().get("data", {})
+
+            customer = purchase.get("customer") or {}
+            result_info = purchase.get("result_info") or {}
+
+            base = {
+                "Реестровый номер": purchase.get("registration_number"),
+                "Название закупки": purchase.get("name"),
+                "Сумма закупки": purchase.get("initial_sum"),
+                "Дата начала подачи заявок": purchase.get("submission_start_datetime"),
+                "Дата окончания подачи заявок": purchase.get("submission_close_datetime"),
+                "Дата публикации": purchase.get("publication_datetime"),
+                "Заказчик название": customer.get("full_name"),
+                "Победитель": result_info.get("Победитель"),
+                "Другие участники": result_info.get("Другие участники"),
+                "Ячейки": result_info.get("Ячейки"),
+                "Кол-во ячеек": result_info.get("Кол-во ячеек"),
+                "Типовой проект": result_info.get("Типовой проект"),
+                "Проектировщик": result_info.get("Проектировщик"),
+                "Дата исполнения договора": result_info.get("Дата исполнения договора"),
+                "Филиал/РЭС": result_info.get("Филиал/РЭС"),
+                "Ссылка на тендер": f"https://zakupki.gov.ru/epz/order/notice/notice223/common-info.html?regNumber={purchase.get("registration_number")}"
+            }
+
+            rows.append(base)
+
+        result["created"] += created
+        result["updated"] += updated
+        result["skipped"] += skipped
+
+
+        create_analysis(rows=rows, emails=emails,
+                        created=created, updated=updated, skipped=skipped)
+
+
+        # Высылаем информацию для OEM
+
+        filter_name = "Тендеры для OEM"
+
+        for district in REGION_CODES_BY_FEDERAL_DISTRICT.keys():
+
+            created = 0
+            updated = 0
+            skipped = 0
+
+            registration_numbers = []
+
+            for region in REGION_CODES_BY_FEDERAL_DISTRICT[district]:
+                created += len(day_result[filter_name][region]["created"])
+                updated += len(day_result[filter_name][region]["updated"])
+                skipped += len(day_result[filter_name][region]["skipped"])
+
+                registration_numbers += (day_result[filter_name][region]["created"] +
+                                         day_result[filter_name][region]["updated"] +
+                                         day_result[filter_name][region]["skipped"])
+
+            emails_response = requests.post(
+                f"{APP_URL}{API_BASE}/get_all_newsletters",
+                json={"token": TOKEN, "filter_type_name": filter_name, "district_name": district},
+                timeout=30,
+            )
+
+            emails_response.raise_for_status()
+            emails = emails_response.json().get("data", [])
+
+            rows = []
+
+            for registration_number in registration_numbers:
+                purchase_response = requests.post(
+                    f"{APP_URL}{API_BASE}/get_purchase",
+                    json={"token": TOKEN, "registration_number": registration_number},
                     timeout=30,
                 )
 
-                emails_response.raise_for_status()
-                emails = emails_response.json().get("data", [])
+                purchase_response.raise_for_status()
 
-                rows = []
+                purchase = purchase_response.json().get("data", {})
 
-                for registration_number in registration_numbers:
-                    purchase_response = requests.post(
-                        f"{APP_URL}{API_BASE}/get_purchase",
-                        json={"token": TOKEN, "registration_number": registration_number},
-                        timeout=30,
-                    )
+                customer = purchase.get("customer") or {}
 
-                    purchase_response.raise_for_status()
-
-                    purchase = purchase_response.json().get("data", {})
-
-                    customer = purchase.get("customer") or {}
-                    result_info = purchase.get("result_info") or {}
-
-                    base = {
-                        "Реестровый номер": purchase.get("registration_number"),
-                        "Название закупки": purchase.get("name"),
-                        "Сумма закупки": purchase.get("initial_sum"),
-                        "Дата начала подачи заявок": purchase.get("submission_start_datetime"),
-                        "Дата окончания подачи заявок": purchase.get("submission_close_datetime"),
-                        "Дата публикации": purchase.get("publication_datetime"),
-                        "Заказчик название": customer.get("full_name"),
-                        "Победитель": result_info.get("Победитель"),
-                        "Другие участники": result_info.get("Другие участники"),
-                        "Ячейки": result_info.get("Ячейки"),
-                        "Кол-во ячеек": result_info.get("Кол-во ячеек"),
-                        "Типовой проект": result_info.get("Типовой проект"),
-                        "Проектировщик": result_info.get("Проектировщик"),
-                        "Дата исполнения договора": result_info.get("Дата исполнения договора"),
-                        "Филиал/РЭС": result_info.get("Филиал/РЭС")
-                    }
-
-                    rows.append(base)
-
-                result = {
-                    "ok": True,
-                    "created": created,
-                    "updated": updated,
-                    "skipped": skipped,
-                    "date": date_str,
+                base = {
+                    "Реестровый номер": purchase.get("registration_number"),
+                    "Название закупки": purchase.get("name"),
+                    "Сумма закупки": purchase.get("initial_sum"),
+                    "Дата начала подачи заявок": purchase.get("submission_start_datetime"),
+                    "Дата окончания подачи заявок": purchase.get("submission_close_datetime"),
+                    "Дата публикации": purchase.get("publication_datetime"),
+                    "Заказчик название": customer.get("full_name"),
+                    "Ссылка на тендер": f"https://zakupki.gov.ru/epz/order/notice/notice223/common-info.html?regNumber={purchase.get("registration_number")}"
                 }
 
-                create_analysis(rows=rows, emails=emails,
-                                created=created, updated=updated, skipped=skipped)
+                rows.append(base)
 
-            elif filter_name == "Тендеры для OEM":
+            result["created"] += created
+            result["updated"] += updated
+            result["skipped"] += skipped
 
-                for district in REGION_CODES_BY_FEDERAL_DISTRICT.keys():
+            create_analysis(rows=rows, emails=emails,
+                            created=created, updated=updated, skipped=skipped)
 
-                    created = 0
-                    updated = 0
-                    skipped = 0
+        # Высылаем информацию для ITM
 
-                    registration_numbers = []
+        filter_name = "Тендеры для ITM"
 
-                    for region in REGION_CODES_BY_FEDERAL_DISTRICT[district]:
+        for district in REGION_CODES_BY_FEDERAL_DISTRICT.keys():
 
-                        created += len(day_result[filter_name][region]["created"])
-                        updated += len(day_result[filter_name][region]["updated"])
-                        skipped += len(day_result[filter_name][region]["skipped"])
+            created = 0
+            updated = 0
+            skipped = 0
 
-                        registration_numbers += (day_result[filter_name][region]["created"] +
-                                                 day_result[filter_name][region]["updated"] +
-                                                 day_result[filter_name][region]["skipped"])
+            registration_numbers = []
 
-                    emails_response = requests.post(
-                        f"{APP_URL}{API_BASE}/get_all_newsletters",
-                        json={"token": TOKEN, "filter_type_name": filter_name, "district_name": district},
-                        timeout=30,
-                    )
+            for region in REGION_CODES_BY_FEDERAL_DISTRICT[district]:
+                created += len(day_result[filter_name][region]["created"])
+                updated += len(day_result[filter_name][region]["updated"])
+                skipped += len(day_result[filter_name][region]["skipped"])
 
-                    emails_response.raise_for_status()
-                    emails = emails_response.json().get("data", [])
+                registration_numbers += (day_result[filter_name][region]["created"] +
+                                         day_result[filter_name][region]["updated"] +
+                                         day_result[filter_name][region]["skipped"])
 
-                    rows = []
+            emails_response = requests.post(
+                f"{APP_URL}{API_BASE}/get_all_newsletters",
+                json={"token": TOKEN, "filter_type_name": filter_name},
+                timeout=30,
+            )
 
-                    for registration_number in registration_numbers:
-                        purchase_response = requests.post(
-                            f"{APP_URL}{API_BASE}/get_purchase",
-                            json={"token": TOKEN, "registration_number": registration_number},
-                            timeout=30,
-                        )
+            emails_response.raise_for_status()
+            emails = emails_response.json().get("data", [])
 
-                        purchase_response.raise_for_status()
+            rows = []
 
-                        purchase = purchase_response.json().get("data", {})
+            for registration_number in registration_numbers:
+                purchase_response = requests.post(
+                    f"{APP_URL}{API_BASE}/get_purchase",
+                    json={"token": TOKEN, "registration_number": registration_number},
+                    timeout=30,
+                )
 
-                        customer = purchase.get("customer") or {}
-                        result_info = purchase.get("result_info") or {}
+                purchase_response.raise_for_status()
 
-                        base = {
-                            "Реестровый номер": purchase.get("registration_number"),
-                            "Название закупки": purchase.get("name"),
-                            "Сумма закупки": purchase.get("initial_sum"),
-                            "Дата начала подачи заявок": purchase.get("submission_start_datetime"),
-                            "Дата окончания подачи заявок": purchase.get("submission_close_datetime"),
-                            "Дата публикации": purchase.get("publication_datetime"),
-                            "Заказчик название": customer.get("full_name")
-                            # "Победитель": result_info.get("Победитель"),
-                            # "Другие участники": result_info.get("Другие участники"),
-                            # "Ячейки": result_info.get("Ячейки"),
-                            # "Кол-во ячеек": result_info.get("Кол-во ячеек"),
-                            # "Типовой проект": result_info.get("Типовой проект"),
-                            # "Проектировщик": result_info.get("Проектировщик"),
-                            # "Дата исполнения договора": result_info.get("Дата исполнения договора"),
-                            # "Филиал/РЭС": result_info.get("Филиал/РЭС")
-                        }
+                purchase = purchase_response.json().get("data", {})
 
-                        rows.append(base)
+                customer = purchase.get("customer") or {}
 
-                    result = {
-                        "ok": True,
-                        "created": created,
-                        "updated": updated,
-                        "skipped": skipped,
-                        "date": date_str,
-                    }
+                result_info = purchase.get("result_info") or {}
 
-                    create_analysis(rows=rows, emails=emails,
-                                    created=created, updated=updated, skipped=skipped)
+                base = {
+                    "Реестровый номер": purchase.get("registration_number"),
+                    "Название закупки": purchase.get("name"),
+                    "Сумма закупки": purchase.get("initial_sum"),
+                    "Дата начала подачи заявок": purchase.get("submission_start_datetime"),
+                    "Дата окончания подачи заявок": purchase.get("submission_close_datetime"),
+                    "Дата публикации": purchase.get("publication_datetime"),
+                    "Заказчик название": customer.get("full_name"),
+                    "Победитель": result_info.get("Победитель"),
+                    "ИНН": result_info.get("ИНН"),
+                    "Итоговая цена контракта": result_info.get("Итоговая цена контракта"),
+                    "Другие участники": result_info.get("Другие участники"),
+                    "Ссылка на тендер": f"https://zakupki.gov.ru/epz/order/notice/notice223/common-info.html?regNumber={purchase.get("registration_number")}"
+                }
+
+                rows.append(base)
+
+            result["created"] += created
+            result["updated"] += updated
+            result["skipped"] += skipped
+
+            create_analysis(rows=rows, emails=emails,
+                            created=created, updated=updated, skipped=skipped)
+
 
         _set_status(
             running=False,

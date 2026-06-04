@@ -51,7 +51,7 @@ def extract_json_text(raw_text: str) -> str:
 
     return cleaned
 
-async def get_model_extraction(message) -> Dict:
+async def rosseti_get_model_extraction(message) -> Dict:
     load_dotenv()
 
     api_key = os.getenv("YANDEX_CLOUD_API_KEY")

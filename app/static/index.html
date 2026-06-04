@@ -51,6 +51,21 @@
           <div class="panel__title">Фильтры</div>
 
           <div class="field">
+            <label class="field__label">Тип заявок</label>
+            <select id="filter_type_name" class="select">
+              <option value="Тендеры для Россетей" selected>Тендеры для Россетей</option>
+              <option value="Тендеры для OEM">Тендеры для OEM</option>
+              <option value="Тендеры для ITM">Тендеры для ITM</option>
+            </select>
+          </div>
+
+          <div class="field hidden" id="districtFilterField">
+            <label class="field__label">Федеральный округ</label>
+            <select id="district_name" class="select"></select>
+            <div class="field__hint">Используется только для режима «Тендеры для OEM»</div>
+          </div>
+
+          <div class="field">
             <label class="field__label">Быстрый поиск</label>
             <input id="q" class="input" placeholder="Название, заказчик, ИНН, рег. номер." />
             <div class="field__hint">Ищет по загруженным данным на странице</div>
@@ -270,6 +285,7 @@
         <div class="row">
           <button class="btn btn--ghost" id="btnCopyGuid">Копировать GUID</button>
           <button class="btn btn--ghost" id="btnCopyReg">Копировать рег.номер</button>
+          <button class="btn btn--ghost" id="btnOpenRegistry">Открыть в госреестре</button>
         </div>
         <button class="btn btn--primary" id="btnModalOk">Закрыть</button>
       </div>
@@ -288,6 +304,21 @@
         <div class="field">
           <label class="field__label">Email</label>
           <input id="emailInput" class="input" type="email" />
+        </div>
+
+        <div class="field">
+          <label class="field__label">Тип заявок</label>
+          <select id="emailFilterTypeName" class="select">
+            <option value="Тендеры для Россетей" selected>Тендеры для Россетей</option>
+            <option value="Тендеры для OEM">Тендеры для OEM</option>
+            <option value="Тендеры для ITM">Тендеры для ITM</option>
+          </select>
+        </div>
+
+        <div class="field hidden" id="emailDistrictField">
+          <label class="field__label">Федеральный округ</label>
+          <select id="emailDistrictName" class="select"></select>
+          <div class="field__hint">Округ нужен только для рассылки по OEM</div>
         </div>
 
         <div class="field" id="codeField" style="display:none;">
