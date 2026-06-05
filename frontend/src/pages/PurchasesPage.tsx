@@ -24,9 +24,7 @@ import { Select } from "../components/ui/Select";
 import { formatDate, formatMoney } from "../lib/format";
 import {
   buildPurchaseRequestMeta,
-  DISPLAY_MODE_OPTIONS,
   FEDERAL_DISTRICT_OPTIONS,
-  FILTER_TYPE_OPTIONS,
   getDocumentDisplayMeta,
   getDocumentDisplayName,
   isOemOrItm,
@@ -34,13 +32,57 @@ import {
 } from "../lib/purchases";
 import type { Purchase, PurchaseFilters } from "../types/purchase";
 
-type DisplayMode = "cards" | "compact";
+
+type RequestPurchaseFilters = PurchaseFilters & {
+  filter_type_name?: string;
+  region_numbers?: string[];
+};
+
+const REGION_CODES_BY_FEDERAL_DISTRICT: Record<string, string[]> = {
+  "Центральный федеральный округ": [
+    "31", "32", "33", "36", "37", "40", "44", "46", "48", "50",
+    "57", "62", "67", "68", "69", "71", "76", "77",
+  ],
+  "Северо-Западный федеральный округ": [
+    "10", "11", "29", "35", "39", "47", "51", "53", "60", "78", "83",
+  ],
+  "Южный федеральный округ": [
+    "01", "08", "23", "30", "34", "61", "82", "92",
+  ],
+  "Северо-Кавказский федеральный округ": [
+    "05", "06", "07", "09", "15", "20", "26", "95",
+  ],
+  "Приволжский федеральный округ": [
+    "02", "12", "13", "16", "18", "21", "43", "52", "56", "58",
+    "59", "63", "64", "73", "81",
+  ],
+  "Уральский федеральный округ": [
+    "45", "66", "72", "74", "86", "89",
+  ],
+  "Сибирский федеральный округ": [
+    "04", "17", "19", "22", "24", "38", "42", "54", "55", "70", "85",
+  ],
+  "Дальневосточный федеральный округ": [
+    "03", "14", "25", "27", "28", "41", "49", "65", "75", "79", "80", "87",
+  ],
+};
+
+function getRegionNumbers(filters: UiFilters): string[] | undefined {
+  if (filters.regionNumber) {
+    return [filters.regionNumber];
+  }
+
+  if (filters.districtName) {
+    return REGION_CODES_BY_FEDERAL_DISTRICT[filters.districtName];
+  }
+
+  return undefined;
+}
 
 type UiFilters = {
   filterTypeName: string;
   districtName: string;
   regionNumber: string;
-  displayMode: DisplayMode;
   name: string;
   initialSumFrom: string;
   initialSumTo: string;
@@ -53,7 +95,6 @@ const defaultFilters: UiFilters = {
   filterTypeName: "",
   districtName: "",
   regionNumber: "",
-  displayMode: "cards",
   name: "",
   initialSumFrom: "",
   initialSumTo: "",
@@ -71,14 +112,15 @@ function toNumber(value: string): number | undefined {
   return Number.isFinite(number) ? number : undefined;
 }
 
-function buildFilters(token: string, filters: UiFilters): PurchaseFilters {
+function buildFilters(token: string, filters: UiFilters): RequestPurchaseFilters {
   const requestMeta = buildPurchaseRequestMeta({
     filterTypeName: filters.filterTypeName,
     districtName: filters.districtName,
     regionNumber: filters.regionNumber,
   });
+  const regionNumbers = getRegionNumbers(filters);
 
-  return {
+  const payload: RequestPurchaseFilters = {
     token,
     name: filters.name.trim() || undefined,
     initial_sum_from: toNumber(filters.initialSumFrom),
@@ -87,7 +129,11 @@ function buildFilters(token: string, filters: UiFilters): PurchaseFilters {
     publication_datetime_to: filters.publicationDateTo || undefined,
     source_file: filters.sourceFile.trim() || undefined,
     ...requestMeta,
+    filter_type_name: filters.filterTypeName || undefined,
+    region_numbers: regionNumbers,
   };
+
+  return payload;
 }
 
 function getRecordValue(record: Record<string, unknown> | null, key: string): string {
@@ -191,9 +237,11 @@ function DocumentsList({ documents }: { documents: unknown[] }) {
 
 function PurposeFilterCard({
   filters,
+  filterTypeOptions,
   onChange,
 }: {
   filters: UiFilters;
+  filterTypeOptions: { label: string; value: string }[];
   onChange: (patch: Partial<UiFilters>) => void;
 }) {
   const [isOpen, setIsOpen] = useState(true);
@@ -225,32 +273,22 @@ function PurposeFilterCard({
       </button>
 
       {isOpen && (
-        <div className="mt-5 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+        <div className="mt-5 grid gap-4">
           <Select
             label="Тип фильтра / цель"
             value={filters.filterTypeName}
             onChange={(event) => onChange({ filterTypeName: event.target.value })}
-            options={FILTER_TYPE_OPTIONS}
+            options={filterTypeOptions}
             className="border-[color:var(--se-techno-green)] bg-white font-semibold"
           />
 
-          <Select
-            label="Режим отображения"
-            value={filters.displayMode}
-            onChange={(event) =>
-              onChange({ displayMode: event.target.value as DisplayMode })
-            }
-            options={DISPLAY_MODE_OPTIONS}
-            className="bg-white"
-          />
-
-          <div className="rounded-2xl bg-white/80 p-4 text-sm text-[color:var(--se-muted)] lg:col-span-2">
+          <div className="rounded-2xl bg-white/80 p-4 text-sm text-[color:var(--se-muted)]">
             {filters.filterTypeName ? (
               <>
                 Выбран сценарий: <b>{filters.filterTypeName}</b>.
                 {showDistrictHint
-                  ? " Для ОЭМ/ИТМ можно использовать федеральный округ, если регион не выбран вручную."
-                  : " Для этого сценария федеральный округ не обязателен, но регион можно указать вручную."}
+                  ? " Федеральный округ автоматически раскрывается в список регионов, если конкретный регион не выбран вручную."
+                  : " Федеральный округ можно использовать как общий фильтр, а конкретный регион уточняет поиск."}
               </>
             ) : (
               "Выберите тип фильтра, чтобы сразу запустить поиск с корректным назначением заявок."
@@ -351,7 +389,7 @@ function FiltersPanel({
             onChange={(event) => onChange({ publicationDateTo: event.target.value })}
           />
 
-          <div className="flex items-end md:col-span-2 xl:col-span-4">
+          <div className="flex items-end justify-end md:col-span-2 xl:col-span-4">
             <Button variant="secondary" onClick={onReset} type="button">
               <X className="mr-2" size={16} />
               Сбросить фильтры
@@ -426,7 +464,6 @@ function buildRegistryUrl(registrationNumber?: string | null): string {
 
 type PurchaseCardProps = {
   purchase: Purchase;
-  compact: boolean;
   token: string;
   onSaved: (purchase: Purchase) => void;
   onDeleted: (guid: string) => void;
@@ -762,7 +799,7 @@ function PurchaseFullScreenModal({
   );
 }
 
-function PurchaseCard({ purchase, compact, token, onSaved, onDeleted }: PurchaseCardProps) {
+function PurchaseCard({ purchase, token, onSaved, onDeleted }: PurchaseCardProps) {
   const [isOpen, setIsOpen] = useState(false);
   const status = getDeadlineStatus(purchase);
   const documentsCount = Array.isArray(purchase.documents_list)
@@ -817,11 +854,9 @@ function PurchaseCard({ purchase, compact, token, onSaved, onDeleted }: Purchase
             <div className="mt-1 text-sm font-semibold text-[color:var(--se-text)]">
               {formatDate(purchase.submission_close_datetime)}
             </div>
-            {!compact && (
-              <div className="mt-1 text-xs text-[color:var(--se-muted)]">
-                Регион: {getRegionLabel(purchase.region_number)}
-              </div>
-            )}
+            <div className="mt-1 text-xs text-[color:var(--se-muted)]">
+              Регион: {getRegionLabel(purchase.region_number)}
+            </div>
           </div>
 
           <div className="flex items-center justify-end gap-2 text-sm font-semibold text-[color:var(--se-techno-green)]">
@@ -857,6 +892,23 @@ export function PurchasesPage() {
     () => purchases.reduce((sum, purchase) => sum + (purchase.initial_sum || 0), 0),
     [purchases],
   );
+  const filterTypeOptions = useMemo(() => {
+    const names = Array.from(
+      new Set(
+        purchases
+          .map((purchase) => (purchase as Record<string, unknown>).filter_type_name)
+          .filter(
+            (value): value is string =>
+              typeof value === "string" && Boolean(value.trim()),
+          ),
+      ),
+    ).sort((left, right) => left.localeCompare(right, "ru"));
+
+    return [
+      { label: "Все типы", value: "" },
+      ...names.map((name) => ({ label: name, value: name })),
+    ];
+  }, [purchases]);
 
   useEffect(() => {
     let ignore = false;
@@ -939,7 +991,7 @@ export function PurchasesPage() {
       />
 
       <div className="space-y-5 p-6">
-        <PurposeFilterCard filters={filters} onChange={updateFilters} />
+        <PurposeFilterCard filters={filters} filterTypeOptions={filterTypeOptions} onChange={updateFilters} />
 
         <FiltersPanel
           filters={filters}
@@ -997,7 +1049,6 @@ export function PurchasesPage() {
               <PurchaseCard
                 key={purchase.guid || purchase.registration_number || purchase.name}
                 purchase={purchase}
-                compact={filters.displayMode === "compact"}
                 token={token}
                 onSaved={handlePurchaseSaved}
                 onDeleted={handlePurchaseDeleted}
