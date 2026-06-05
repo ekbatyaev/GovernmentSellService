@@ -279,9 +279,13 @@ function syncDistrictVisibility(){
   }
 }
 
+function selectedRegionNumber(){
+  return val("region_number");
+}
 function buildPurchaseRequestBody(){
   const filterType = selectedFilterType();
   const districtName = selectedDistrictName();
+  const regionNumber = selectedRegionNumber();
 
   const body = {
     token: SYSTEM_TOKEN,
@@ -299,6 +303,16 @@ function buildPurchaseRequestBody(){
     submission_close_datetime_from: dateToIsoRangeStart("submission_close_datetime_from"),
     submission_close_datetime_to: dateToIsoRangeEnd("submission_close_datetime_to"),
   };
+
+  if (regionNumber) {
+
+    body.district_name = null;
+
+    body.region_numbers = [regionNumber];
+
+    return body;
+
+  }
 
   if (isOemFilterType(filterType) || isItmFilterType(filterType)) {
     const regionNumbers = getRegionNumbersByDistrict(districtName);
@@ -567,6 +581,11 @@ function renderTable(items){
       </div>
 
       <div>
+        <div class="cellTitle">${REGION_NAMES_BY_CODE[p.region_number] || p.region_number || "—"}</div>
+        <div class="cellSmall">регион заявки</div>
+      </div>
+
+      <div>
         <div class="cellTitle">${p.name || "—"}</div>
       </div>
 
@@ -610,6 +629,10 @@ function renderCards(items){
       <div class="card__grid">
         <div class="card__meta card__meta--full">
           <b>Рег.№:</b> <span class="cellMono">${p.registration_number || "—"}</span>
+        </div>
+
+        <div class="card__meta card__meta--full">
+          <b>Регион заявки:</b> ${REGION_NAMES_BY_CODE[p.region_number] || p.region_number || "—"}
         </div>
 
         <div class="card__meta">
@@ -661,7 +684,7 @@ function saveStateToUrl(){
   const params = new URLSearchParams();
 
   [
-    "filter_type_name","district_name",
+    "filter_type_name","district_name", "region_number",
     "initial_sum_from","initial_sum_to",
     "publication_datetime_from","publication_datetime_to",
     "submission_start_datetime_from","submission_start_datetime_to",
@@ -690,7 +713,7 @@ function loadStateFromUrl(){
   };
 
   [
-    "filter_type_name","district_name",
+    "filter_type_name","district_name", "region_number",
     "initial_sum_from","initial_sum_to",
     "publication_datetime_from","publication_datetime_to",
     "submission_start_datetime_from","submission_start_datetime_to",
@@ -871,6 +894,30 @@ function buildExportRows(purchases) {
   return buildRossetiExportRows(purchases);
 }
 
+function fillRegionSelect(selectId){
+  const select = $(selectId);
+  if (!select) return;
+
+  const current = select.value;
+  select.innerHTML = "";
+
+  const allOption = document.createElement("option");
+  allOption.value = "";
+  allOption.textContent = "Все регионы";
+  select.appendChild(allOption);
+
+  Object.entries(REGION_NAMES_BY_CODE).forEach(([code, name]) => {
+    const option = document.createElement("option");
+    option.value = code;
+    option.textContent = `${code} — ${name}`;
+    select.appendChild(option);
+  });
+
+  if (current && REGION_NAMES_BY_CODE[current]) {
+    select.value = current;
+  }
+}
+
 function getExportColumns(){
   if (isOemFilterType()) {
     return [
@@ -916,7 +963,7 @@ function getExportColumns(){
     { header: "Дата обновления", key: "Дата обновления", width: 13 },
     { header: "Дата начала подачи заявок", key: "Дата начала подачи заявок", width: 11 },
     { header: "Дата окончания подачи заявок", key: "Дата окончания подачи заявок", width: 13 },
-    { header: "Победитель ", key: "Победитель ", width: 14 },
+    { header: "Победитель", key: "Победитель ", width: 14 },
     { header: "Другие\nучастники", key: "Другие\nучастники", width: 15 },
     { header: "Ячейки", key: "Ячейки", width: 9 },
     { header: "Кол-во ячеек", key: "Кол-во ячеек", width: 13 },
@@ -1040,8 +1087,6 @@ async function exportXlsx() {
 
     const yellowHeaderCols = new Set([
       "Победитель",
-      "Победитель ",
-      "Другие участники",
       "Другие\nучастники",
       "ИНН",
       "Итоговая цена контракта",
@@ -1149,6 +1194,10 @@ function resetFilters(){
     $("district_name").value = "Все округа";
   }
 
+  if ($("region_number")) {
+    $("region_number").value = "";
+  }
+
   syncDistrictVisibility();
 
   $("sort").value = "submission_start_desc";
@@ -1185,6 +1234,10 @@ function bindEvents(){
   };
   $("district_name").onchange = () => { page = 1; apiSearch(); };
 
+  $("region_number").onchange = () => {
+    page = 1;
+    apiSearch();
+  };
   $("emailFilterTypeName").onchange = syncDistrictVisibility;
 
   $("sort").onchange = () => { page = 1; render(); saveStateToUrl(); };
@@ -1445,6 +1498,7 @@ async function init(){
   loadTheme();
   fillDistrictSelect("district_name");
   fillDistrictSelect("emailDistrictName");
+  fillRegionSelect("region_number");
   initEmailModal();
   bindEvents();
   loadStateFromUrl();
