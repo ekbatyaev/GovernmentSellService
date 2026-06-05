@@ -50,7 +50,11 @@ app = FastAPI(
 )
 
 
-app.mount("/goszakupki/static", StaticFiles(directory="static", html=True), name="static")
+app.mount(
+    f"{API_BASE}/assets",
+    StaticFiles(directory="static/assets"),
+    name="assets",
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -279,11 +283,15 @@ def shutdown_event():
         scheduler = None
 
 
-@app.get(f"{API_BASE}/config")
+@app.get(f"{API_BASE}/config", response_model=SuccessResponseModel)
 async def get_config():
-    return {
-        "system_token": SYSTEM_TOKEN
-    }
+    return SuccessResponseModel(
+        status="success",
+        message="Config",
+        data={
+            "system_token": SYSTEM_TOKEN,
+        },
+    )
 
 # ---------------------------
 # Routes
