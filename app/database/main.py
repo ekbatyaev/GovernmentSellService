@@ -64,6 +64,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Статистика
+
+last_backfill_at = None
+last_process_day_at = None
+
 # Загрузка данных
 def load_data(data_file):
     try:
@@ -191,6 +196,7 @@ class AdminTokenModel(BaseModel):
 
 class AdminBackfillModel(BaseModel):
     token: str
+    filter_number: Optional[int]
     days: Optional[int] = None
 
 class DeleteExpiredModel(BaseModel):
@@ -198,7 +204,14 @@ class DeleteExpiredModel(BaseModel):
 
 class AdminProcessDay(BaseModel):
     token: str
+    filter_number: Optional[int]
     date: datetime
+
+class AdminProcessPeriodOfTime(BaseModel):
+    token: str
+    filter_number: Optional[int]
+    date_from: datetime
+    date_to: datetime
 
 class PutNewsLetterModel(BaseModel):
     token: str
@@ -580,12 +593,14 @@ def update_purchase(purchase_data: UpdatePurchaseModel, db: Session = Depends(ge
 
 @app.get(f"{API_BASE}/stats", response_model=SuccessResponseModel)
 def get_statistics(db: Session = Depends(get_db)):
+    global last_backfill_at, last_process_day_at
     purchases_count = db.scalar(select(func.count()).select_from(Purchase))
+    newsletter_count = db.scalar(select(func.count()).select_from(NewsLetter))
     return SuccessResponseModel(
         status="success",
         message="Statistics",
-        data={"purchases_count": purchases_count, "timestamp": datetime.utcnow().isoformat()},
-    )
+        data={"purchases_count": purchases_count, "timestamp": datetime.utcnow().isoformat(),
+              "newsletter_count": newsletter_count, "last_backfill_at": last_backfill_at,"last_process_day_at": last_process_day_at})
 
 
 @app.get(f"{API_BASE}/health", response_model=SuccessResponseModel)
@@ -599,16 +614,33 @@ def health_check(db: Session = Depends(get_db)):
 @app.post(f"{API_BASE}/admin/run_process_day", response_model=SuccessResponseModel)
 def admin_run_process_day(body: AdminProcessDay):
     verify_token(body.token)
+    global last_process_day_at
     print(body.date)
     date_str = body.date.strftime("%Y-%m-%d")
-    result = process_day(date_str)
+    last_process_day_at = datetime.now(MOSCOW_TZ).isoformat()
+    result = process_day(date_str, filter_number = body.filter_number)
     return SuccessResponseModel(status="success", message="Process day finished", data=result)
 
 @app.post(f"{API_BASE}/admin/run_backfill", response_model=SuccessResponseModel)
 def admin_run_backfill(body: AdminBackfillModel):
     verify_token(body.token)
-    result = run_backfill(days=body.days)
+    global last_backfill_at
+    last_backfill_at = datetime.now(MOSCOW_TZ).isoformat()
+    result = run_backfill(days=body.days, filter_number=body.filter_number)
     return SuccessResponseModel(status="success", message="Backfill finished", data=result)
+
+@app.post(f"{API_BASE}/admin/run_backfill_period_of_time", response_model=SuccessResponseModel)
+def admin_run_process_period_of_type(body: AdminProcessPeriodOfTime):
+    verify_token(body.token)
+    global last_process_day_at
+    date_from, date_to = body.date_from, body.date_to
+    result = []
+    last_process_day_at = datetime.now(MOSCOW_TZ).isoformat()
+    logger.info(f"Processing period of time from {date_from.strftime("%Y-%m-%d")} to {date_to.strftime("%Y-%m-%d")} have started")
+    while date_from < date_to:
+        result.append(process_day(date_from.strftime("%Y-%m-%d"), filter_number = body.filter_number))
+        date_from += timedelta(days=1)
+    return SuccessResponseModel(status="success", message=f"Processing period of time successfully completed", data=result)
 
 @app.get(f"{API_BASE}/admin/job_status", response_model=SuccessResponseModel)
 def admin_job_status():

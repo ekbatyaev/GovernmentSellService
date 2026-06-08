@@ -284,7 +284,7 @@ def normalize_purchase(data: dict) -> dict:
     return result
 
 
-def parse_zip_archive_protocols(zip_path: str, region: int) -> List[Dict[str, Any]]:
+def parse_zip_archive_protocols(zip_path: str, region: int, filter_number: int) -> List[Dict[str, Any]]:
     zip_path = os.path.abspath(zip_path)
     all_data: List[Dict[str, Any]] = []
     logger.info("Открываем архив: %s", zip_path)
@@ -306,98 +306,98 @@ def parse_zip_archive_protocols(zip_path: str, region: int) -> List[Dict[str, An
                 customer_name = (normalized.get("customer") or {}).get("full_name")
                 work_name = normalized.get("name", "") or ""
 
-                # if REGIONS_ROSSETI.get(region, False) and request_filters_rosseti(customer_name, work_name):
-                #     normalized["region_number"] = region
-                #     normalized["filter_type_name"] = "Тендеры для Россетей"
-                #
-                #     # Обращение, получение данных и передача
-                #     purchase_response = requests.post(
-                #         f"{APP_URL}{API_BASE}/get_purchase",
-                #         json={"token": TOKEN, "registration_number": normalized["registration_number"]},
-                #         timeout=30,
-                #     )
-                #
-                #     purchase_response.raise_for_status()
-                #
-                #     purchase = purchase_response.json().get("data") or {}
-                #
-                #     if not purchase:
-                #
-                #         logger.info(
-                #             "Протокол прошёл фильтр, но закупка не найдена в БД | reg=%s",
-                #             normalized.get("registration_number"),
-                #         )
-                #
-                #         continue
-                #
-                #     result_info = purchase.get("result_info") or {}
-                #
-                #     documents_list = purchase.get("documents_list") or []
-                #
-                #     normalized["result_info"], normalized["documents_list"] = process_attached_files_and_merge(
-                #         attached_files=normalized["attached_files"],
-                #         tmp_dir=TMP_DIR,
-                #         result_info_old=result_info,
-                #         documents_list_old=documents_list,
-                #         protocol_mode=True,
-                #         filter_type = 1
-                #     )
-                #
-                #     del normalized["attached_files"]
-                #
-                #     print("result_info - protocols")
-                #     print(normalized["result_info"])
-                #
-                #     print("documents_list - protocols")
-                #     print(normalized["documents_list"])
-                #     all_data.append(normalized)
+                if (filter_number == 0 or filter_number == 1) and REGIONS_ROSSETI.get(region, False) and request_filters_rosseti(customer_name, work_name):
+                    normalized["region_number"] = region
+                    normalized["filter_type_name"] = "Тендеры для Россетей"
 
-                # if request_filters_oem(work_name):
-                #     normalized["region_number"] = region
-                #     normalized["filter_type_name"] = "Тендеры для OEM"
-                #
-                #     # Обращение, получение данных и передача
-                #     purchase_response = requests.post(
-                #         f"{APP_URL}{API_BASE}/get_purchase",
-                #         json={"token": TOKEN, "registration_number": normalized["registration_number"]},
-                #         timeout=30,
-                #     )
-                #
-                #     purchase_response.raise_for_status()
-                #
-                #     purchase = purchase_response.json().get("data") or {}
-                #
-                #     if not purchase:
-                #         logger.info(
-                #             "Протокол прошёл фильтр, но закупка не найдена в БД | reg=%s",
-                #             normalized.get("registration_number"),
-                #         )
-                #
-                #         continue
-                #
-                #     normalized["result_info"] = purchase.get("result_info") or {}
-                #
-                #     normalized["documents_list"] = purchase.get("documents_list") or []
-                #
-                #     # normalized["result_info"], normalized["documents_list"] = process_attached_files_and_merge(
-                #     #     attached_files=normalized["attached_files"],
-                #     #     tmp_dir=TMP_DIR,
-                #     #     result_info_old=result_info,
-                #     #     documents_list_old=documents_list,
-                #     #     protocol_mode=True,
-                #     #     filter_type = 2
-                #     # )
-                #     #
-                #     # del normalized["attached_files"]
-                #     #
-                #     # print("result_info - protocols")
-                #     # print(normalized["result_info"])
-                #     #
-                #     # print("documents_list - protocols")
-                #     # print(normalized["documents_list"])
-                #     all_data.append(normalized)
+                    # Обращение, получение данных и передача
+                    purchase_response = requests.post(
+                        f"{APP_URL}{API_BASE}/get_purchase",
+                        json={"token": TOKEN, "registration_number": normalized["registration_number"]},
+                        timeout=30,
+                    )
 
-                if request_filters_itm(work_name):
+                    purchase_response.raise_for_status()
+
+                    purchase = purchase_response.json().get("data") or {}
+
+                    if not purchase:
+
+                        logger.info(
+                            "Протокол прошёл фильтр, но закупка не найдена в БД | reg=%s",
+                            normalized.get("registration_number"),
+                        )
+
+                        continue
+
+                    result_info = purchase.get("result_info") or {}
+
+                    documents_list = purchase.get("documents_list") or []
+
+                    normalized["result_info"], normalized["documents_list"] = process_attached_files_and_merge(
+                        attached_files=normalized["attached_files"],
+                        tmp_dir=TMP_DIR,
+                        result_info_old=result_info,
+                        documents_list_old=documents_list,
+                        protocol_mode=True,
+                        filter_type = 1
+                    )
+
+                    del normalized["attached_files"]
+
+                    print("result_info - protocols")
+                    print(normalized["result_info"])
+
+                    print("documents_list - protocols")
+                    print(normalized["documents_list"])
+                    all_data.append(normalized)
+
+                if (filter_number == 0 or filter_number == 2) and request_filters_oem(work_name):
+                    normalized["region_number"] = region
+                    normalized["filter_type_name"] = "Тендеры для OEM"
+
+                    # Обращение, получение данных и передача
+                    purchase_response = requests.post(
+                        f"{APP_URL}{API_BASE}/get_purchase",
+                        json={"token": TOKEN, "registration_number": normalized["registration_number"]},
+                        timeout=30,
+                    )
+
+                    purchase_response.raise_for_status()
+
+                    purchase = purchase_response.json().get("data") or {}
+
+                    if not purchase:
+                        logger.info(
+                            "Протокол прошёл фильтр, но закупка не найдена в БД | reg=%s",
+                            normalized.get("registration_number"),
+                        )
+
+                        continue
+
+                    normalized["result_info"] = purchase.get("result_info") or {}
+
+                    normalized["documents_list"] = purchase.get("documents_list") or []
+
+                    # normalized["result_info"], normalized["documents_list"] = process_attached_files_and_merge(
+                    #     attached_files=normalized["attached_files"],
+                    #     tmp_dir=TMP_DIR,
+                    #     result_info_old=result_info,
+                    #     documents_list_old=documents_list,
+                    #     protocol_mode=True,
+                    #     filter_type = 2
+                    # )
+                    #
+                    # del normalized["attached_files"]
+                    #
+                    # print("result_info - protocols")
+                    # print(normalized["result_info"])
+                    #
+                    # print("documents_list - protocols")
+                    # print(normalized["documents_list"])
+                    all_data.append(normalized)
+
+                if (filter_number == 0 or filter_number == 3) and request_filters_itm(work_name):
                     normalized["region_number"] = region
                     normalized["filter_type_name"] = "Тендеры для ITM"
 
@@ -454,7 +454,7 @@ def parse_zip_archive_protocols(zip_path: str, region: int) -> List[Dict[str, An
     os.remove(zip_path)
     return all_data
 
-def parse_zip_archive_purchases(zip_path: str, region: int) -> List[Dict[str, Any]]:
+def parse_zip_archive_purchases(zip_path: str, region: int, filter_number: int) -> List[Dict[str, Any]]:
     zip_path = os.path.abspath(zip_path)
     all_data: List[Dict[str, Any]] = []
     logger.info("Открываем архив: %s", zip_path)
@@ -476,88 +476,88 @@ def parse_zip_archive_purchases(zip_path: str, region: int) -> List[Dict[str, An
                 customer_name = (normalized.get("customer") or {}).get("full_name")
                 work_name = normalized.get("name", "") or ""
 
-                # if REGIONS_ROSSETI.get(region, False) and request_filters_rosseti(customer_name, work_name):
-                #     normalized["region_number"] = region
-                #     normalized["filter_type_name"] = "Тендеры Россетей"
-                #
-                #     # Обращение, получение данных и передача
-                #     purchase_response = requests.post(
-                #         f"{APP_URL}{API_BASE}/get_purchase",
-                #         json={"token": TOKEN, "registration_number": normalized["registration_number"]},
-                #         timeout=30,
-                #     )
-                #
-                #     purchase_response.raise_for_status()
-                #
-                #     purchase = purchase_response.json().get("data", {})
-                #
-                #     result_info = purchase.get("result_info") or {}
-                #
-                #     match = re.search(r'для нужд\s+([^.,()\-–—]+)', normalized["name"], re.IGNORECASE)
-                #
-                #     if match:
-                #
-                #         value = match.group(1).strip()
-                #
-                #         first_word = value.split()[0]
-                #
-                #         result_info["Филиал/РЭС"] = value if len(first_word) > 4 else first_word
-                #
-                #     else:
-                #
-                #         result_info["Филиал/РЭС"] = None
-                #
-                #     documents_list = purchase.get("documents_list") or []
-                #
-                #     normalized["result_info"], normalized["documents_list"] = process_attached_files_and_merge(
-                #         attached_files=normalized["attached_files"],
-                #         tmp_dir=TMP_DIR,
-                #         result_info_old = result_info,
-                #         documents_list_old = documents_list,
-                #         filter_type = 1
-                #     )
-                #
-                #     del normalized["attached_files"]
-                #
-                #     all_data.append(normalized)
-                #
-                # if request_filters_oem(work_name):
-                #
-                #     normalized["region_number"] = region
-                #     normalized["filter_type_name"] = "Тендеры для OEM"
-                #
-                #     # Обращение, получение данных и передача
-                #     purchase_response = requests.post(
-                #         f"{APP_URL}{API_BASE}/get_purchase",
-                #         json={"token": TOKEN, "registration_number": normalized["registration_number"]},
-                #         timeout=30,
-                #     )
-                #
-                #     purchase_response.raise_for_status()
-                #
-                #     purchase = purchase_response.json().get("data", {})
-                #
-                #     normalized["result_info"] = purchase.get("result_info") or {}
-                #
-                #     normalized["documents_list"] = purchase.get("documents_list") or []
-                #
-                #     # result_info = purchase.get("result_info") or {}
-                #     #
-                #     # documents_list = purchase.get("documents_list") or []
-                #     #
-                #     # normalized["result_info"], normalized["documents_list"] = process_attached_files_and_merge(
-                #     #     attached_files=normalized["attached_files"],
-                #     #     tmp_dir=TMP_DIR,
-                #     #     result_info_old=result_info,
-                #     #     documents_list_old=documents_list,
-                #     #     filter_type = 2
-                #     # )
-                #
-                #     del normalized["attached_files"]
-                #
-                #     all_data.append(normalized)
+                if (filter_number == 0 or filter_number == 1) and REGIONS_ROSSETI.get(region, False) and request_filters_rosseti(customer_name, work_name):
+                    normalized["region_number"] = region
+                    normalized["filter_type_name"] = "Тендеры Россетей"
 
-                if request_filters_itm(work_name):
+                    # Обращение, получение данных и передача
+                    purchase_response = requests.post(
+                        f"{APP_URL}{API_BASE}/get_purchase",
+                        json={"token": TOKEN, "registration_number": normalized["registration_number"]},
+                        timeout=30,
+                    )
+
+                    purchase_response.raise_for_status()
+
+                    purchase = purchase_response.json().get("data", {})
+
+                    result_info = purchase.get("result_info") or {}
+
+                    match = re.search(r'для нужд\s+([^.,()\-–—]+)', normalized["name"], re.IGNORECASE)
+
+                    if match:
+
+                        value = match.group(1).strip()
+
+                        first_word = value.split()[0]
+
+                        result_info["Филиал/РЭС"] = value if len(first_word) > 4 else first_word
+
+                    else:
+
+                        result_info["Филиал/РЭС"] = None
+
+                    documents_list = purchase.get("documents_list") or []
+
+                    normalized["result_info"], normalized["documents_list"] = process_attached_files_and_merge(
+                        attached_files=normalized["attached_files"],
+                        tmp_dir=TMP_DIR,
+                        result_info_old = result_info,
+                        documents_list_old = documents_list,
+                        filter_type = 1
+                    )
+
+                    del normalized["attached_files"]
+
+                    all_data.append(normalized)
+
+                if (filter_number == 0 or filter_number == 2)  and request_filters_oem(work_name):
+
+                    normalized["region_number"] = region
+                    normalized["filter_type_name"] = "Тендеры для OEM"
+
+                    # Обращение, получение данных и передача
+                    purchase_response = requests.post(
+                        f"{APP_URL}{API_BASE}/get_purchase",
+                        json={"token": TOKEN, "registration_number": normalized["registration_number"]},
+                        timeout=30,
+                    )
+
+                    purchase_response.raise_for_status()
+
+                    purchase = purchase_response.json().get("data", {})
+
+                    normalized["result_info"] = purchase.get("result_info") or {}
+
+                    normalized["documents_list"] = purchase.get("documents_list") or []
+
+                    # result_info = purchase.get("result_info") or {}
+                    #
+                    # documents_list = purchase.get("documents_list") or []
+                    #
+                    # normalized["result_info"], normalized["documents_list"] = process_attached_files_and_merge(
+                    #     attached_files=normalized["attached_files"],
+                    #     tmp_dir=TMP_DIR,
+                    #     result_info_old=result_info,
+                    #     documents_list_old=documents_list,
+                    #     filter_type = 2
+                    # )
+
+                    del normalized["attached_files"]
+
+                    all_data.append(normalized)
+
+                if (filter_number == 0 or filter_number == 3) and request_filters_itm(work_name):
 
                     normalized["region_number"] = region
                     normalized["filter_type_name"] = "Тендеры для ITM"

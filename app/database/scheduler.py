@@ -303,7 +303,7 @@ def delete_expired(db) -> int:
     return res.rowcount or 0
 
 
-def process_day(date_str: str) -> Dict:
+def process_day(date_str: str, filter_number = 0) -> Dict:
     logger.info("Pipeline: обработка даты %s", date_str)
 
     registration_numbers_dict_per_day = {}
@@ -332,7 +332,7 @@ def process_day(date_str: str) -> Dict:
 
             logger.info("Pipeline: архив закупок скачан: %s", zip_path_purchases)
 
-            purchases = parse_zip_archive_purchases(zip_path_purchases, region)
+            purchases = parse_zip_archive_purchases(zip_path_purchases, region, filter_number)
 
             logger.info("Pipeline: после фильтров закупок: %s", len(purchases))
 
@@ -366,7 +366,7 @@ def process_day(date_str: str) -> Dict:
 
             logger.info("Pipeline: архив протоколов скачан: %s", zip_path_protocols)
 
-            protocols = parse_zip_archive_protocols(zip_path_protocols, region)
+            protocols = parse_zip_archive_protocols(zip_path_protocols, region, filter_number)
 
             logger.info("Pipeline: после фильтров протоколов: %s", len(protocols))
 
@@ -555,7 +555,7 @@ def run_daily_job() -> Dict[str, Any]:
                     max_attempts,
                     date_str,
                 )
-                day_result = process_day(date_str)
+                day_result = process_day(date_str, 0)
                 break
             except Exception as e:
                 logger.warning(
@@ -854,7 +854,7 @@ def run_daily_job() -> Dict[str, Any]:
         return error_result
 
 
-def run_backfill(days: int | None = None) -> Dict[str, Any]:
+def run_backfill(days: int | None = None, filter_number = 0) -> Dict[str, Any]:
     days = int(days or BACKFILL_DAYS)
     _set_status(
         running=True,
@@ -898,7 +898,7 @@ def run_backfill(days: int | None = None) -> Dict[str, Any]:
             success = False
             for attempt in range(RETRY_COUNT):
                 try:
-                    day_result = process_day(date_str)
+                    day_result = process_day(date_str, filter_number)
                     for filter_name in REGIONS_OF_THE_FILTERS:
 
                         for region in day_result[filter_name].keys():
