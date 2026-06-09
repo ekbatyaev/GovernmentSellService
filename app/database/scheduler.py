@@ -165,7 +165,7 @@ REGION_CODES_BY_FEDERAL_DISTRICT = {
 
 REGIONS_OF_THE_FILTERS = \
     {
-        "Тендеры Россетей": ["77"],
+        "Тендеры для Россетей": ["77"],
         "Тендеры для OEM": [
     "01", "02", "03", "04", "05", "06", "07", "08", "09",
     "10", "11", "12", "13", "14", "15", "16", "17", "18", "19",
@@ -330,6 +330,10 @@ def process_day(date_str: str, filter_number = 0) -> Dict:
         for archive_url in archive_urls_purchases:
             zip_path_purchases = download_archive_from_result(archive_url)
 
+            if zip_path_purchases is None:
+                logger.info("Pipeline: скачивание архива не удалось")
+                continue
+
             logger.info("Pipeline: архив закупок скачан: %s", zip_path_purchases)
 
             purchases = parse_zip_archive_purchases(zip_path_purchases, region, filter_number)
@@ -363,6 +367,10 @@ def process_day(date_str: str, filter_number = 0) -> Dict:
 
         for archive_url in archive_urls_protocols:
             zip_path_protocols = download_archive_from_result(archive_url)
+
+            if zip_path_protocols is None:
+                logger.info("Pipeline: скачивание архива не удалось")
+                continue
 
             logger.info("Pipeline: архив протоколов скачан: %s", zip_path_protocols)
 
@@ -510,10 +518,7 @@ def create_analysis(rows, emails, created, updated, skipped):
 
         subject = f"Заявки с госзакупок за {now.strftime('%d.%m.%Y')}"
 
-        for u in emails:
-            email = u.get("email")
-            if not email:
-                continue
+        for email in emails:
 
             send_email(
                 email,
@@ -629,7 +634,7 @@ def run_daily_job() -> Dict[str, Any]:
 
         registration_numbers = []
 
-        filter_name = "Тендеры Россетей"
+        filter_name = "Тендеры для Россетей"
 
         for region in day_result[filter_name].keys():
             created += len(day_result[filter_name][region]["created"])
@@ -783,7 +788,7 @@ def run_daily_job() -> Dict[str, Any]:
 
             emails_response = requests.post(
                 f"{APP_URL}{API_BASE}/get_all_newsletters",
-                json={"token": TOKEN, "filter_type_name": filter_name},
+                json={"token": TOKEN, "filter_type_name": filter_name, "district_name": district},
                 timeout=30,
             )
 

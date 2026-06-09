@@ -1,16 +1,20 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ChevronDown,
   ChevronUp,
+  Download,
   ExternalLink,
+  FileJson,
+  FileSpreadsheet,
   FileText,
+  Loader2,
   Maximize2,
   Pencil,
   RefreshCw,
-  Trash2,
   Save,
   Search,
   SlidersHorizontal,
+  Trash2,
   X,
 } from "lucide-react";
 import { getConfig } from "../api/config";
@@ -25,13 +29,13 @@ import { formatDate, formatMoney } from "../lib/format";
 import {
   buildPurchaseRequestMeta,
   FEDERAL_DISTRICT_OPTIONS,
-  getDocumentDisplayMeta,
-  getDocumentDisplayName,
   isOemOrItm,
   REGION_OPTIONS,
 } from "../lib/purchases";
 import type { Purchase, PurchaseFilters } from "../types/purchase";
+import ExcelJS from "exceljs";
 
+// ─── типы ─────────────────────────────────────────────────────────────────────
 
 type RequestPurchaseFilters = PurchaseFilters & {
   filter_type_name?: string;
@@ -67,15 +71,45 @@ const REGION_CODES_BY_FEDERAL_DISTRICT: Record<string, string[]> = {
   ],
 };
 
+// Карта код→название региона (для экспорта)
+const REGION_NAMES_BY_CODE: Record<string, string> = {
+  "01": "Республика Адыгея", "02": "Республика Башкортостан", "03": "Республика Бурятия",
+  "04": "Республика Алтай", "05": "Республика Дагестан", "06": "Республика Ингушетия",
+  "07": "Кабардино-Балкарская Республика", "08": "Республика Калмыкия",
+  "09": "Карачаево-Черкесская Республика", "10": "Республика Карелия",
+  "11": "Республика Коми", "12": "Республика Марий Эл", "13": "Республика Мордовия",
+  "14": "Республика Саха (Якутия)", "15": "Республика Северная Осетия — Алания",
+  "16": "Республика Татарстан", "17": "Республика Тыва", "18": "Удмуртская Республика",
+  "19": "Республика Хакасия", "20": "Чеченская Республика (старый код)",
+  "21": "Чувашская Республика", "22": "Алтайский край", "23": "Краснодарский край",
+  "24": "Красноярский край", "25": "Приморский край", "26": "Ставропольский край",
+  "27": "Хабаровский край", "28": "Амурская область", "29": "Архангельская область",
+  "30": "Астраханская область", "31": "Белгородская область", "32": "Брянская область",
+  "33": "Владимирская область", "34": "Волгоградская область", "35": "Вологодская область",
+  "36": "Воронежская область", "37": "Ивановская область", "38": "Иркутская область",
+  "39": "Калининградская область", "40": "Калужская область", "41": "Камчатский край",
+  "42": "Кемеровская область — Кузбасс", "43": "Кировская область", "44": "Костромская область",
+  "45": "Курганская область", "46": "Курская область", "47": "Ленинградская область",
+  "48": "Липецкая область", "49": "Магаданская область", "50": "Московская область",
+  "51": "Мурманская область", "52": "Нижегородская область", "53": "Новгородская область",
+  "54": "Новосибирская область", "55": "Омская область", "56": "Оренбургская область",
+  "57": "Орловская область", "58": "Пензенская область", "59": "Пермский край",
+  "60": "Псковская область", "61": "Ростовская область", "62": "Рязанская область",
+  "63": "Самарская область", "64": "Саратовская область", "65": "Сахалинская область",
+  "66": "Свердловская область", "67": "Смоленская область", "68": "Тамбовская область",
+  "69": "Тверская область", "70": "Томская область", "71": "Тульская область",
+  "72": "Тюменская область", "73": "Ульяновская область", "74": "Челябинская область",
+  "75": "Забайкальский край", "76": "Ярославская область", "77": "Москва",
+  "78": "Санкт-Петербург", "79": "Еврейская автономная область", "82": "Республика Крым",
+  "83": "Ненецкий автономный округ", "86": "Ханты-Мансийский АО — Югра",
+  "87": "Чукотский автономный округ", "89": "Ямало-Ненецкий автономный округ",
+  "92": "Севастополь", "95": "Чеченская Республика",
+};
+
+
 function getRegionNumbers(filters: UiFilters): string[] | undefined {
-  if (filters.regionNumber) {
-    return [filters.regionNumber];
-  }
-
-  if (filters.districtName) {
-    return REGION_CODES_BY_FEDERAL_DISTRICT[filters.districtName];
-  }
-
+  if (filters.regionNumber) return [filters.regionNumber];
+  if (filters.districtName) return REGION_CODES_BY_FEDERAL_DISTRICT[filters.districtName];
   return undefined;
 }
 
@@ -88,7 +122,10 @@ type UiFilters = {
   initialSumTo: string;
   publicationDateFrom: string;
   publicationDateTo: string;
-  sourceFile: string;
+  submissionStartFrom: string;
+  submissionStartTo: string;
+  submissionCloseFrom: string;
+  submissionCloseTo: string;
 };
 
 const defaultFilters: UiFilters = {
@@ -100,14 +137,24 @@ const defaultFilters: UiFilters = {
   initialSumTo: "",
   publicationDateFrom: "",
   publicationDateTo: "",
-  sourceFile: "",
+  submissionStartFrom: "",
+  submissionStartTo: "",
+  submissionCloseFrom: "",
+  submissionCloseTo: "",
 };
 
-function toNumber(value: string): number | undefined {
-  if (!value.trim()) {
-    return undefined;
-  }
+function dateToIsoStart(dateStr: string): string | undefined {
+  if (!dateStr) return undefined;
+  return `${dateStr}T00:00:00`;
+}
 
+function dateToIsoEnd(dateStr: string): string | undefined {
+  if (!dateStr) return undefined;
+  return `${dateStr}T23:59:59.999`;
+}
+
+function toNumber(value: string): number | undefined {
+  if (!value.trim()) return undefined;
   const number = Number(value.replace(",", "."));
   return Number.isFinite(number) ? number : undefined;
 }
@@ -120,34 +167,418 @@ function buildFilters(token: string, filters: UiFilters): RequestPurchaseFilters
   });
   const regionNumbers = getRegionNumbers(filters);
 
-  const payload: RequestPurchaseFilters = {
+  return {
     token,
     name: filters.name.trim() || undefined,
     initial_sum_from: toNumber(filters.initialSumFrom),
     initial_sum_to: toNumber(filters.initialSumTo),
-    publication_datetime_from: filters.publicationDateFrom || undefined,
-    publication_datetime_to: filters.publicationDateTo || undefined,
-    source_file: filters.sourceFile.trim() || undefined,
+    publication_datetime_from: dateToIsoStart(filters.publicationDateFrom),
+    publication_datetime_to: dateToIsoEnd(filters.publicationDateTo),
+    submission_start_datetime_from: dateToIsoStart(filters.submissionStartFrom),
+    submission_start_datetime_to: dateToIsoEnd(filters.submissionStartTo),
+    submission_close_datetime_from: dateToIsoStart(filters.submissionCloseFrom),
+    submission_close_datetime_to: dateToIsoEnd(filters.submissionCloseTo),
     ...requestMeta,
     filter_type_name: filters.filterTypeName || undefined,
     region_numbers: regionNumbers,
   };
-
-  return payload;
 }
 
 function getRecordValue(record: Record<string, unknown> | null, key: string): string {
-  if (!record) {
-    return "—";
-  }
-
+  if (!record) return "—";
   const value = record[key];
-  if (value === null || value === undefined || value === "") {
-    return "—";
-  }
-
+  if (value === null || value === undefined || value === "") return "—";
   return String(value);
 }
+
+// ─── экспорт ──────────────────────────────────────────────────────────────────
+
+function buildGosRegistryUrl(registrationNumber?: string | null): string {
+  const value = String(registrationNumber || "").trim();
+  if (!value) return "";
+  return `https://zakupki.gov.ru/epz/order/notice/notice223/common-info.html?regNumber=${encodeURIComponent(value)}`;
+}
+
+function safeExportValue(v: unknown): string {
+  return v != null ? String(v) : "";
+}
+
+function formatExportDate(value: string | null | undefined): Date | "" {
+  if (!value) return "";
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? "" : d;
+}
+
+function buildExportRows(purchases: Purchase[], filterTypeName: string): Record<string, unknown>[] {
+  const isOem = filterTypeName === "Тендеры для OEM";
+  const isItm = filterTypeName === "Тендеры для ITM";
+
+  if (isOem || isItm) {
+    return purchases.map((p) => {
+      const customer = (p as Record<string, unknown>).customer as Record<string, unknown> | null ?? null;
+      const resultInfo = (p as Record<string, unknown>).result_info as Record<string, unknown> | null ?? null;
+
+      const base: Record<string, unknown> = {
+        "Реестровый номер": safeExportValue(p.registration_number),
+        "Название закупки": safeExportValue(p.name),
+        "Сумма закупки": Number(p.initial_sum) || 0,
+        "Дата начала подачи заявок": formatExportDate(p.submission_start_datetime),
+        "Дата окончания подачи заявок": formatExportDate(p.submission_close_datetime),
+        "Дата публикации": formatExportDate(p.publication_datetime),
+        "Заказчик название": safeExportValue(customer?.full_name),
+        "Регион заявки": safeExportValue(REGION_NAMES_BY_CODE[p.region_number ?? ""] ?? p.region_number),
+        "Ссылка на заявку в госреестре": buildGosRegistryUrl(p.registration_number),
+      };
+
+      if (isItm && resultInfo) {
+        base["Победитель"] = safeExportValue(resultInfo["Победитель"]);
+        base["ИНН"] = safeExportValue(resultInfo["ИНН"]);
+        base["Итоговая цена контракта"] = safeExportValue(resultInfo["Итоговая цена контракта"]);
+        base["Другие участники"] = safeExportValue(resultInfo["Другие участники"]);
+      }
+
+      return base;
+    });
+  }
+
+  // Россети — развёртка по лотам
+  const rows: Record<string, unknown>[] = [];
+  for (const p of purchases) {
+    const customer = (p as Record<string, unknown>).customer as Record<string, unknown> | null ?? null;
+    const resultInfo = (p as Record<string, unknown>).result_info as Record<string, unknown> | null ?? null;
+    const lots = Array.isArray((p as Record<string, unknown>).lots)
+      ? ((p as Record<string, unknown>).lots as Record<string, unknown>[])
+      : [{}];
+
+    for (const lot of lots) {
+      rows.push({
+        "Реестровый номер закупки": safeExportValue(p.registration_number),
+        "Наименование лота": safeExportValue(lot.subject ?? p.name),
+        "Начальная (максимальная) цена контракта": Number(p.initial_sum) || 0,
+        "Валюта": safeExportValue(lot.currency ?? "RUB"),
+        "Наименование Заказчика": safeExportValue(customer?.full_name),
+        "Регион заявки": safeExportValue(REGION_NAMES_BY_CODE[p.region_number ?? ""] ?? p.region_number),
+        "Организация, осуществляющая размещение": safeExportValue(customer?.placement_organization ?? customer?.full_name),
+        "Дата размещения": formatExportDate(p.submission_start_datetime),
+        "Дата обновления": formatExportDate(p.publication_datetime),
+        "Дата начала подачи заявок": formatExportDate(p.submission_start_datetime),
+        "Дата окончания подачи заявок": formatExportDate(p.submission_close_datetime),
+        "Победитель": safeExportValue(resultInfo?.["Победитель"]),
+        "Другие участники": safeExportValue(resultInfo?.["Другие участники"]),
+        "Ячейки": safeExportValue(resultInfo?.["Ячейки"]),
+        "Кол-во ячеек": safeExportValue(resultInfo?.["Кол-во ячеек"]),
+        "Типовой проект": safeExportValue(resultInfo?.["Типовой проект"]),
+        "Проектировщик": safeExportValue(resultInfo?.["Проектировщик"]),
+        "Дата исполнения договора": safeExportValue(resultInfo?.["Дата исполнения договора"]),
+        "Филиал/РЭС": safeExportValue(resultInfo?.["Филиал/РЭС"]),
+        "Ссылка на заявку в госреестре": buildGosRegistryUrl(p.registration_number),
+      });
+    }
+  }
+  return rows;
+}
+
+function buildExportFileName(ext: string, filterTypeName: string, districtName: string): string {
+  const now = new Date();
+  const day = String(now.getDate()).padStart(2, '0');
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const dateStr = `${day}.${month}`;
+
+  if (filterTypeName === "Тендеры для OEM") {
+    const d = districtName || "Все округа";
+    return `oem_purchases_${d.toLowerCase().replace(/\s+/g, "_")}_${dateStr}.${ext}`;
+  }
+  if (filterTypeName === "Тендеры для ITM") {
+    const d = districtName || "Все округа";
+    return `itm_purchases_${d.toLowerCase().replace(/\s+/g, "_")}_${dateStr}.${ext}`;
+  }
+  if (filterTypeName === "Тендеры для Россетей") {
+    const d = districtName || "Все округа";
+    return `rosseti_purchases_${d.toLowerCase().replace(/\s+/g, "_")}_${dateStr}.${ext}`;
+  }
+  return `purchases_${dateStr}.${ext}`;
+}
+
+function downloadJson(purchases: Purchase[], filters: UiFilters) {
+  const rows = buildExportRows(purchases, filters.filterTypeName).map((row) => {
+    const normalized = { ...row };
+    for (const key of Object.keys(normalized)) {
+      if (normalized[key] instanceof Date) {
+        normalized[key] = (normalized[key] as Date).toISOString();
+      }
+    }
+    return normalized;
+  });
+
+  const blob = new Blob([JSON.stringify(rows, null, 2)], { type: "application/json;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = buildExportFileName("json", filters.filterTypeName, filters.districtName);
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+async function downloadXlsx(
+  purchases: Purchase[],
+  filters: UiFilters,
+) {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet("Закупки");
+
+  const rows = buildExportRows(
+    purchases,
+    filters.filterTypeName,
+  );
+
+  worksheet.columns = getExportColumns(
+    filters.filterTypeName,
+  );
+
+  worksheet.addRows(rows);
+
+  const thinBorder = {
+    top: { style: "thin" },
+    left: { style: "thin" },
+    bottom: { style: "thin" },
+    right: { style: "thin" },
+  } as const;
+
+  const yellowHeaderCols = new Set([
+    "Победитель",
+    "Другие участники",
+    "ИНН",
+    "Итоговая цена контракта",
+    "Ячейки",
+    "Кол-во ячеек",
+    "Типовой проект",
+    "Проектировщик",
+    "Дата исполнения договора",
+    "Филиал/РЭС",
+  ]);
+
+  worksheet.getRow(1).height = 67.5;
+
+  worksheet.getRow(1).eachCell((cell: ExcelJS.Cell) => {
+    cell.font = {
+      name: "Calibri",
+      size: 11,
+      bold: true,
+    };
+
+    cell.alignment = {
+      horizontal: "center",
+      vertical: "middle",
+      wrapText: true,
+    };
+
+    cell.border = thinBorder;
+
+    if (yellowHeaderCols.has(String(cell.value))) {
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FFFFFF00" },
+      };
+    }
+  });
+
+  for (
+    let rowNumber = 2;
+    rowNumber <= worksheet.rowCount;
+    rowNumber++
+  ) {
+    const row = worksheet.getRow(rowNumber);
+
+    row.eachCell((cell: ExcelJS.Cell, colNumber: number) => {
+      cell.font = {
+        name: "Calibri",
+        size: 11,
+      };
+
+      cell.alignment = {
+        wrapText: true,
+        vertical: "middle",
+      };
+
+      cell.border = thinBorder;
+
+      if (colNumber === 1) {
+        cell.alignment = {
+          ...cell.alignment,
+          horizontal: "left",
+        };
+      }
+
+      if (colNumber === 2) {
+        cell.alignment = {
+          ...cell.alignment,
+          horizontal: "center",
+        };
+      }
+
+      if (cell.value instanceof Date) {
+        cell.numFmt = "dd.mm.yyyy";
+      }
+
+      if (typeof cell.value === "number") {
+        cell.numFmt = "#,##0.00";
+      }
+    });
+  }
+
+  const buffer = await workbook.xlsx.writeBuffer();
+
+  const blob = new Blob(
+    [buffer],
+    {
+      type:
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    },
+  );
+
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+
+  a.href = url;
+
+  a.download = buildExportFileName(
+    "xlsx",
+    filters.filterTypeName,
+    filters.districtName,
+  );
+
+  a.click();
+
+  URL.revokeObjectURL(url);
+}
+
+function getExportColumns(filterTypeName: string) {
+  if (filterTypeName === "Тендеры для OEM") {
+    return [
+      { header: "Реестровый номер", key: "Реестровый номер", width: 18 },
+      { header: "Название закупки", key: "Название закупки", width: 60 },
+      { header: "Сумма закупки", key: "Сумма закупки", width: 18 },
+      { header: "Дата начала подачи заявок", key: "Дата начала подачи заявок", width: 18 },
+      { header: "Дата окончания подачи заявок", key: "Дата окончания подачи заявок", width: 18 },
+      { header: "Дата публикации", key: "Дата публикации", width: 18 },
+      { header: "Заказчик название", key: "Заказчик название", width: 36 },
+      { header: "Регион заявки", key: "Регион заявки", width: 36 },
+      { header: "Ссылка на заявку в госреестре", key: "Ссылка на заявку в госреестре", width: 72 },
+    ];
+  }
+
+  if (filterTypeName === "Тендеры для ITM") {
+    return [
+      { header: "Реестровый номер", key: "Реестровый номер", width: 18 },
+      { header: "Название закупки", key: "Название закупки", width: 60 },
+      { header: "Сумма закупки", key: "Сумма закупки", width: 18 },
+      { header: "Дата начала подачи заявок", key: "Дата начала подачи заявок", width: 18 },
+      { header: "Дата окончания подачи заявок", key: "Дата окончания подачи заявок", width: 18 },
+      { header: "Дата публикации", key: "Дата публикации", width: 18 },
+      { header: "Заказчик название", key: "Заказчик название", width: 36 },
+      { header: "Регион заявки", key: "Регион заявки", width: 36 },
+      { header: "Победитель", key: "Победитель", width: 14 },
+      { header: "ИНН", key: "ИНН", width: 9 },
+      { header: "Итоговая цена контракта", key: "Итоговая цена контракта", width: 13 },
+      { header: "Другие участники", key: "Другие участники", width: 15 },
+      { header: "Ссылка на заявку в госреестре", key: "Ссылка на заявку в госреестре", width: 72 },
+    ];
+  }
+
+  return [
+    { header: "Реестровый номер закупки", key: "Реестровый номер закупки", width: 16 },
+    { header: "Наименование лота", key: "Наименование лота", width: 55 },
+    { header: "Начальная (максимальная) цена контракта", key: "Начальная (максимальная) цена контракта", width: 16 },
+    { header: "Валюта", key: "Валюта", width: 9 },
+    { header: "Наименование Заказчика", key: "Наименование Заказчика", width: 28 },
+    { header: "Регион заявки", key: "Регион заявки", width: 36 },
+    { header: "Организация, осуществляющая размещение", key: "Организация, осуществляющая размещение", width: 21 },
+    { header: "Дата размещения", key: "Дата размещения", width: 13 },
+    { header: "Дата обновления", key: "Дата обновления", width: 13 },
+    { header: "Дата начала подачи заявок", key: "Дата начала подачи заявок", width: 11 },
+    { header: "Дата окончания подачи заявок", key: "Дата окончания подачи заявок", width: 13 },
+    { header: "Победитель", key: "Победитель", width: 14 },
+    { header: "Другие участники", key: "Другие участники", width: 15 },
+    { header: "Ячейки", key: "Ячейки", width: 9 },
+    { header: "Кол-во ячеек", key: "Кол-во ячеек", width: 13 },
+    { header: "Типовой проект", key: "Типовой проект", width: 15 },
+    { header: "Проектировщик", key: "Проектировщик", width: 29 },
+    { header: "Дата исполнения договора", key: "Дата исполнения договора", width: 13 },
+    { header: "Филиал/РЭС", key: "Филиал/РЭС", width: 14 },
+    { header: "Ссылка на заявку в госреестре", key: "Ссылка на заявку в госреестре", width: 72 },
+  ];
+}
+
+// ─── компонент "Экспорт" ──────────────────────────────────────────────────────
+
+function ExportPanel({
+  purchases,
+  filters,
+}: {
+  purchases: Purchase[];
+  filters: UiFilters;
+}) {
+  const [xlsxLoading, setXlsxLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleXlsx() {
+    try {
+      setXlsxLoading(true);
+      setError(null);
+      await downloadXlsx(purchases, filters);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Ошибка экспорта XLSX");
+    } finally {
+      setXlsxLoading(false);
+    }
+  }
+
+  function handleJson() {
+    try {
+      setError(null);
+      downloadJson(purchases, filters);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Ошибка экспорта JSON");
+    }
+  }
+
+  return (
+    <Card>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 font-semibold text-[color:var(--se-text)]">
+          <Download size={18} />
+          Экспорт ({purchases.length} заявок)
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" onClick={handleJson} type="button">
+            <FileJson size={16} className="mr-2" />
+            JSON
+          </Button>
+          <Button variant="secondary" onClick={handleXlsx} disabled={xlsxLoading} type="button">
+            {xlsxLoading
+              ? <Loader2 size={16} className="mr-2 animate-spin" />
+              : <FileSpreadsheet size={16} className="mr-2" />
+            }
+            XLSX
+          </Button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="mt-3 rounded-xl bg-rose-50 px-4 py-2.5 text-sm text-rose-700">
+          {error}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// ─── документы заявки ────────────────────────────────────────────────────────
+// ИСПРАВЛЕНО: раньше компонент принимал documents_list как `unknown[]`, но
+// getDocumentDisplayName/Meta ожидают правильно типизированный объект.
+// Добавлена явная нормализация элементов перед передачей в утилиты.
 
 function DocumentsList({ documents }: { documents: unknown[] }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -165,75 +596,45 @@ function DocumentsList({ documents }: { documents: unknown[] }) {
       </div>
     );
   }
-
-  return (
-    <div className="rounded-2xl border border-[color:var(--se-border)] bg-white p-4">
-      <button
-        className="flex w-full items-center justify-between gap-3 text-left"
-        onClick={() => setIsOpen((value) => !value)}
-        type="button"
-      >
-        <div>
-          <div className="flex items-center gap-2 text-sm font-semibold">
-            <FileText size={18} />
-            Обработанные документы
+    return (
+      <div className="rounded-2xl border border-[color:var(--se-border)] bg-white p-4">
+        <button
+          className="flex w-full items-center justify-between gap-3 text-left"
+          onClick={() => setIsOpen((v) => !v)}
+          type="button"
+        >
+          <div>
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <FileText size={18} />
+              Обработанные документы
+            </div>
+            <div className="mt-1 text-xs text-[color:var(--se-muted)]">
+              Найдено: {documents.length}. Список появится после нажатия «Показать».
+            </div>
           </div>
-          <div className="mt-1 text-xs text-[color:var(--se-muted)]">
-            Найдено: {documents.length}. Список появится после нажатия «Показать».
-          </div>
-        </div>
 
-        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-[color:var(--se-techno-green)]">
-          {isOpen ? "Скрыть" : "Показать"}
-          {isOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-        </span>
-      </button>
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-[color:var(--se-techno-green)]">
+            {isOpen ? "Скрыть" : "Показать"}
+            {isOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </span>
+        </button>
 
-      {isOpen && (
-        <div className="mt-4 divide-y divide-[color:var(--se-border)] rounded-2xl border border-[color:var(--se-border)] bg-white">
-          {documents.map((document, index) => {
-            const item = document as Record<string, unknown>;
-            const name = getDocumentDisplayName(document, index);
-            const meta = getDocumentDisplayMeta(document);
-            const rawUrl = item.url || item.href || item.link;
-            const url = rawUrl ? String(rawUrl) : "";
-
-            return (
-              <div
-                key={`${name}-${index}`}
-                className="flex flex-col gap-2 px-4 py-3 md:flex-row md:items-center md:justify-between"
-              >
-                <div>
-                  <div className="text-sm font-semibold text-[color:var(--se-text)]">
-                    {name}
-                  </div>
-
-                  {meta && (
-                    <div className="mt-1 text-xs text-[color:var(--se-muted)]">
-                      {meta}
-                    </div>
-                  )}
+        {isOpen && (
+          <div className="mt-4 divide-y divide-[color:var(--se-border)] rounded-2xl border border-[color:var(--se-border)] bg-white">
+            {documents.map((document, index) => (
+              <div key={`${String(document)}-${index}`} className="px-4 py-3">
+                <div className="text-sm font-semibold text-[color:var(--se-text)]">
+                  {String(document)}
                 </div>
-
-                {url && (
-                  <a
-                    className="inline-flex items-center gap-2 text-sm font-semibold text-[color:var(--se-techno-green)] hover:underline"
-                    href={String(url)}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Открыть
-                    <ExternalLink size={14} />
-                  </a>
-                )}
               </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
+            ))}
+          </div>
+        )}
+      </div>
+    );
 }
+
+// ─── фильтры ─────────────────────────────────────────────────────────────────
 
 function PurposeFilterCard({
   filters,
@@ -251,7 +652,7 @@ function PurposeFilterCard({
     <Card className="border-2 border-[color:var(--se-techno-green)] bg-emerald-50/60">
       <button
         className="flex w-full items-start justify-between gap-4 text-left"
-        onClick={() => setIsOpen((value) => !value)}
+        onClick={() => setIsOpen((v) => !v)}
         type="button"
       >
         <div>
@@ -275,7 +676,7 @@ function PurposeFilterCard({
       {isOpen && (
         <div className="mt-5 grid gap-4">
           <Select
-            label="Тип фильтра / цель"
+            label="Тип фильтра"
             value={filters.filterTypeName}
             onChange={(event) => onChange({ filterTypeName: event.target.value })}
             options={filterTypeOptions}
@@ -315,7 +716,7 @@ function FiltersPanel({
     <Card>
       <button
         className="flex w-full items-center justify-between gap-3 text-left"
-        onClick={() => setIsOpen((value) => !value)}
+        onClick={() => setIsOpen((v) => !v)}
         type="button"
       >
         <div className="flex items-center gap-2 font-semibold">
@@ -333,14 +734,6 @@ function FiltersPanel({
             value={filters.name}
             onChange={(event) => onChange({ name: event.target.value })}
           />
-
-          <Input
-            label="Файл-источник"
-            placeholder="source_file"
-            value={filters.sourceFile}
-            onChange={(event) => onChange({ sourceFile: event.target.value })}
-          />
-
           <Select
             label="Федеральный округ"
             value={filters.districtName}
@@ -349,14 +742,32 @@ function FiltersPanel({
             }
             options={FEDERAL_DISTRICT_OPTIONS}
           />
-
           <Select
             label="Регион"
             value={filters.regionNumber}
             onChange={(event) => onChange({ regionNumber: event.target.value })}
             options={REGION_OPTIONS}
           />
-
+          <Input label="Начало подачи от" type="date" value={filters.submissionStartFrom}
+            onChange={(e) => onChange({ submissionStartFrom: e.target.value })} />
+          <Input label="Начало подачи до" type="date" value={filters.submissionStartTo}
+            onChange={(e) => onChange({ submissionStartTo: e.target.value })} />
+          <Input label="Окончание подачи от" type="date" value={filters.submissionCloseFrom}
+            onChange={(e) => onChange({ submissionCloseFrom: e.target.value })} />
+          <Input label="Окончание подачи до" type="date" value={filters.submissionCloseTo}
+            onChange={(e) => onChange({ submissionCloseTo: e.target.value })} />
+          <Input
+            label="Публикация от"
+            type="date"
+            value={filters.publicationDateFrom}
+            onChange={(event) => onChange({ publicationDateFrom: event.target.value })}
+          />
+          <Input
+            label="Публикация до"
+            type="date"
+            value={filters.publicationDateTo}
+            onChange={(event) => onChange({ publicationDateTo: event.target.value })}
+          />
           <Input
             label="Сумма от"
             type="number"
@@ -364,29 +775,12 @@ function FiltersPanel({
             value={filters.initialSumFrom}
             onChange={(event) => onChange({ initialSumFrom: event.target.value })}
           />
-
           <Input
             label="Сумма до"
             type="number"
             min="0"
             value={filters.initialSumTo}
             onChange={(event) => onChange({ initialSumTo: event.target.value })}
-          />
-
-          <Input
-            label="Публикация от"
-            type="date"
-            value={filters.publicationDateFrom}
-            onChange={(event) =>
-              onChange({ publicationDateFrom: event.target.value })
-            }
-          />
-
-          <Input
-            label="Публикация до"
-            type="date"
-            value={filters.publicationDateTo}
-            onChange={(event) => onChange({ publicationDateTo: event.target.value })}
           />
 
           <div className="flex items-end justify-end md:col-span-2 xl:col-span-4">
@@ -401,6 +795,8 @@ function FiltersPanel({
   );
 }
 
+// ─── статус дедлайна ─────────────────────────────────────────────────────────
+
 type DeadlineStatus = {
   key: "active" | "soon" | "expired";
   label: string;
@@ -409,37 +805,22 @@ type DeadlineStatus = {
 
 function getDeadlineStatus(purchase: Purchase): DeadlineStatus {
   const value = purchase.submission_close_datetime;
-
-  if (!value) {
-    return { key: "active", label: "Без дедлайна", tone: "success" };
-  }
+  if (!value) return { key: "active", label: "Без дедлайна", tone: "success" };
 
   const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return { key: "active", label: "Дедлайн", tone: "success" };
-  }
+  if (Number.isNaN(date.getTime())) return { key: "active", label: "Дедлайн", tone: "success" };
 
   const now = new Date();
-
-  if (date.getTime() < now.getTime()) {
-    return { key: "expired", label: "Просрочена", tone: "danger" };
-  }
+  if (date.getTime() < now.getTime()) return { key: "expired", label: "Просрочена", tone: "danger" };
 
   const diffHours = (date.getTime() - now.getTime()) / 1000 / 60 / 60;
-
-  if (diffHours <= 48) {
-    return { key: "soon", label: `Скоро (${Math.ceil(diffHours)}ч)`, tone: "warning" };
-  }
+  if (diffHours <= 48) return { key: "soon", label: `Скоро (${Math.ceil(diffHours)}ч)`, tone: "warning" };
 
   return { key: "active", label: "Активна", tone: "success" };
 }
 
 function getRegionLabel(regionNumber?: string | null): string {
-  if (!regionNumber) {
-    return "—";
-  }
-
+  if (!regionNumber) return "—";
   const option = REGION_OPTIONS.find((item) => item.value === regionNumber);
   return option ? option.label.replace(`${regionNumber} — `, "") : regionNumber;
 }
@@ -452,22 +833,22 @@ function getCustomerName(customer: Record<string, unknown> | null): string {
   );
 }
 
-function buildRegistryUrl(registrationNumber?: string | null): string {
-  const value = String(registrationNumber || "").trim();
+// ─── вспомогательные компоненты детальной карточки ───────────────────────────
 
-  if (!value) {
-    return "";
-  }
-
-  return `https://zakupki.gov.ru/epz/order/notice/notice223/common-info.html?regNumber=${encodeURIComponent(value)}`;
+function InfoTile({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="rounded-2xl bg-slate-50 p-4">
+      <div className="text-xs font-semibold uppercase tracking-wide text-[color:var(--se-muted)]">
+        {label}
+      </div>
+      <div className={`mt-2 text-sm font-semibold text-[color:var(--se-text)] ${mono ? "font-mono" : ""}`}>
+        {value}
+      </div>
+    </div>
+  );
 }
 
-type PurchaseCardProps = {
-  purchase: Purchase;
-  token: string;
-  onSaved: (purchase: Purchase) => void;
-  onDeleted: (guid: string) => void;
-};
+// ─── форма редактирования ─────────────────────────────────────────────────────
 
 type PurchaseDraft = {
   name: string;
@@ -482,7 +863,6 @@ type PurchaseDraft = {
 
 function buildPurchaseDraft(purchase: Purchase): PurchaseDraft {
   const customerName = getCustomerName(purchase.customer);
-
   return {
     name: purchase.name || "",
     registrationNumber: purchase.registration_number || "",
@@ -496,36 +876,8 @@ function buildPurchaseDraft(purchase: Purchase): PurchaseDraft {
 }
 
 function dateToIso(value: string): string | null {
-  if (!value) {
-    return null;
-  }
-
+  if (!value) return null;
   return new Date(`${value}T00:00:00`).toISOString();
-}
-
-function InfoTile({
-  label,
-  value,
-  mono = false,
-}: {
-  label: string;
-  value: string;
-  mono?: boolean;
-}) {
-  return (
-    <div className="rounded-2xl bg-slate-50 p-3">
-      <div className="text-xs font-semibold uppercase tracking-wide text-[color:var(--se-muted)]">
-        {label}
-      </div>
-      <div
-        className={`mt-1 min-w-0 break-words text-sm font-semibold text-[color:var(--se-text)] ${
-          mono ? "font-mono" : ""
-        }`}
-      >
-        {value || "—"}
-      </div>
-    </div>
-  );
 }
 
 function PurchaseEditForm({
@@ -536,24 +888,21 @@ function PurchaseEditForm({
   onChange: (draft: PurchaseDraft) => void;
 }) {
   return (
-    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+    <div className="grid gap-4 md:grid-cols-2">
       <Input
-        label="Наименование"
+        label="Название закупки"
         value={draft.name}
         onChange={(event) => onChange({ ...draft, name: event.target.value })}
-        className="md:col-span-2 xl:col-span-4"
+        className="md:col-span-2"
       />
       <Input
         label="Регистрационный номер"
         value={draft.registrationNumber}
-        onChange={(event) =>
-          onChange({ ...draft, registrationNumber: event.target.value })
-        }
+        onChange={(event) => onChange({ ...draft, registrationNumber: event.target.value })}
       />
       <Input
-        label="Стоимость"
+        label="Сумма"
         type="number"
-        min="0"
         value={draft.initialSum}
         onChange={(event) => onChange({ ...draft, initialSum: event.target.value })}
       />
@@ -572,9 +921,7 @@ function PurchaseEditForm({
         label="Начало подачи заявки"
         type="date"
         value={draft.submissionStart}
-        onChange={(event) =>
-          onChange({ ...draft, submissionStart: event.target.value })
-        }
+        onChange={(event) => onChange({ ...draft, submissionStart: event.target.value })}
       />
       <Input
         label="Окончание подачи заявки"
@@ -592,8 +939,10 @@ function PurchaseEditForm({
   );
 }
 
+// ─── детали заявки ───────────────────────────────────────────────────────────
+
 function PurchaseDetails({ purchase }: { purchase: Purchase }) {
-  const registryUrl = buildRegistryUrl(purchase.registration_number);
+  const registryUrl = buildGosRegistryUrl(purchase.registration_number);
 
   return (
     <div className="space-y-5">
@@ -615,21 +964,11 @@ function PurchaseDetails({ purchase }: { purchase: Purchase }) {
       </div>
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        <InfoTile
-          label="Регистрационный номер"
-          value={purchase.registration_number || "—"}
-          mono
-        />
+        <InfoTile label="Регистрационный номер" value={purchase.registration_number || "—"} mono />
         <InfoTile label="Заказчик" value={getCustomerName(purchase.customer)} />
         <InfoTile label="Регион подачи заявки" value={getRegionLabel(purchase.region_number)} />
-        <InfoTile
-          label="Начало подачи заявки"
-          value={formatDate(purchase.submission_start_datetime)}
-        />
-        <InfoTile
-          label="Окончание подачи заявки"
-          value={formatDate(purchase.submission_close_datetime)}
-        />
+        <InfoTile label="Начало подачи заявки" value={formatDate(purchase.submission_start_datetime)} />
+        <InfoTile label="Окончание подачи заявки" value={formatDate(purchase.submission_close_datetime)} />
         <InfoTile label="Дата публикации" value={formatDate(purchase.publication_datetime)} />
       </div>
 
@@ -645,10 +984,15 @@ function PurchaseDetails({ purchase }: { purchase: Purchase }) {
         </a>
       )}
 
-      <DocumentsList documents={purchase.documents_list || []} />
+      {/* ИСПРАВЛЕНО: documents_list может быть null/undefined — защита перед передачей */}
+      <DocumentsList
+        documents={Array.isArray(purchase.documents_list) ? purchase.documents_list : []}
+      />
     </div>
   );
 }
+
+// ─── модальное окно заявки ───────────────────────────────────────────────────
 
 function PurchaseFullScreenModal({
   purchase,
@@ -668,15 +1012,10 @@ function PurchaseFullScreenModal({
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState(() => buildPurchaseDraft(purchase));
 
-  useEffect(() => {
-    setDraft(buildPurchaseDraft(purchase));
-  }, [purchase]);
+  useEffect(() => { setDraft(buildPurchaseDraft(purchase)); }, [purchase]);
 
   async function handleSave() {
-    if (!token || !purchase.guid) {
-      setError("Нет токена или GUID заявки");
-      return;
-    }
+    if (!token || !purchase.guid) { setError("Нет токена или GUID заявки"); return; }
 
     try {
       setIsSaving(true);
@@ -689,10 +1028,7 @@ function PurchaseFullScreenModal({
         registration_number: draft.registrationNumber,
         initial_sum: toNumber(draft.initialSum) ?? null,
         region_number: draft.regionNumber || null,
-        customer: {
-          ...(purchase.customer || {}),
-          full_name: draft.customerName || undefined,
-        },
+        customer: { ...(purchase.customer || {}), full_name: draft.customerName || undefined },
         publication_datetime: dateToIso(draft.publicationDate),
         submission_start_datetime: dateToIso(draft.submissionStart),
         submission_close_datetime: dateToIso(draft.submissionClose),
@@ -708,16 +1044,10 @@ function PurchaseFullScreenModal({
   }
 
   async function handleDelete() {
-    if (!token || !purchase.guid) {
-      setError("Нет токена или GUID заявки");
-      return;
-    }
+    if (!token || !purchase.guid) { setError("Нет токена или GUID заявки"); return; }
 
     const ok = window.confirm(`Удалить заявку ${purchase.registration_number || purchase.name}?`);
-
-    if (!ok) {
-      return;
-    }
+    if (!ok) return;
 
     try {
       setIsSaving(true);
@@ -752,12 +1082,7 @@ function PurchaseFullScreenModal({
                   <Save className="mr-2" size={16} />
                   Сохранить
                 </Button>
-                <Button
-                  variant="ghost"
-                  onClick={() => setIsEditing(false)}
-                  disabled={isSaving}
-                  type="button"
-                >
+                <Button variant="ghost" onClick={() => setIsEditing(false)} disabled={isSaving} type="button">
                   Отмена
                 </Button>
               </>
@@ -782,16 +1107,16 @@ function PurchaseFullScreenModal({
           {isEditing ? (
             <div className="space-y-5">
               <PurchaseEditForm draft={draft} onChange={setDraft} />
-              <DocumentsList documents={purchase.documents_list || []} />
+              <DocumentsList
+                documents={Array.isArray(purchase.documents_list) ? purchase.documents_list : []}
+              />
             </div>
           ) : (
             <PurchaseDetails purchase={purchase} />
           )}
 
           {error && (
-            <div className="mt-5 rounded-2xl bg-rose-50 p-3 text-sm text-rose-700">
-              {error}
-            </div>
+            <div className="mt-5 rounded-2xl bg-rose-50 p-3 text-sm text-rose-700">{error}</div>
           )}
         </div>
       </div>
@@ -799,12 +1124,19 @@ function PurchaseFullScreenModal({
   );
 }
 
+// ─── карточка заявки в списке ────────────────────────────────────────────────
+
+type PurchaseCardProps = {
+  purchase: Purchase;
+  token: string;
+  onSaved: (purchase: Purchase) => void;
+  onDeleted: (guid: string) => void;
+};
+
 function PurchaseCard({ purchase, token, onSaved, onDeleted }: PurchaseCardProps) {
   const [isOpen, setIsOpen] = useState(false);
   const status = getDeadlineStatus(purchase);
-  const documentsCount = Array.isArray(purchase.documents_list)
-    ? purchase.documents_list.length
-    : 0;
+  const documentsCount = Array.isArray(purchase.documents_list) ? purchase.documents_list.length : 0;
 
   return (
     <>
@@ -879,6 +1211,8 @@ function PurchaseCard({ purchase, token, onSaved, onDeleted }: PurchaseCardProps
   );
 }
 
+// ─── главная страница ─────────────────────────────────────────────────────────
+
 export function PurchasesPage() {
   const [token, setToken] = useState("");
   const [filters, setFilters] = useState<UiFilters>(defaultFilters);
@@ -886,54 +1220,68 @@ export function PurchasesPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [sortOption, setSortOption] = useState<string>("submission_start_desc");
+
+  // НОВОЕ: счётчик для принудительного обновления после admin-действий
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const requestFilters = useMemo(() => buildFilters(token, filters), [filters, token]);
+
   const totalAmount = useMemo(
-    () => purchases.reduce((sum, purchase) => sum + (purchase.initial_sum || 0), 0),
+    () => purchases.reduce((sum, p) => sum + (p.initial_sum || 0), 0),
     [purchases],
   );
-  const filterTypeOptions = useMemo(() => {
-    const names = Array.from(
-      new Set(
-        purchases
-          .map((purchase) => (purchase as Record<string, unknown>).filter_type_name)
-          .filter(
-            (value): value is string =>
-              typeof value === "string" && Boolean(value.trim()),
-          ),
-      ),
-    ).sort((left, right) => left.localeCompare(right, "ru"));
 
-    return [
+  const sortedPurchases = useMemo(() => {
+      const list = [...purchases];
+      const safeDate = (date?: string | null) => {
+        const d = new Date(date || 0);
+        return isNaN(d.getTime()) ? 0 : d.getTime();
+      };
+
+      switch (sortOption) {
+        case "sum_desc":
+          return list.sort((a, b) => (b.initial_sum || 0) - (a.initial_sum || 0));
+        case "sum_asc":
+          return list.sort((a, b) => (a.initial_sum || 0) - (b.initial_sum || 0));
+        case "name_asc":
+          return list.sort((a, b) => (a.name || "").localeCompare(b.name || "", "ru"));
+        case "submission_start_asc":
+          return list.sort((a, b) => safeDate(a.submission_start_datetime) - safeDate(b.submission_start_datetime));
+        case "submission_start_desc":
+          return list.sort((a, b) => safeDate(b.submission_start_datetime) - safeDate(a.submission_start_datetime));
+        case "submission_close_asc":
+          return list.sort((a, b) => safeDate(a.submission_close_datetime) - safeDate(b.submission_close_datetime));
+        case "submission_close_desc":
+          return list.sort((a, b) => safeDate(b.submission_close_datetime) - safeDate(a.submission_close_datetime));
+        case "pub_asc":
+          return list.sort((a, b) => safeDate(a.publication_datetime) - safeDate(b.publication_datetime));
+        case "pub_desc":
+          return list.sort((a, b) => safeDate(b.publication_datetime) - safeDate(a.publication_datetime));
+        default:
+          return list;
+      }
+    }, [purchases, sortOption]);
+
+  const filterTypeOptions = [
       { label: "Все типы", value: "" },
-      ...names.map((name) => ({ label: name, value: name })),
+  { label: "Тендеры для Россетей", value: "Тендеры для Россетей" },
+  { label: "Тендеры для OEM", value: "Тендеры для OEM" },
+  { label: "Тендеры для ITM", value: "Тендеры для ITM" }
     ];
-  }, [purchases]);
 
   useEffect(() => {
     let ignore = false;
-
     getConfig()
-      .then((response) => {
-        if (!ignore) {
-          setToken(response.data.system_token || "");
-        }
-      })
-      .catch((err: unknown) => {
-        if (!ignore) {
-          setError(err instanceof Error ? err.message : "Не удалось получить токен");
-        }
-      });
-
-    return () => {
-      ignore = true;
-    };
+      .then((response) => { if (!ignore) setToken(response.data.system_token || ""); })
+      .catch((err: unknown) => { if (!ignore) setError(err instanceof Error ? err.message : "Не удалось получить токен"); });
+    return () => { ignore = true; };
   }, []);
 
+  // ИСПРАВЛЕНО: добавлен refreshKey в зависимости — при его изменении
+  // запрос перезапускается даже если фильтры не менялись
   useEffect(() => {
-    if (!token) {
-      return undefined;
-    }
+    if (!token) return undefined;
 
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => {
@@ -949,15 +1297,11 @@ export function PurchasesPage() {
         })
         .catch((err: unknown) => {
           if (!controller.signal.aborted) {
-            setError(
-              err instanceof Error ? err.message : "Не удалось загрузить закупки",
-            );
+            setError(err instanceof Error ? err.message : "Не удалось загрузить закупки");
           }
         })
         .finally(() => {
-          if (!controller.signal.aborted) {
-            setIsLoading(false);
-          }
+          if (!controller.signal.aborted) setIsLoading(false);
         });
     }, 350);
 
@@ -965,33 +1309,44 @@ export function PurchasesPage() {
       controller.abort();
       window.clearTimeout(timeoutId);
     };
-  }, [requestFilters, token]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestFilters, token, refreshKey]);
 
   function updateFilters(patch: Partial<UiFilters>) {
     setFilters((current) => ({ ...current, ...patch }));
   }
 
+  // НОВОЕ: функция ручного обновления — передаётся в Header и вызывается
+  // после admin-действий (backfill, run_process_day). Инкремент refreshKey
+  // вызывает перезапуск useEffect выше без изменения фильтров.
+  const handleRefresh = useCallback(() => {
+    setRefreshKey((k) => k + 1);
+  }, []);
+
   function handlePurchaseSaved(nextPurchase: Purchase) {
     setPurchases((current) =>
-      current.map((purchase) =>
-        purchase.guid === nextPurchase.guid ? nextPurchase : purchase,
-      ),
+      current.map((p) => (p.guid === nextPurchase.guid ? nextPurchase : p)),
     );
   }
 
   function handlePurchaseDeleted(guid: string) {
-    setPurchases((current) => current.filter((purchase) => purchase.guid !== guid));
+    setPurchases((current) => current.filter((p) => p.guid !== guid));
   }
 
   return (
     <>
       <Header
         title="Закупки"
-        subtitle="Автоматический поиск: запрос в get_all_purchases уходит при каждом изменении фильтров"
+        subtitle="Автоматический поиск: запрос уходит при каждом изменении фильтров"
+        onRefresh={handleRefresh}
       />
 
       <div className="space-y-5 p-6">
-        <PurposeFilterCard filters={filters} filterTypeOptions={filterTypeOptions} onChange={updateFilters} />
+        <PurposeFilterCard
+          filters={filters}
+          filterTypeOptions={filterTypeOptions}
+          onChange={updateFilters}
+        />
 
         <FiltersPanel
           filters={filters}
@@ -999,6 +1354,7 @@ export function PurchasesPage() {
           onReset={() => setFilters(defaultFilters)}
         />
 
+        {/* Статистика */}
         <div className="grid gap-4 md:grid-cols-3">
           <Card>
             <div className="flex items-center justify-between gap-3">
@@ -1030,10 +1386,34 @@ export function PurchasesPage() {
         </div>
 
         {error && (
-          <Card className="border-rose-200 bg-rose-50 text-rose-700">
-            {error}
-          </Card>
+          <Card className="border-rose-200 bg-rose-50 text-rose-700">{error}</Card>
         )}
+
+        {/* Экспорт */}
+        {purchases.length > 0 && (
+          <ExportPanel purchases={purchases} filters={filters} />
+        )}
+
+        {/* Список заявок */}
+
+        <div className="flex items-center gap-4">
+          <Select
+            label="Сортировка"
+            value={sortOption}
+            onChange={(e) => setSortOption(e.target.value)}
+            options={[
+              { label: "По дате начала (новые)", value: "submission_start_desc" },
+              { label: "По дате начала (старые)", value: "submission_start_asc" },
+              { label: "По дате окончания (скоро)", value: "submission_close_asc" },
+              { label: "По дате окончания (позже)", value: "submission_close_desc" },
+              { label: "По сумме (убывание)", value: "sum_desc" },
+              { label: "По сумме (возрастание)", value: "sum_asc" },
+              { label: "По названию", value: "name_asc" },
+              { label: "По дате публикации (новые)", value: "pub_desc" },
+              { label: "По дате публикации (старые)", value: "pub_asc" },
+            ]}
+          />
+        </div>
 
         <div className="space-y-4">
           {purchases.length === 0 && !isLoading ? (
@@ -1045,7 +1425,7 @@ export function PurchasesPage() {
               </p>
             </Card>
           ) : (
-            purchases.map((purchase) => (
+            sortedPurchases.map((purchase) => (
               <PurchaseCard
                 key={purchase.guid || purchase.registration_number || purchase.name}
                 purchase={purchase}

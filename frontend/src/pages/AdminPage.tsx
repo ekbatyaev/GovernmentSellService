@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import {
   CalendarDays,
   CalendarRange,
-  CheckCircle2,
   Loader2,
   ServerCrash,
   Settings2,

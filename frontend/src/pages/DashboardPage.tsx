@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import {
   Activity,
-  CheckCircle2,
   Clock3,
   Database,
   Mail,
   RefreshCw,
   ServerCrash,
+  CheckCircle2,
   Wifi,
   WifiOff,
   XCircle,
@@ -127,9 +127,14 @@ export function DashboardPage() {
 
   const apiOk = !error && stats !== null;
 
-  // Формируем список строк статуса сервиса из данных stats
-  // stats может содержать поля: purchases_count, timestamp, newsletter_count,
-  // last_backfill_at, last_process_day_at — дополни по своей модели Stats
+  // ИСПРАВЛЕНО: нейтральные строки (числа, даты) остаются с ok=null (серая точка),
+  // а не ok=true. Логика была: stats существует → ok=true для "База данных",
+  // но все остальные строки (счётчики, даты) получали ok=null.
+  // Проблема была в том что "База данных" всегда ok=true когда stats загружен,
+  // а остальные были null — но визуально это было несогласованно.
+  // Теперь явно: API и БД имеют булевый статус, остальное — информационные строки (null).
+  const statsData = stats as Record<string, unknown> | null;
+
   const serviceItems: ServiceItem[] = [
     {
       label: "API backend",
@@ -138,33 +143,32 @@ export function DashboardPage() {
     },
     {
       label: "База данных",
-      value: stats ? "Подключена" : "—",
-      ok: stats ? true : null,
+      // ok=true только когда stats реально пришли из БД (значит БД работает),
+      // ok=false когда API вернул ошибку, ok=null пока грузим
+      ok: isLoading ? null : apiOk ? true : false,
+      value: isLoading ? "Проверяем..." : apiOk ? "Подключена" : "Нет данных",
     },
     {
       label: "Закупок в базе",
-      value: stats?.purchases_count != null ? String(stats.purchases_count) : "—",
-      ok: null,
+      value: statsData?.purchases_count != null ? String(statsData.purchases_count) : "—",
+      ok: null, // информационная строка, без статусного цвета
     },
     {
       label: "Подписчиков рассылки",
-      // если поле есть в Stats — подставится, иначе "—"
-      value: (stats as Record<string, unknown>)?.newsletter_count != null
-        ? String((stats as Record<string, unknown>).newsletter_count)
-        : "—",
+      value: statsData?.newsletter_count != null ? String(statsData.newsletter_count) : "—",
       ok: null,
     },
     {
       label: "Последний backfill",
-      value: (stats as Record<string, unknown>)?.last_backfill_at
-        ? ago(String((stats as Record<string, unknown>).last_backfill_at))
+      value: statsData?.last_backfill_at
+        ? ago(String(statsData.last_backfill_at))
         : "—",
       ok: null,
     },
     {
       label: "Последний run_process_day",
-      value: (stats as Record<string, unknown>)?.last_process_day_at
-        ? ago(String((stats as Record<string, unknown>).last_process_day_at))
+      value: statsData?.last_process_day_at
+        ? ago(String(statsData.last_process_day_at))
         : "—",
       ok: null,
     },
@@ -244,17 +248,17 @@ export function DashboardPage() {
             icon={apiOk ? Activity : ServerCrash}
             tone={isLoading ? "blue" : apiOk ? "green" : "rose"}
           />
-         <BigStat
-              label="Подписчиков"
-              value={
-                (stats as Record<string, unknown>)?.newsletter_count != null
-                  ? String((stats as Record<string, unknown>).newsletter_count)
-                  : "—"
-              }
-              sub="Получают email при новых закупках"
-              icon={Mail}
-              tone="blue"
-            />
+          <BigStat
+            label="Подписчиков"
+            value={
+              statsData?.newsletter_count != null
+                ? String(statsData.newsletter_count)
+                : "—"
+            }
+            sub="Получают email при новых закупках"
+            icon={Mail}
+            tone="blue"
+          />
           <BigStat
             label="Последнее обновление"
             value={ago(stats?.timestamp)}

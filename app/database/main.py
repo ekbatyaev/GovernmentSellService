@@ -262,6 +262,8 @@ scheduler: BackgroundScheduler | None = None
 
 def _create_scheduler() -> BackgroundScheduler:
     s = BackgroundScheduler(timezone=MOSCOW_TZ)
+    global last_process_day_at
+    last_process_day_at = datetime.now(MOSCOW_TZ).isoformat()
     s.add_job(
         run_daily_job,
         trigger=CronTrigger(hour=DAILY_HOUR_MSK, minute=DAILY_MINUTE_MSK, timezone=MOSCOW_TZ),

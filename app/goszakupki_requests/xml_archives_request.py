@@ -1,11 +1,16 @@
 import os
 import uuid
 import logging
+import time
 from datetime import datetime, timedelta
+from urllib.error import HTTPError
+
 import requests
 import xmltodict
 from dotenv import load_dotenv
 from urllib.parse import urlparse, parse_qs
+
+from requests import RequestException
 
 load_dotenv()
 
@@ -140,43 +145,71 @@ def get_docs_by_region(
     return soap_post(envelope)
 
 
-def download_archive_from_result(archive_url, out_file: str | None = None) -> str:
+def download_archive_from_result(archive_url, out_file: str | None = None, max_retries: int = 3, backoff_factor: float = 1.0) -> str | None:
     _require_env("TOKEN")
     _require_env("DOWNLOAD_URL")
 
     parsed = urlparse(archive_url)
-
     params = parse_qs(parsed.query)
-
     doc_request_uid = params.get("docRequestUid", [None])[0]
-
     compound_uid = params.get("compoundUid", [None])[0]
 
     headers = {"individualPerson_token": TOKEN}
 
     if archive_url:
         url = archive_url
-        params = None
+        req_params = None
     else:
-
         if not doc_request_uid or not compound_uid:
-            raise ValueError(f"Archive info missing (docRequestUid/compoundUid)")
+            raise ValueError("Archive info missing (docRequestUid/compoundUid)")
         url = DOWNLOAD_URL
-        params = {"docRequestUid": doc_request_uid, "compoundUid": compound_uid}
+        req_params = {"docRequestUid": doc_request_uid, "compoundUid": compound_uid}
 
     if not out_file:
         out_file = f"{compound_uid or generate_uid()}.zip"
 
     path = os.path.abspath(os.path.join(TMP_DIR, out_file))
 
-    logger.info("Скачивание архива %s", out_file)
+    for attempt in range(1, max_retries + 1):
+        try:
+            logger.info("Скачивание архива %s (попытка %d/%d)", out_file, attempt, max_retries)
+            with session.get(url, params=req_params, headers=headers, stream=True, timeout=DOWNLOAD_TIMEOUT) as r:
+                if r.status_code == 404:
+                    logger.warning("Архив не найден (404): %s, пропускаем", archive_url or f"{url}?{req_params}")
+                    return None  # 404 нет смысла повторять
 
-    with session.get(url, params=params, headers=headers, stream=True, timeout=DOWNLOAD_TIMEOUT) as r:
-        r.raise_for_status()
-        with open(path, "wb") as f:
-            for chunk in r.iter_content(1024 * 1024):
-                if chunk:
-                    f.write(chunk)
+                r.raise_for_status()  # выбросит HTTPError для 4xx/5xx, кроме 404
 
-    logger.info("Архив сохранён: %s", path)
-    return path
+                with open(path, "wb") as f:
+                    for chunk in r.iter_content(1024 * 1024):
+                        if chunk:
+                            f.write(chunk)
+
+            logger.info("Архив сохранён: %s", path)
+            return path
+
+        except HTTPError as e:
+            # HTTPError может быть 5xx, 4xx (кроме 404, которую уже обработали)
+            if r.status_code >= 500:
+                logger.warning("Серверная ошибка %d при попытке %d: %s", r.status_code, attempt, e)
+            else:
+                logger.error("HTTP ошибка %d, повторять бессмысленно: %s", r.status_code, e)
+                return None  # другие 4xx (400, 403 и т.д.) не повторяем
+        except RequestException as e:
+            logger.warning("Сетевая ошибка при попытке %d: %s", attempt, e)
+        except Exception as e:
+            logger.exception("Неожиданная ошибка при попытке %d: %s", attempt, e)
+            # Неожиданную ошибку тоже пробуем повторить, но если совсем плохо – выходим
+            if attempt == max_retries:
+                return None
+            else:
+                pass
+
+        # Если досюда дошли – ошибка, готовимся к повтору
+        if attempt < max_retries:
+            delay = backoff_factor * (2 ** (attempt - 1))  # 1, 2, 4 сек
+            logger.info("Повторная попытка через %.1f секунд...", delay)
+            time.sleep(delay)
+
+    logger.error("Не удалось скачать архив %s после %d попыток", out_file, max_retries)
+    return None

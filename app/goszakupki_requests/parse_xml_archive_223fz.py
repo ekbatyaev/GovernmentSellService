@@ -183,18 +183,32 @@ def normalize_purchase(data: dict) -> dict:
     body = data.get("purchaseNotice", {}).get("body", {})
     item = body.get("item", {}) or {}
     notice = item.get("purchaseNoticeData", {}) or {}
+    documentation_delivery = notice.get("documentationDelivery", {}) or {}
 
     result = {}
-
+    result["body"] = body
     result["guid"] = item.get("guid")
     result["registration_number"] = notice.get("registrationNumber")
     result["name"] = notice.get("name")
     result["publication_datetime"] = notice.get("publicationDateTime")
+
     submission_start = notice.get("applSubmisionStartDate")
     result["submission_start_datetime"] = (
         f"{submission_start}T00:00:00" if submission_start else None
     )
     result["submission_close_datetime"] = notice.get("submissionCloseDateTime")
+
+    if result["submission_start_datetime"] is None:
+        result["submission_start_datetime"] = (
+            f"{documentation_delivery.get("deliveryStartDateTime")}T00:00:00" if documentation_delivery.get(
+                "deliveryStartDateTime") else None
+        )
+
+    if result["submission_close_datetime"] is None:
+        result["submission_close_datetime"] = (
+        f"{documentation_delivery.get("deliveryEndDateTime")}T23:59:59" if documentation_delivery.get(
+            "deliveryEndDateTime") else None
+    )
 
     customer = (notice.get("customer") or {}).get("mainInfo") or {}
     result["customer"] = {
@@ -247,7 +261,7 @@ def normalize_purchase(data: dict) -> dict:
         lot = lot or {}
         lot_data = (lot.get("lotData") or {}) if isinstance(lot, dict) else {}
 
-        initial_sum_raw = lot_data.get("initialSum", 0) or 0
+        initial_sum_raw = lot_data.get("initialSum", 0) or lot_data.get("maxContractPrice", 0)
         try:
             initial_sum_val = float(initial_sum_raw)
         except Exception:
@@ -420,10 +434,6 @@ def parse_zip_archive_protocols(zip_path: str, region: int, filter_number: int) 
 
                         continue
 
-                    # normalized["result_info"] = purchase.get("result_info") or {}
-                    #
-                    # normalized["documents_list"] = purchase.get("documents_list") or []
-
                     result_info = purchase.get("result_info") or {}
 
                     documents_list = purchase.get("documents_list") or []
@@ -438,12 +448,7 @@ def parse_zip_archive_protocols(zip_path: str, region: int, filter_number: int) 
                     )
 
                     del normalized["attached_files"]
-                    #
-                    # print("result_info - protocols")
-                    # print(normalized["result_info"])
-                    #
-                    # print("documents_list - protocols")
-                    # print(normalized["documents_list"])
+
                     all_data.append(normalized)
 
 
@@ -478,7 +483,7 @@ def parse_zip_archive_purchases(zip_path: str, region: int, filter_number: int) 
 
                 if (filter_number == 0 or filter_number == 1) and REGIONS_ROSSETI.get(region, False) and request_filters_rosseti(customer_name, work_name):
                     normalized["region_number"] = region
-                    normalized["filter_type_name"] = "Тендеры Россетей"
+                    normalized["filter_type_name"] = "Тендеры для Россетей"
 
                     # Обращение, получение данных и передача
                     purchase_response = requests.post(
@@ -492,6 +497,7 @@ def parse_zip_archive_purchases(zip_path: str, region: int, filter_number: int) 
                     purchase = purchase_response.json().get("data", {})
 
                     result_info = purchase.get("result_info") or {}
+                    documents_list = purchase.get("documents_list") or []
 
                     match = re.search(r'для нужд\s+([^.,()\-–—]+)', normalized["name"], re.IGNORECASE)
 
@@ -507,7 +513,6 @@ def parse_zip_archive_purchases(zip_path: str, region: int, filter_number: int) 
 
                         result_info["Филиал/РЭС"] = None
 
-                    documents_list = purchase.get("documents_list") or []
 
                     normalized["result_info"], normalized["documents_list"] = process_attached_files_and_merge(
                         attached_files=normalized["attached_files"],

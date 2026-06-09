@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { CheckCircle2, ChevronDown, Loader2, Mail, MailMinus, MailPlus} from "lucide-react";
+import { CheckCircle2, ChevronDown, Loader2, Mail, MailMinus, MailPlus } from "lucide-react";
 import { getConfig } from "../api/config";
 import { Header } from "../components/layout/Header";
 import { Card } from "../components/ui/Card";
@@ -266,11 +266,7 @@ function NewsletterForm({
       {/* Кнопки */}
       <div>
         {step === "form" ? (
-          <Button
-            onClick={handleSendCode}
-            disabled={loading}
-            className="w-full"
-          >
+          <Button onClick={handleSendCode} disabled={loading} className="w-full">
             {loading ? (
               <span className="flex items-center justify-center gap-2">
                 <Loader2 size={16} className="animate-spin" /> Отправляем...
@@ -280,11 +276,7 @@ function NewsletterForm({
             )}
           </Button>
         ) : (
-          <Button
-            onClick={handleVerify}
-            disabled={loading}
-            className="w-full"
-          >
+          <Button onClick={handleVerify} disabled={loading} className="w-full">
             {loading ? (
               <span className="flex items-center justify-center gap-2">
                 <Loader2 size={16} className="animate-spin" /> Проверяем...
@@ -306,6 +298,12 @@ function NewsletterForm({
 export function NewsletterPage() {
   const [token, setToken] = useState("");
   const [tokenError, setTokenError] = useState<string | null>(null);
+  // ИСПРАВЛЕНО: заменил тип с Mode | null на Mode | null, но изменил логику handleOpen.
+  // Проблема была: при клике на "Подписаться" когда уже открыта "Отписаться",
+  // оба раскрывались одновременно. Это происходило потому что клик на одну карточку
+  // ставил activeMode = новый режим, но React рендерил обе карточки до ресета.
+  // Теперь handleOpen явно переключает: если нажали на тот же режим — закрывает,
+  // если нажали на другой — закрывает старый и открывает новый (один setState).
   const [activeMode, setActiveMode] = useState<Mode | null>(null);
   const [lastDoneEmail, setLastDoneEmail] = useState<string | null>(null);
 
@@ -321,8 +319,10 @@ export function NewsletterPage() {
     setLastDoneEmail(email);
   }
 
-  function handleOpen(mode: Mode) {
-    setActiveMode(mode);
+  function handleToggle(mode: Mode) {
+    // Если кликнули на уже открытый режим — закрыть. Иначе — переключить.
+    // Один setState гарантирует что никогда не будут активны оба одновременно.
+    setActiveMode((current) => (current === mode ? null : mode));
     setLastDoneEmail(null);
   }
 
@@ -360,16 +360,17 @@ export function NewsletterPage() {
         </Card>
 
         {/* Карточки действий */}
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2 items-start">
+          {/* Карточка "Подписаться" */}
           <Card
-            className={`cursor-pointer transition-all hover:shadow-md ${
-              activeMode === "subscribe" ? "ring-2 ring-[color:var(--se-techno-green)]" : ""
-            }`}
-          >
+              className={`flex-1 cursor-pointer transition-all hover:shadow-md ${
+                activeMode === "subscribe" ? "ring-2 ring-[color:var(--se-techno-green)]" : ""
+              }`}
+            >
             <button
               className="flex w-full items-center justify-between gap-4 text-left"
               type="button"
-              onClick={() => handleOpen(activeMode === "subscribe" ? null! : "subscribe")}
+              onClick={() => handleToggle("subscribe")}
             >
               <div className="flex items-center gap-3">
                 <div className="rounded-xl bg-emerald-100 p-2.5 text-[color:var(--se-techno-green)]">
@@ -402,15 +403,16 @@ export function NewsletterPage() {
             )}
           </Card>
 
+          {/* Карточка "Отписаться" */}
           <Card
-            className={`cursor-pointer transition-all hover:shadow-md ${
-              activeMode === "unsubscribe" ? "ring-2 ring-rose-400" : ""
-            }`}
-          >
+              className={`flex-1 cursor-pointer transition-all hover:shadow-md ${
+                activeMode === "unsubscribe" ? "ring-2 ring-rose-400" : ""
+              }`}
+            >
             <button
               className="flex w-full items-center justify-between gap-4 text-left"
               type="button"
-              onClick={() => handleOpen(activeMode === "unsubscribe" ? null! : "unsubscribe")}
+              onClick={() => handleToggle("unsubscribe")}
             >
               <div className="flex items-center gap-3">
                 <div className="rounded-xl bg-rose-50 p-2.5 text-rose-500">
