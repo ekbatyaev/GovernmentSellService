@@ -91,6 +91,7 @@ class PutPurchaseModel(BaseModel):
     guid: str
     registration_number: str
     name: str
+    filter_type_name: str
     source_file: Optional[str] = None
     initial_sum: Optional[float] = None
     publication_datetime: Optional[datetime] = None
@@ -102,7 +103,6 @@ class PutPurchaseModel(BaseModel):
     result_info: Any
     documents_list: List[Any]
 
-    filter_type_name: Optional[str] = None
     region_number: Optional[str] = None
 
     lots: List[Any]
@@ -117,10 +117,10 @@ class DeletePurchaseModel(BaseModel):
 
 class GetPurchaseModel(BaseModel):
     token: str
+    registration_number: str
+    filter_type_name: str
     guid: Optional[str] = None
-    filter_type_name: Optional[str] = None
     region_number: Optional[str] = None
-    registration_number: Optional[str] = None
 
 
 class GetAllPurchasesModel(BaseModel):
@@ -146,8 +146,9 @@ class GetAllPurchasesModel(BaseModel):
 
 class UpdatePurchaseModel(BaseModel):
     token: str
-    guid: Optional[str] = None
+    guid: str
     registration_number: Optional[str] = None
+    filter_type_name: Optional[str] = None
     name: Optional[str] = None
     source_file: Optional[str] = None
     initial_sum: Optional[float] = None
@@ -160,7 +161,6 @@ class UpdatePurchaseModel(BaseModel):
     result_info: Optional[Any] = None
     documents_list: Optional[Any] = None
     lots: Optional[Any] = None
-    filter_type_name: Optional[str] = None
     region_number: Optional[str] = None
 
 
@@ -322,11 +322,11 @@ async def root():
 def put_purchase(purchase_data: PutPurchaseModel, db: Session = Depends(get_db)):
     verify_token(purchase_data.token)
 
-    existing_purchase = db.scalar(
-        select(Purchase).where(
-            Purchase.registration_number == purchase_data.registration_number
-        )
-    )
+    query = select(Purchase).where(Purchase.registration_number == purchase_data.registration_number)
+
+    query = query.where(Purchase.filter_type_name == purchase_data.filter_type_name)
+
+    existing_purchase = db.scalar(query)
 
     if existing_purchase:
         existing_purchase.guid = purchase_data.guid
@@ -406,29 +406,27 @@ def delete_purchase(purchase_data: DeletePurchaseModel, db: Session = Depends(ge
 def get_purchase(purchase_data: GetPurchaseModel, db: Session = Depends(get_db)):
     verify_token(purchase_data.token)
 
+    query = db.query(Purchase)
 
-    guid = purchase_data.guid.strip() if purchase_data.guid else None
-    registration_number = (
-        purchase_data.registration_number.strip()
-        if purchase_data.registration_number
-        else None
-    )
+    if purchase_data.registration_number:
+        query = query.filter(Purchase.registration_number == purchase_data.registration_number.strip())
 
-    if registration_number:
-        purchase = (
-            db.query(Purchase)
-            .filter(Purchase.registration_number == registration_number)
-            .first()
-        )
+    # Если есть guid — добавляем условие (если это не первичный ключ, используем .filter)
+    if purchase_data.guid:
+        query = query.filter(Purchase.guid == purchase_data.guid.strip())
 
-    elif guid:
-        purchase = db.get(Purchase, guid)
+    # Интегрируем вашу фильтрацию по типу
+    if purchase_data.filter_type_name:
+        query = query.filter(Purchase.filter_type_name == purchase_data.filter_type_name)
 
-    else:
+    if not purchase_data.guid and not purchase_data.registration_number:
         raise HTTPException(
             status_code=400,
             detail="Не передан ни один ключ поиска: guid или registration_number",
         )
+
+    # 4. Выполняем запрос в БД
+    purchase = query.first()
 
     if not purchase:
         return SuccessResponseModel(
@@ -442,6 +440,7 @@ def get_purchase(purchase_data: GetPurchaseModel, db: Session = Depends(get_db))
         message="Ok",
         data=PurchaseResponseModel.from_orm(purchase),
     )
+
 
 
 @app.post(f"{API_BASE}/get_all_purchases", response_model=SuccessResponseModel)
@@ -551,24 +550,29 @@ def update_purchase(purchase_data: UpdatePurchaseModel, db: Session = Depends(ge
         else None
     )
 
-    if registration_number:
-        purchase = (
-            db.query(Purchase)
-            .filter(Purchase.registration_number == registration_number)
-            .first()
-        )
-
-    elif guid:
-        purchase = db.get(Purchase, guid)
-
+    if guid:
+        purchase = db.query(Purchase).filter(Purchase.guid == guid).first()
+    elif registration_number:
+        purchase = db.query(Purchase).filter(Purchase.registration_number == registration_number).first()
     else:
         raise HTTPException(
             status_code=400,
             detail="Не передан ни один ключ поиска: guid или registration_number",
         )
 
+    # Если даже при наличии одного из ключей запись не найдена в БД
     if not purchase:
         return SuccessResponseModel(
+            status="success",
+            message="Purchase not found",
+            data={}
+        )
+
+    if purchase_data.filter_type_name and purchase.filter_type_name != purchase_data.filter_type_name:
+        purchase = None
+
+    if not purchase:
+         return SuccessResponseModel(
             status="success",
             message="Purchase not found",
             data={},
@@ -591,6 +595,7 @@ def update_purchase(purchase_data: UpdatePurchaseModel, db: Session = Depends(ge
         message="Updated",
         data=PurchaseResponseModel.from_orm(purchase),
     )
+
 
 
 @app.get(f"{API_BASE}/stats", response_model=SuccessResponseModel)

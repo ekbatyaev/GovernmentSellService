@@ -727,63 +727,101 @@ function FiltersPanel({
       </button>
 
       {isOpen && (
-        <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-5 space-y-5">
+          {/* Название закупки — на всю ширину */}
           <Input
             label="Название закупки"
             placeholder="Например: выключатель"
             value={filters.name}
             onChange={(event) => onChange({ name: event.target.value })}
           />
-          <Select
-            label="Федеральный округ"
-            value={filters.districtName}
-            onChange={(event) =>
-              onChange({ districtName: event.target.value, regionNumber: "" })
-            }
-            options={FEDERAL_DISTRICT_OPTIONS}
-          />
-          <Select
-            label="Регион"
-            value={filters.regionNumber}
-            onChange={(event) => onChange({ regionNumber: event.target.value })}
-            options={REGION_OPTIONS}
-          />
-          <Input label="Начало подачи от" type="date" value={filters.submissionStartFrom}
-            onChange={(e) => onChange({ submissionStartFrom: e.target.value })} />
-          <Input label="Начало подачи до" type="date" value={filters.submissionStartTo}
-            onChange={(e) => onChange({ submissionStartTo: e.target.value })} />
-          <Input label="Окончание подачи от" type="date" value={filters.submissionCloseFrom}
-            onChange={(e) => onChange({ submissionCloseFrom: e.target.value })} />
-          <Input label="Окончание подачи до" type="date" value={filters.submissionCloseTo}
-            onChange={(e) => onChange({ submissionCloseTo: e.target.value })} />
-          <Input
-            label="Публикация от"
-            type="date"
-            value={filters.publicationDateFrom}
-            onChange={(event) => onChange({ publicationDateFrom: event.target.value })}
-          />
-          <Input
-            label="Публикация до"
-            type="date"
-            value={filters.publicationDateTo}
-            onChange={(event) => onChange({ publicationDateTo: event.target.value })}
-          />
-          <Input
-            label="Сумма от"
-            type="number"
-            min="0"
-            value={filters.initialSumFrom}
-            onChange={(event) => onChange({ initialSumFrom: event.target.value })}
-          />
-          <Input
-            label="Сумма до"
-            type="number"
-            min="0"
-            value={filters.initialSumTo}
-            onChange={(event) => onChange({ initialSumTo: event.target.value })}
-          />
 
-          <div className="flex items-end justify-end md:col-span-2 xl:col-span-4">
+          {/* Пара: Федеральный округ + Регион */}
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Select
+              label="Федеральный округ"
+              value={filters.districtName}
+              onChange={(event) =>
+                onChange({ districtName: event.target.value, regionNumber: "" })
+              }
+              options={FEDERAL_DISTRICT_OPTIONS}
+            />
+            <Select
+              label="Регион"
+              value={filters.regionNumber}
+              onChange={(event) => onChange({ regionNumber: event.target.value })}
+              options={REGION_OPTIONS}
+            />
+          </div>
+
+          {/* Пара: Начало подачи от/до */}
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Input
+              label="Начало подачи от"
+              type="date"
+              value={filters.submissionStartFrom}
+              onChange={(e) => onChange({ submissionStartFrom: e.target.value })}
+            />
+            <Input
+              label="Начало подачи до"
+              type="date"
+              value={filters.submissionStartTo}
+              onChange={(e) => onChange({ submissionStartTo: e.target.value })}
+            />
+          </div>
+
+          {/* Пара: Окончание подачи от/до */}
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Input
+              label="Окончание подачи от"
+              type="date"
+              value={filters.submissionCloseFrom}
+              onChange={(e) => onChange({ submissionCloseFrom: e.target.value })}
+            />
+            <Input
+              label="Окончание подачи до"
+              type="date"
+              value={filters.submissionCloseTo}
+              onChange={(e) => onChange({ submissionCloseTo: e.target.value })}
+            />
+          </div>
+
+          {/* Пара: Публикация от/до */}
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Input
+              label="Публикация от"
+              type="date"
+              value={filters.publicationDateFrom}
+              onChange={(event) => onChange({ publicationDateFrom: event.target.value })}
+            />
+            <Input
+              label="Публикация до"
+              type="date"
+              value={filters.publicationDateTo}
+              onChange={(event) => onChange({ publicationDateTo: event.target.value })}
+            />
+          </div>
+
+          {/* Пара: Сумма от/до */}
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Input
+              label="Сумма от"
+              type="number"
+              min="0"
+              value={filters.initialSumFrom}
+              onChange={(event) => onChange({ initialSumFrom: event.target.value })}
+            />
+            <Input
+              label="Сумма до"
+              type="number"
+              min="0"
+              value={filters.initialSumTo}
+              onChange={(event) => onChange({ initialSumTo: event.target.value })}
+            />
+          </div>
+
+          {/* Кнопка сброса — справа */}
+          <div className="flex justify-end">
             <Button variant="secondary" onClick={onReset} type="button">
               <X className="mr-2" size={16} />
               Сбросить фильтры
@@ -1211,8 +1249,6 @@ function PurchaseCard({ purchase, token, onSaved, onDeleted }: PurchaseCardProps
   );
 }
 
-// ─── главная страница ─────────────────────────────────────────────────────────
-
 export function PurchasesPage() {
   const [token, setToken] = useState("");
   const [filters, setFilters] = useState<UiFilters>(defaultFilters);
@@ -1221,9 +1257,11 @@ export function PurchasesPage() {
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [sortOption, setSortOption] = useState<string>("submission_start_desc");
-
-  // НОВОЕ: счётчик для принудительного обновления после admin-действий
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // Пагинация: по 25 заявок на страницу
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 25;
 
   const requestFilters = useMemo(() => buildFilters(token, filters), [filters, token]);
 
@@ -1263,6 +1301,20 @@ export function PurchasesPage() {
       }
     }, [purchases, sortOption]);
 
+  // Вычисляем общее количество страниц
+  const totalPages = Math.ceil(sortedPurchases.length / ITEMS_PER_PAGE);
+  // Текущие заявки (срез)
+  const currentPurchases = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    const end = start + ITEMS_PER_PAGE;
+    return sortedPurchases.slice(start, end);
+  }, [sortedPurchases, currentPage]);
+
+  // Сброс страницы при изменении фильтров, сортировки или обновлении данных
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters, sortOption, refreshKey, purchases.length]);
+
   const filterTypeOptions = [
       { label: "Все типы", value: "" },
   { label: "Тендеры для Россетей", value: "Тендеры для Россетей" },
@@ -1278,8 +1330,6 @@ export function PurchasesPage() {
     return () => { ignore = true; };
   }, []);
 
-  // ИСПРАВЛЕНО: добавлен refreshKey в зависимости — при его изменении
-  // запрос перезапускается даже если фильтры не менялись
   useEffect(() => {
     if (!token) return undefined;
 
@@ -1309,16 +1359,12 @@ export function PurchasesPage() {
       controller.abort();
       window.clearTimeout(timeoutId);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestFilters, token, refreshKey]);
 
   function updateFilters(patch: Partial<UiFilters>) {
     setFilters((current) => ({ ...current, ...patch }));
   }
 
-  // НОВОЕ: функция ручного обновления — передаётся в Header и вызывается
-  // после admin-действий (backfill, run_process_day). Инкремент refreshKey
-  // вызывает перезапуск useEffect выше без изменения фильтров.
   const handleRefresh = useCallback(() => {
     setRefreshKey((k) => k + 1);
   }, []);
@@ -1332,6 +1378,65 @@ export function PurchasesPage() {
   function handlePurchaseDeleted(guid: string) {
     setPurchases((current) => current.filter((p) => p.guid !== guid));
   }
+
+  // Функция для рендера кружочков пагинации
+  const renderPagination = () => {
+    if (totalPages <= 1) return null;
+
+    // Показываем максимум 7 кружочков, чтобы не перегружать экран
+    const maxVisible = 7;
+    let pages: number[] = [];
+    if (totalPages <= maxVisible) {
+      pages = Array.from({ length: totalPages }, (_, i) => i + 1);
+    } else {
+      const left = Math.max(1, currentPage - 3);
+      const right = Math.min(totalPages, currentPage + 3);
+      if (left > 1) pages.push(1, -1); // -1 означает пропуск (троеточие)
+      for (let i = left; i <= right; i++) pages.push(i);
+      if (right < totalPages) pages.push(-1, totalPages);
+    }
+
+    return (
+      <div className="mt-6 flex flex-wrap justify-center gap-2">
+        {/* Кнопка "Назад" */}
+        <Button
+          variant="ghost"
+          className="rounded-full w-10 h-10 p-0"
+          onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+          disabled={currentPage === 1}
+        >
+          ←
+        </Button>
+
+        {pages.map((p, idx) =>
+          p === -1 ? (
+            <span key={`dots-${idx}`} className="w-10 h-10 flex items-center justify-center text-muted">
+              …
+            </span>
+          ) : (
+            <Button
+              key={p}
+              variant={currentPage === p ? "primary" : "secondary"}
+              className="rounded-full w-10 h-10 p-0"
+              onClick={() => setCurrentPage(p)}
+            >
+              {p}
+            </Button>
+          )
+        )}
+
+        {/* Кнопка "Вперёд" */}
+        <Button
+          variant="ghost"
+          className="rounded-full w-10 h-10 p-0"
+          onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+          disabled={currentPage === totalPages}
+        >
+          →
+        </Button>
+      </div>
+    );
+  };
 
   return (
     <>
@@ -1394,8 +1499,7 @@ export function PurchasesPage() {
           <ExportPanel purchases={purchases} filters={filters} />
         )}
 
-        {/* Список заявок */}
-
+        {/* Сортировка */}
         <div className="flex items-center gap-4">
           <Select
             label="Сортировка"
@@ -1415,8 +1519,9 @@ export function PurchasesPage() {
           />
         </div>
 
+        {/* Список заявок (только текущая страница) */}
         <div className="space-y-4">
-          {purchases.length === 0 && !isLoading ? (
+          {currentPurchases.length === 0 && !isLoading ? (
             <Card>
               <div className="font-semibold">Заявки не найдены</div>
               <p className="mt-2 text-sm text-[color:var(--se-muted)]">
@@ -1425,7 +1530,7 @@ export function PurchasesPage() {
               </p>
             </Card>
           ) : (
-            sortedPurchases.map((purchase) => (
+            currentPurchases.map((purchase) => (
               <PurchaseCard
                 key={purchase.guid || purchase.registration_number || purchase.name}
                 purchase={purchase}
@@ -1436,6 +1541,7 @@ export function PurchasesPage() {
             ))
           )}
         </div>
+        {renderPagination()}
       </div>
     </>
   );

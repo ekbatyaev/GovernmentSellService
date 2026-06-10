@@ -3,7 +3,7 @@ import re
 import os
 import zipfile
 import logging
-
+import uuid
 import xmltodict
 import requests
 from typing import Dict, List, Any, Union, Optional
@@ -67,7 +67,6 @@ def normalize_protocol(data: dict) -> dict:
 
     result = {}
 
-    result["guid"] = purchase_info.get("guid")
     result["registration_number"] = purchase_info.get("purchaseNoticeNumber")
     result["name"] = purchase_info.get("name")
     result["publication_datetime"] = protocol.get("publicationDateTime")
@@ -187,7 +186,6 @@ def normalize_purchase(data: dict) -> dict:
 
     result = {}
     result["body"] = body
-    result["guid"] = item.get("guid")
     result["registration_number"] = notice.get("registrationNumber")
     result["name"] = notice.get("name")
     result["publication_datetime"] = notice.get("publicationDateTime")
@@ -321,13 +319,15 @@ def parse_zip_archive_protocols(zip_path: str, region: int, filter_number: int) 
                 work_name = normalized.get("name", "") or ""
 
                 if (filter_number == 0 or filter_number == 1) and REGIONS_ROSSETI.get(region, False) and request_filters_rosseti(customer_name, work_name):
+                    normalized["guid"] = uuid.uuid4()
                     normalized["region_number"] = region
                     normalized["filter_type_name"] = "Тендеры для Россетей"
 
                     # Обращение, получение данных и передача
                     purchase_response = requests.post(
                         f"{APP_URL}{API_BASE}/get_purchase",
-                        json={"token": TOKEN, "registration_number": normalized["registration_number"]},
+                        json={"token": TOKEN, "registration_number": normalized["registration_number"],
+                              "filter_type_name": normalized["filter_type_name"]},
                         timeout=30,
                     )
 
@@ -367,13 +367,15 @@ def parse_zip_archive_protocols(zip_path: str, region: int, filter_number: int) 
                     all_data.append(normalized)
 
                 if (filter_number == 0 or filter_number == 2) and request_filters_oem(work_name):
+                    normalized["guid"] = uuid.uuid4()
                     normalized["region_number"] = region
                     normalized["filter_type_name"] = "Тендеры для OEM"
 
                     # Обращение, получение данных и передача
                     purchase_response = requests.post(
                         f"{APP_URL}{API_BASE}/get_purchase",
-                        json={"token": TOKEN, "registration_number": normalized["registration_number"]},
+                        json={"token": TOKEN, "registration_number": normalized["registration_number"],
+                              "filter_type_name": normalized["filter_type_name"]},
                         timeout=30,
                     )
 
@@ -412,13 +414,15 @@ def parse_zip_archive_protocols(zip_path: str, region: int, filter_number: int) 
                     all_data.append(normalized)
 
                 if (filter_number == 0 or filter_number == 3) and request_filters_itm(work_name):
+                    normalized["guid"] = uuid.uuid4()
                     normalized["region_number"] = region
                     normalized["filter_type_name"] = "Тендеры для ITM"
 
                     # Обращение, получение данных и передача
                     purchase_response = requests.post(
                         f"{APP_URL}{API_BASE}/get_purchase",
-                        json={"token": TOKEN, "registration_number": normalized["registration_number"]},
+                        json={"token": TOKEN, "registration_number": normalized["registration_number"],
+                              "filter_type_name": normalized["filter_type_name"]},
                         timeout=30,
                     )
 
@@ -482,13 +486,15 @@ def parse_zip_archive_purchases(zip_path: str, region: int, filter_number: int) 
                 work_name = normalized.get("name", "") or ""
 
                 if (filter_number == 0 or filter_number == 1) and REGIONS_ROSSETI.get(region, False) and request_filters_rosseti(customer_name, work_name):
+                    normalized["guid"] = uuid.uuid4()
                     normalized["region_number"] = region
                     normalized["filter_type_name"] = "Тендеры для Россетей"
 
                     # Обращение, получение данных и передача
                     purchase_response = requests.post(
                         f"{APP_URL}{API_BASE}/get_purchase",
-                        json={"token": TOKEN, "registration_number": normalized["registration_number"]},
+                        json={"token": TOKEN, "registration_number": normalized["registration_number"],
+                              "filter_type_name": normalized["filter_type_name"]},
                         timeout=30,
                     )
 
@@ -527,14 +533,15 @@ def parse_zip_archive_purchases(zip_path: str, region: int, filter_number: int) 
                     all_data.append(normalized)
 
                 if (filter_number == 0 or filter_number == 2)  and request_filters_oem(work_name):
-
+                    normalized["guid"] = uuid.uuid4()
                     normalized["region_number"] = region
                     normalized["filter_type_name"] = "Тендеры для OEM"
 
                     # Обращение, получение данных и передача
                     purchase_response = requests.post(
                         f"{APP_URL}{API_BASE}/get_purchase",
-                        json={"token": TOKEN, "registration_number": normalized["registration_number"]},
+                        json={"token": TOKEN, "registration_number": normalized["registration_number"],
+                              "filter_type_name": normalized["filter_type_name"]},
                         timeout=30,
                     )
 
@@ -563,14 +570,15 @@ def parse_zip_archive_purchases(zip_path: str, region: int, filter_number: int) 
                     all_data.append(normalized)
 
                 if (filter_number == 0 or filter_number == 3) and request_filters_itm(work_name):
-
+                    normalized["guid"] = uuid.uuid4()
                     normalized["region_number"] = region
                     normalized["filter_type_name"] = "Тендеры для ITM"
 
                     # Обращение, получение данных и передача
                     purchase_response = requests.post(
                         f"{APP_URL}{API_BASE}/get_purchase",
-                        json={"token": TOKEN, "registration_number": normalized["registration_number"]},
+                        json={"token": TOKEN, "registration_number": normalized["registration_number"],
+                              "filter_type_name": normalized["filter_type_name"]},
                         timeout=30,
                     )
 
