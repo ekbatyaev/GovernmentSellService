@@ -28,10 +28,49 @@ const DISTRICT_OPTIONS = [
   "Дальневосточный федеральный округ",
 ].map((d) => ({ label: d, value: d }));
 
+
+const REGIONS_OPTIONS = [
+  // Общие категории (были в образце)
+  { label: "77 - Московская область", value: "77" },
+
+  // Филиалы ПАО "Россети Центр и Приволжье"
+  { label: "12 - Республика Марий Эл", value: "12" },
+  { label: "52 - Нижегородская область", value: "52" },
+  { label: "43 - Кировская область", value: "43" },
+  { label: "18 - Удмуртская Республика", value: "18" },
+  { label: "33 - Владимирская область", value: "33" },
+  { label: "37 - Ивановская область", value: "37" },
+  { label: "62 - Рязанская область", value: "62" },
+  { label: "71 - Тульская область", value: "71" },
+  { label: "40 - Калужская область", value: "40" },
+
+  // Филиалы ПАО "Россети Волга"
+  { label: "56 - Оренбургская область", value: "56" },
+  { label: "63 - Самарская область", value: "63" },
+  { label: "64 - Саратовская область", value: "64" },
+
+  // Филиалы ПАО "Россети Центр"
+  { label: "36 - Воронежская область", value: "36" },
+  { label: "31 - Белгородская область", value: "31" },
+  { label: "57 - Орловская область", value: "57" },
+  { label: "44 - Костромская область", value: "44" },
+  { label: "76 - Ярославская область", value: "76" },
+  { label: "69 - Тверская область", value: "69" },
+  { label: "67 - Смоленская область", value: "67" },
+  { label: "32 - Брянская область", value: "32" },
+  { label: "46 - Курская область", value: "46" },
+  { label: "48 - Липецкая область", value: "48" },
+  { label: "68 - Тамбовская область", value: "68" },
+];
+
 const RESEND_COOLDOWN = 60; // секунд
 
 function needsDistrict(filterType: string) {
   return filterType === "Тендеры для OEM" || filterType === "Тендеры для ITM";
+}
+
+function needsRegion(filterType: string) {
+  return filterType === "Тендеры для Россетей";
 }
 
 // ─── утилиты ─────────────────────────────────────────────────────────────────
@@ -101,6 +140,11 @@ function NewsletterForm({
       return;
     }
 
+    if (needsRegion(filterType) && !districtName) {
+      setStatus({ text: "Выберите регион", error: true });
+      return;
+    }
+
     try {
       setLoading(true);
       setStatus(null);
@@ -143,7 +187,7 @@ function NewsletterForm({
         email,
         token,
         filter_type_name: filterType,
-        district_name: needsDistrict(filterType) ? districtName : "",
+        district_name: (needsDistrict(filterType) || needsRegion(filterType)) ? districtName : "",
       };
 
       if (mode === "subscribe") {
@@ -221,10 +265,28 @@ function NewsletterForm({
               options={[{ label: "Выберите округ", value: "" }, ...DISTRICT_OPTIONS]}
             />
             <p className="mt-1 text-xs text-[color:var(--se-muted)]">
-              Нужен для OEM и ITM рассылок
+              Округ необходимых заявок
             </p>
           </div>
         )}
+
+        {needsRegion(filterType) && (
+          <div>
+            <label className="mb-1.5 block text-sm font-semibold text-[color:var(--se-text)]">
+              Регион заявок
+            </label>
+            <Select
+              value={districtName}
+              onChange={(e) => setDistrictName(e.target.value)}
+              disabled={step === "code"}
+              options={[{ label: "Выберите регион", value: "" }, ...REGIONS_OPTIONS]}
+            />
+            <p className="mt-1 text-xs text-[color:var(--se-muted)]">
+              Регион необходимых заявок
+            </p>
+          </div>
+        )}
+
       </div>
 
       {/* Шаг 2: код подтверждения */}

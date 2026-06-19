@@ -15,29 +15,20 @@ JSON_SCHEMA = {
                 "type": "string",
                 "description": "Победитель закупки"
             },
-            "ИНН": {
-                "type": "string",
-                "description": "ИНН победителя закупки"
-            },
             "Итоговая цена контракта": {
                 "type": "string",
                 "description": "Итоговая цена закупки"
-            },
-            "Другие участники": {
-                "type": "string",
-                "description": "Другие участники закупки"
             }
         },
         "required": [
             "Победитель",
-            "ИНН",
-            "Итоговая цена контракта",
-            "Другие участники"
+            "Итоговая цена контракта"
 
         ],
         "additionalProperties": False
     }
 }
+
 
 def extract_json_text(raw_text: str) -> str:
     cleaned = raw_text.strip()
@@ -52,7 +43,8 @@ def extract_json_text(raw_text: str) -> str:
 
     return cleaned
 
-async def itm_get_model_extraction(message) -> Dict:
+
+async def oem_get_model_extraction(message) -> Dict:
     load_dotenv()
 
     api_key = os.getenv("YANDEX_CLOUD_API_KEY")
@@ -63,7 +55,8 @@ async def itm_get_model_extraction(message) -> Dict:
         print(
             "Убедитесь, что в .env заданы YANDEX_CLOUD_API_KEY, YANDEX_CLOUD_FOLDER"
         )
-        return {"model_answer": "Убедитесь, что в .env заданы YANDEX_CLOUD_API_KEY, YANDEX_CLOUD_FOLDER.", "error": True }
+        return {"model_answer": "Убедитесь, что в .env заданы YANDEX_CLOUD_API_KEY, YANDEX_CLOUD_FOLDER.",
+                "error": True}
 
     client = AsyncOpenAI(
         api_key=api_key,
@@ -76,12 +69,12 @@ async def itm_get_model_extraction(message) -> Dict:
         model=f"gpt://{folder_id}/{model_alias}",
         instructions=(
             """Ты эксперт по тендерным закупкам - тебе нужно из присланного текста выявить следующие поля:
-            Победитель,ИНН,Итоговая цена контракта,Другие участники
-            
+            Победитель,Итоговая цена контракта
+
             Ты должен вернуть мне словарь, в котором у каждого этого поля будет string значение, при этом, если этих данных нет в тексте, ты должен вернуть пустой string
 
             ПРИМЕР ТЕКСТА:
-            
+
             Наименование предмета договора (лота): «Поставка ИБП» (ОКПД 2 - 26.20.40.111)
             Максимальная цена (сумма) договора: 12 457 768 (Двенадцать миллионов четыреста пятьдесят семь тысяч семьсот шестьдесят восемь) рублей 80 копеек.
             Повестка дня: Рассмотрение вопроса об утверждении единственного поставщика АО "Абсолютные Технологии" на право заключения договора.
@@ -99,9 +92,7 @@ async def itm_get_model_extraction(message) -> Dict:
             ПРИМЕР ОТВЕТА:
             {
               "Победитель": "АО \"Абсолютные Технологии\"",
-              "ИНН": "7714259315",
               "Итоговая цена контракта": "12457768.80"
-              "Другие участники": ""
             }
             """
         ),
@@ -137,7 +128,6 @@ async def itm_get_model_extraction(message) -> Dict:
 
 
 async def main():
-
     text = """Протокол № 229
     заседания комиссии ФКП «Ясень» по закупке у единственного поставщика
 
@@ -174,8 +164,7 @@ async def main():
     9. Настоящий протокол подлежит опубликованию на официальном сайте www.zakupki.gov.ru не позднее чем через 3 (три) дня со дня его подписания.
     Члены комиссии, присутствующие на заседании:"""
 
-    single = await itm_get_model_extraction(text)
-
+    single = await oem_get_model_extraction(text)
 
     print("\n=== SINGLE ===")
     print(single)

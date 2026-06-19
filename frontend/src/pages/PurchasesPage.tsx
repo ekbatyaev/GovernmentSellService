@@ -31,6 +31,7 @@ import {
   FEDERAL_DISTRICT_OPTIONS,
   isOemOrItm,
   REGION_OPTIONS,
+  FLAG_OPTIONS_OEM
 } from "../lib/purchases";
 import type { Purchase, PurchaseFilters } from "../types/purchase";
 import ExcelJS from "exceljs";
@@ -40,6 +41,7 @@ import ExcelJS from "exceljs";
 type RequestPurchaseFilters = PurchaseFilters & {
   filter_type_name?: string;
   region_numbers?: string[];
+  oem_flag?: string;
 };
 
 const REGION_CODES_BY_FEDERAL_DISTRICT: Record<string, string[]> = {
@@ -106,6 +108,41 @@ const REGION_NAMES_BY_CODE: Record<string, string> = {
   "92": "Севастополь", "95": "Чеченская Республика",
 };
 
+const ROSSETI_REGIONS_OPTIONS = [
+  // Общие категории (были в образце)
+  { label: "Все регионы", value: "" },
+  { label: "77 - Московская область", value: "77" },
+
+  // Филиалы ПАО "Россети Центр и Приволжье"
+  { label: "12 - Республика Марий Эл", value: "12" },
+  { label: "52 - Нижегородская область", value: "52" },
+  { label: "43 - Кировская область", value: "43" },
+  { label: "18 - Удмуртская Республика", value: "18" },
+  { label: "33 - Владимирская область", value: "33" },
+  { label: "37 - Ивановская область", value: "37" },
+  { label: "62 - Рязанская область", value: "62" },
+  { label: "71 - Тульская область", value: "71" },
+  { label: "40 - Калужская область", value: "40" },
+
+  // Филиалы ПАО "Россети Волга"
+  { label: "56 - Оренбургская область", value: "56" },
+  { label: "63 - Самарская область", value: "63" },
+  { label: "64 - Саратовская область", value: "64" },
+
+  // Филиалы ПАО "Россети Центр"
+  { label: "36 - Воронежская область", value: "36" },
+  { label: "31 - Белгородская область", value: "31" },
+  { label: "57 - Орловская область", value: "57" },
+  { label: "44 - Костромская область", value: "44" },
+  { label: "76 - Ярославская область", value: "76" },
+  { label: "69 - Тверская область", value: "69" },
+  { label: "67 - Смоленская область", value: "67" },
+  { label: "32 - Брянская область", value: "32" },
+  { label: "46 - Курская область", value: "46" },
+  { label: "48 - Липецкая область", value: "48" },
+  { label: "68 - Тамбовская область", value: "68" },
+];
+
 
 function getRegionNumbers(filters: UiFilters): string[] | undefined {
   if (filters.regionNumber) return [filters.regionNumber];
@@ -126,6 +163,7 @@ type UiFilters = {
   submissionStartTo: string;
   submissionCloseFrom: string;
   submissionCloseTo: string;
+  oem_flag: string;
 };
 
 const defaultFilters: UiFilters = {
@@ -141,6 +179,7 @@ const defaultFilters: UiFilters = {
   submissionStartTo: "",
   submissionCloseFrom: "",
   submissionCloseTo: "",
+  oem_flag: ""
 };
 
 function dateToIsoStart(dateStr: string): string | undefined {
@@ -181,6 +220,7 @@ function buildFilters(token: string, filters: UiFilters): RequestPurchaseFilters
     ...requestMeta,
     filter_type_name: filters.filterTypeName || undefined,
     region_numbers: regionNumbers,
+    oem_flag: filters.oem_flag || undefined
   };
 }
 
@@ -217,6 +257,7 @@ function buildExportRows(purchases: Purchase[], filterTypeName: string): Record<
     return purchases.map((p) => {
       const customer = (p as Record<string, unknown>).customer as Record<string, unknown> | null ?? null;
       const resultInfo = (p as Record<string, unknown>).result_info as Record<string, unknown> | null ?? null;
+      const contact = (p as Record<string, unknown>).contact as Record<string, unknown> | null ?? null;
 
       const base: Record<string, unknown> = {
         "Реестровый номер": safeExportValue(p.registration_number),
@@ -235,6 +276,24 @@ function buildExportRows(purchases: Purchase[], filterTypeName: string): Record<
         base["ИНН"] = safeExportValue(resultInfo["ИНН"]);
         base["Итоговая цена контракта"] = safeExportValue(resultInfo["Итоговая цена контракта"]);
         base["Другие участники"] = safeExportValue(resultInfo["Другие участники"]);
+      }
+
+      const contactFullName = contact
+      ? [contact.last_name, contact.first_name, contact.middle_name]
+          .filter(Boolean)
+          .join(' ')
+      : '';
+
+      const contactPhone = contact?.phone ? String(contact.phone) : 'Отсутствует';
+      const contactEmail = contact?.email ? String(contact.email) : 'Отсутствует';
+
+      if (isOem && resultInfo) {
+        base["Контактное лицо"] = safeExportValue(contactFullName)
+        base["Телефон"] = safeExportValue(contactPhone)
+        base["Email"] = safeExportValue(contactEmail)
+        base["Победитель"] = safeExportValue(resultInfo["Победитель"]);
+        base["Итоговая цена контракта"] = safeExportValue(resultInfo["Итоговая цена контракта"]);
+        base["Слова маячки в тз"] = safeExportValue(resultInfo["Слова маячки в тз"]);
       }
 
       return base;
@@ -348,6 +407,7 @@ async function downloadXlsx(
     "Другие участники",
     "ИНН",
     "Итоговая цена контракта",
+    "Слова маячки в тз",
     "Ячейки",
     "Кол-во ячеек",
     "Типовой проект",
@@ -463,6 +523,12 @@ function getExportColumns(filterTypeName: string) {
       { header: "Дата окончания подачи заявок", key: "Дата окончания подачи заявок", width: 18 },
       { header: "Дата публикации", key: "Дата публикации", width: 18 },
       { header: "Заказчик название", key: "Заказчик название", width: 36 },
+      { header: "Контактное лицо", key: "Контактное лицо", width: 16 },
+      { header: "Телефон", key: "Телефон", width: 14 },
+      { header: "Email", key: "Email", width: 14 },
+      { header: "Победитель", key: "Победитель", width: 14 },
+      { header: "Итоговая цена контракта", key: "Итоговая цена контракта", width: 13 },
+      { header: "Слова маячки в тз", key: "Слова маячки в тз", width: 9 },
       { header: "Регион заявки", key: "Регион заявки", width: 36 },
       { header: "Ссылка на заявку в госреестре", key: "Ссылка на заявку в госреестре", width: 72 },
     ];
@@ -737,7 +803,8 @@ function FiltersPanel({
           />
 
           {/* Пара: Федеральный округ + Регион */}
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {(filters.filterTypeName === "Тендеры для OEM" || filters.filterTypeName === "Тендеры для ITM") && (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <Select
               label="Федеральный округ"
               value={filters.districtName}
@@ -753,6 +820,18 @@ function FiltersPanel({
               options={REGION_OPTIONS}
             />
           </div>
+          )}
+
+          {filters.filterTypeName === "Тендеры для Россетей" && (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Select
+              label="Регион"
+              value={filters.regionNumber}
+              onChange={(event) => onChange({ regionNumber: event.target.value })}
+              options={ROSSETI_REGIONS_OPTIONS}
+            />
+          </div>
+          )}
 
           {/* Пара: Начало подачи от/до */}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -819,6 +898,18 @@ function FiltersPanel({
               onChange={(event) => onChange({ initialSumTo: event.target.value })}
             />
           </div>
+
+          {(filters.filterTypeName === "Тендеры для OEM") && (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Select
+              label="Слова маячки в тз"
+              value={filters.oem_flag}
+              onChange={(event) => onChange({ oem_flag: event.target.value })}
+              options={FLAG_OPTIONS_OEM}
+            />
+          </div>
+          )}
+
 
           {/* Кнопка сброса — справа */}
           <div className="flex justify-end">
@@ -981,6 +1072,16 @@ function PurchaseEditForm({
 
 function PurchaseDetails({ purchase }: { purchase: Purchase }) {
   const registryUrl = buildGosRegistryUrl(purchase.registration_number);
+  const contact = purchase.contact;
+
+  const contactFullName = contact
+  ? [contact.last_name, contact.first_name, contact.middle_name]
+      .filter(Boolean)
+      .join(' ')
+  : '';
+
+  const contactPhone = contact?.phone ? String(contact.phone) : 'Отсутствует';
+  const contactEmail = contact?.email ? String(contact.email) : 'Отсутствует';
 
   return (
     <div className="space-y-5">
@@ -1004,6 +1105,9 @@ function PurchaseDetails({ purchase }: { purchase: Purchase }) {
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         <InfoTile label="Регистрационный номер" value={purchase.registration_number || "—"} mono />
         <InfoTile label="Заказчик" value={getCustomerName(purchase.customer)} />
+        <InfoTile label="Контактное лицо" value={contactFullName || 'Отсутствует'} />
+        <InfoTile label="Телефон" value={contactPhone} />
+        <InfoTile label="Email" value={contactEmail} />
         <InfoTile label="Регион подачи заявки" value={getRegionLabel(purchase.region_number)} />
         <InfoTile label="Начало подачи заявки" value={formatDate(purchase.submission_start_datetime)} />
         <InfoTile label="Окончание подачи заявки" value={formatDate(purchase.submission_close_datetime)} />

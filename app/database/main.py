@@ -143,10 +143,11 @@ class GetAllPurchasesModel(BaseModel):
     region_number: Optional[str] = None
 
     region_numbers: Optional[list[str]] = None
+    oem_flag: Optional[str] = None
 
 class UpdatePurchaseModel(BaseModel):
     token: str
-    guid: str
+    guid: Optional[str] = None
     registration_number: Optional[str] = None
     filter_type_name: Optional[str] = None
     name: Optional[str] = None
@@ -446,7 +447,7 @@ def get_purchase(purchase_data: GetPurchaseModel, db: Session = Depends(get_db))
 @app.post(f"{API_BASE}/get_all_purchases", response_model=SuccessResponseModel)
 def get_all_purchases(purchase_data: GetAllPurchasesModel, db: Session = Depends(get_db)):
     verify_token(purchase_data.token)
-
+    print(purchase_data)
     query = select(Purchase)
 
     if purchase_data.name:
@@ -454,6 +455,9 @@ def get_all_purchases(purchase_data: GetAllPurchasesModel, db: Session = Depends
 
     if purchase_data.filter_type_name:
         query = query.where(Purchase.filter_type_name == purchase_data.filter_type_name)
+
+    if purchase_data.filter_type_name == "Тендеры для OEM" and purchase_data.oem_flag:
+        query = query.where(Purchase.result_info["Слова маячки в тз"].astext == purchase_data.oem_flag)
 
     if purchase_data.region_numbers:
         query = query.where(Purchase.region_number.in_(purchase_data.region_numbers))
@@ -606,7 +610,7 @@ def get_statistics(db: Session = Depends(get_db)):
     return SuccessResponseModel(
         status="success",
         message="Statistics",
-        data={"purchases_count": purchases_count, "timestamp": datetime.utcnow().isoformat(),
+        data={"purchases_count": purchases_count, "timestamp": datetime.now(MOSCOW_TZ).isoformat(),
               "newsletter_count": newsletter_count, "last_backfill_at": last_backfill_at,"last_process_day_at": last_process_day_at})
 
 

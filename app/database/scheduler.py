@@ -165,7 +165,12 @@ REGION_CODES_BY_FEDERAL_DISTRICT = {
 
 REGIONS_OF_THE_FILTERS = \
     {
-        "Тендеры для Россетей": ["77"],
+      "Тендеры для Россетей": [
+        "77",
+        "12", "52", "43", "18", "33", "37", "62", "71", "40",
+        "56", "63", "64",
+        "36", "31", "57", "44", "76", "69", "67", "32", "46", "48", "68"
+    ],
         "Тендеры для OEM": [
     "01", "02", "03", "04", "05", "06", "07", "08", "09",
     "10", "11", "12", "13", "14", "15", "16", "17", "18", "19",
@@ -442,19 +447,8 @@ def process_day(date_str: str, filter_number = 0) -> Dict:
 
     return registration_numbers_dict_per_day
 
-def create_analysis(rows, emails, created, updated, skipped):
+def create_analysis(rows, analysis_path):
 
-    html_content = f"""
-                    <html><body style="font-family:Arial;">
-                    <h2 style="color:#2E86C1;">Уведомление о заявках с госзакупок</h2>
-                    <p>Новых заявок добавлено: <b style="color:#E74C3C;font-size:18px;">{created}</b></p>
-                    <p>Заявок обновлено: <b style="color:#F39C12;font-size:18px;">{updated}</b></p>
-                    <p>Пропущено: <b style="color:#7F8C8D;font-size:18px;">{skipped}</b></p>
-                    <hr><p style="color:#888;font-size:12px;">Это письмо сформировано автоматически, отвечать на него не нужно</p>
-                    </body></html>
-                    """
-
-    analysis_path = "analysis.xlsx"
 
     try:
         df = pd.DataFrame(rows)
@@ -499,7 +493,7 @@ def create_analysis(rows, emails, created, updated, skipped):
             ws.column_dimensions[letter].width = min(max_len + 2, 50)
 
         last = ws.max_row + 2
-        ws.cell(last, 1, "Сноска: данные по закупкам, лотам и позициям")
+        ws.cell(last, 1, "Данные по закупкам, лотам и позициям")
         ws.merge_cells(
             start_row=last,
             start_column=1,
@@ -513,23 +507,53 @@ def create_analysis(rows, emails, created, updated, skipped):
         footnote_cell.border = Border(top=Side(style="thin", color="AAAAAA"))
 
         wb.save(analysis_path)
+    except Exception as e:
 
-        now = datetime.now()
+        logger.info("Произошла ошибка при создании анализа")
 
-        subject = f"Заявки с госзакупок за {now.strftime('%d.%m.%Y')}"
+def send_analysis(rows, emails, created, updated, skipped, extra_rows = None, path_name_extra = "all_purchases.xlsx"):
+
+    html_content = f"""
+                    <html><body style="font-family:Arial;">
+                    <h2 style="color:#2E86C1;">Уведомление о заявках с госзакупок</h2>
+                    <p>Новых заявок добавлено: <b style="color:#E74C3C;font-size:18px;">{created}</b></p>
+                    <p>Заявок обновлено: <b style="color:#F39C12;font-size:18px;">{updated}</b></p>
+                    <p>Пропущено: <b style="color:#7F8C8D;font-size:18px;">{skipped}</b></p>
+                    <hr><p style="color:#888;font-size:12px;">Это письмо сформировано автоматически, отвечать на него не нужно</p>
+                    </body></html>
+                    """
+
+    attachments = []
+
+    analysis_path = "analysis.xlsx"
+
+    create_analysis(rows, analysis_path = analysis_path)
+
+    attachments.append(analysis_path)
+
+    if extra_rows:
+
+        create_analysis(extra_rows, analysis_path=path_name_extra)
+        attachments.append(path_name_extra)
+
+    now = datetime.now()
+
+    subject = f"Заявки с госзакупок за {now.strftime('%d.%m.%Y')}"
+
+    try:
 
         for email in emails:
-
             send_email(
                 email,
                 subject,
                 html_content,
-                attachments=[analysis_path] if (created or updated) else None,
+                attachments=attachments if (created or updated) else None,
             )
 
     finally:
-        if os.path.exists(analysis_path):
-            os.remove(analysis_path)
+        for path in attachments:
+            if os.path.exists(path):
+                os.remove(path)
 
 def run_daily_job() -> Dict[str, Any]:
     _set_status(
@@ -628,76 +652,117 @@ def run_daily_job() -> Dict[str, Any]:
             "date": date_str,
         }
 
-        created = 0
-        updated = 0
-        skipped = 0
-
-        registration_numbers = []
-
         filter_name = "Тендеры для Россетей"
 
-        for region in day_result[filter_name].keys():
-            created += len(day_result[filter_name][region]["created"])
-            updated += len(day_result[filter_name][region]["updated"])
-            skipped += len(day_result[filter_name][region]["skipped"])
+        for district_region in REGIONS_OF_THE_FILTERS[filter_name]:
 
-            registration_numbers += (day_result[filter_name][region]["created"] +
-                                     day_result[filter_name][region]["updated"] +
-                                     day_result[filter_name][region]["skipped"])
+            created = 0
+            updated = 0
+            skipped = 0
 
-        emails_response = requests.post(
-            f"{APP_URL}{API_BASE}/get_all_newsletters",
-            json={"token": TOKEN, "filter_type_name": filter_name},
-            timeout=30,
-        )
+            registration_numbers = []
 
-        emails_response.raise_for_status()
-        emails = emails_response.json().get("data", [])
 
-        rows = []
+            for region in day_result[filter_name].keys():
+                created += len(day_result[filter_name][region]["created"])
+                updated += len(day_result[filter_name][region]["updated"])
+                skipped += len(day_result[filter_name][region]["skipped"])
 
-        for registration_number in registration_numbers:
-            purchase_response = requests.post(
-                f"{APP_URL}{API_BASE}/get_purchase",
-                json={"token": TOKEN, "registration_number": registration_number},
+                registration_numbers += (day_result[filter_name][region]["created"] +
+                                         day_result[filter_name][region]["updated"] +
+                                         day_result[filter_name][region]["skipped"])
+
+            emails_response = requests.post(
+                f"{APP_URL}{API_BASE}/get_all_newsletters",
+                json={"token": TOKEN, "filter_type_name": filter_name, "district_name": district_region},
                 timeout=30,
             )
 
-            purchase_response.raise_for_status()
+            emails_response.raise_for_status()
+            emails = emails_response.json().get("data", [])
 
-            purchase = purchase_response.json().get("data", {})
+            rows = []
 
-            customer = purchase.get("customer") or {}
-            result_info = purchase.get("result_info") or {}
+            for registration_number in registration_numbers:
+                purchase_response = requests.post(
+                    f"{APP_URL}{API_BASE}/get_purchase",
+                    json={"token": TOKEN, "registration_number": registration_number, "filter_type_name": filter_name},
+                    timeout=30,
+                )
 
-            base = {
-                "Реестровый номер": purchase.get("registration_number"),
-                "Название закупки": purchase.get("name"),
-                "Сумма закупки": purchase.get("initial_sum"),
-                "Дата начала подачи заявок": purchase.get("submission_start_datetime"),
-                "Дата окончания подачи заявок": purchase.get("submission_close_datetime"),
-                "Дата публикации": purchase.get("publication_datetime"),
-                "Заказчик название": customer.get("full_name"),
-                "Победитель": result_info.get("Победитель"),
-                "Другие участники": result_info.get("Другие участники"),
-                "Ячейки": result_info.get("Ячейки"),
-                "Кол-во ячеек": result_info.get("Кол-во ячеек"),
-                "Типовой проект": result_info.get("Типовой проект"),
-                "Проектировщик": result_info.get("Проектировщик"),
-                "Дата исполнения договора": result_info.get("Дата исполнения договора"),
-                "Филиал/РЭС": result_info.get("Филиал/РЭС"),
-                "Ссылка на тендер": f"https://zakupki.gov.ru/epz/order/notice/notice223/common-info.html?regNumber={purchase.get("registration_number")}"
-            }
+                purchase_response.raise_for_status()
 
-            rows.append(base)
+                purchase = purchase_response.json().get("data", {})
 
-        result["created"] += created
-        result["updated"] += updated
-        result["skipped"] += skipped
+                customer = purchase.get("customer") or {}
+                result_info = purchase.get("result_info") or {}
+
+                base = {
+                    "Реестровый номер": purchase.get("registration_number"),
+                    "Название закупки": purchase.get("name"),
+                    "Сумма закупки": purchase.get("initial_sum"),
+                    "Дата начала подачи заявок": purchase.get("submission_start_datetime"),
+                    "Дата окончания подачи заявок": purchase.get("submission_close_datetime"),
+                    "Дата публикации": purchase.get("publication_datetime"),
+                    "Заказчик название": customer.get("full_name"),
+                    "Победитель": result_info.get("Победитель"),
+                    "Другие участники": result_info.get("Другие участники"),
+                    "Ячейки": result_info.get("Ячейки"),
+                    "Кол-во ячеек": result_info.get("Кол-во ячеек"),
+                    "Типовой проект": result_info.get("Типовой проект"),
+                    "Проектировщик": result_info.get("Проектировщик"),
+                    "Дата исполнения договора": result_info.get("Дата исполнения договора"),
+                    "Филиал/РЭС": result_info.get("Филиал/РЭС"),
+                    "Ссылка на тендер": f"https://zakupki.gov.ru/epz/order/notice/notice223/common-info.html?regNumber={purchase.get("registration_number")}"
+                }
+
+                rows.append(base)
+
+            result["created"] += created
+            result["updated"] += updated
+            result["skipped"] += skipped
+
+            extra_rows = []
+
+            purchases_response = requests.post(
+                f"{APP_URL}{API_BASE}/get_all_purchases",
+                json={"token": TOKEN, "filter_type_name": filter_name, "region_number": district_region},
+                timeout=30,
+            )
+
+            purchases_response.raise_for_status()
+
+            purchases = purchases_response.json().get("data", {})
+
+            for purchase in purchases:
+
+                customer = purchase.get("customer") or {}
+                result_info = purchase.get("result_info") or {}
+
+                base = {
+                    "Реестровый номер": purchase.get("registration_number"),
+                    "Название закупки": purchase.get("name"),
+                    "Сумма закупки": purchase.get("initial_sum"),
+                    "Дата начала подачи заявок": purchase.get("submission_start_datetime"),
+                    "Дата окончания подачи заявок": purchase.get("submission_close_datetime"),
+                    "Дата публикации": purchase.get("publication_datetime"),
+                    "Заказчик название": customer.get("full_name"),
+                    "Победитель": result_info.get("Победитель"),
+                    "Другие участники": result_info.get("Другие участники"),
+                    "Ячейки": result_info.get("Ячейки"),
+                    "Кол-во ячеек": result_info.get("Кол-во ячеек"),
+                    "Типовой проект": result_info.get("Типовой проект"),
+                    "Проектировщик": result_info.get("Проектировщик"),
+                    "Дата исполнения договора": result_info.get("Дата исполнения договора"),
+                    "Филиал/РЭС": result_info.get("Филиал/РЭС"),
+                    "Ссылка на тендер": f"https://zakupki.gov.ru/epz/order/notice/notice223/common-info.html?regNumber={purchase.get("registration_number")}"
+                }
+
+                extra_rows.append(base)
 
 
-        create_analysis(rows=rows, emails=emails,
-                        created=created, updated=updated, skipped=skipped)
+            send_analysis(rows=rows, emails=emails,
+                            created=created, updated=updated, skipped=skipped, extra_rows = extra_rows)
 
 
         # Высылаем информацию для OEM
@@ -735,7 +800,7 @@ def run_daily_job() -> Dict[str, Any]:
             for registration_number in registration_numbers:
                 purchase_response = requests.post(
                     f"{APP_URL}{API_BASE}/get_purchase",
-                    json={"token": TOKEN, "registration_number": registration_number},
+                    json={"token": TOKEN, "registration_number": registration_number, "filter_type_name": filter_name},
                     timeout=30,
                 )
 
@@ -745,6 +810,11 @@ def run_daily_job() -> Dict[str, Any]:
 
                 customer = purchase.get("customer") or {}
 
+                result_info = purchase.get("result_info") or {}
+
+                contact = purchase.get("contact") or {}
+
+
                 base = {
                     "Реестровый номер": purchase.get("registration_number"),
                     "Название закупки": purchase.get("name"),
@@ -753,6 +823,12 @@ def run_daily_job() -> Dict[str, Any]:
                     "Дата окончания подачи заявок": purchase.get("submission_close_datetime"),
                     "Дата публикации": purchase.get("publication_datetime"),
                     "Заказчик название": customer.get("full_name"),
+                    "Контактное лицо": contact.get("last_name", "") + " " + contact.get("first_name", "") + " " + contact.get("middle_name", ""),
+                    "Телефон": contact.get("phone", ""),
+                    "Email": contact.get("email", ""),
+                    "Победитель": result_info.get("Победитель"),
+                    "Итоговая цена контракта": result_info.get("Итоговая цена контракта"),
+                    "Слова маячки в тз": result_info.get("Слова маячки в тз"),
                     "Ссылка на тендер": f"https://zakupki.gov.ru/epz/order/notice/notice223/common-info.html?regNumber={purchase.get("registration_number")}"
                 }
 
@@ -762,7 +838,7 @@ def run_daily_job() -> Dict[str, Any]:
             result["updated"] += updated
             result["skipped"] += skipped
 
-            create_analysis(rows=rows, emails=emails,
+            send_analysis(rows=rows, emails=emails,
                             created=created, updated=updated, skipped=skipped)
 
         # Высылаем информацию для ITM
@@ -800,7 +876,7 @@ def run_daily_job() -> Dict[str, Any]:
             for registration_number in registration_numbers:
                 purchase_response = requests.post(
                     f"{APP_URL}{API_BASE}/get_purchase",
-                    json={"token": TOKEN, "registration_number": registration_number},
+                    json={"token": TOKEN, "registration_number": registration_number, "filter_type_name": filter_name},
                     timeout=30,
                 )
 
@@ -833,7 +909,7 @@ def run_daily_job() -> Dict[str, Any]:
             result["updated"] += updated
             result["skipped"] += skipped
 
-            create_analysis(rows=rows, emails=emails,
+            send_analysis(rows=rows, emails=emails,
                             created=created, updated=updated, skipped=skipped)
 
 

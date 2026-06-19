@@ -14,9 +14,8 @@ import {
 import { getStats, type Stats } from "../api/stats";
 import { Card } from "../components/ui/Card";
 import { Header } from "../components/layout/Header";
-import { formatDate } from "../lib/format";
+// ─── утилиты ──────────────────────────────────────────────────────────────────
 
-// ─── маленький утилит ────────────────────────────────────────────────────────
 function ago(iso: string | null | undefined): string {
   if (!iso) return "—";
   const diff = Date.now() - new Date(iso).getTime();
@@ -26,6 +25,20 @@ function ago(iso: string | null | undefined): string {
   const hours = Math.floor(mins / 60);
   if (hours < 24) return `${hours} ч. назад`;
   return `${Math.floor(hours / 24)} дн. назад`;
+}
+
+// МОСКОВСКОЕ ВРЕМЯ: форматирование ISO-строки в московском часовом поясе
+function formatMoscowTime(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const date = new Date(iso);
+  return date.toLocaleString('ru-RU', {
+    timeZone: 'Europe/Moscow',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 // ─── типы ────────────────────────────────────────────────────────────────────
@@ -127,12 +140,6 @@ export function DashboardPage() {
 
   const apiOk = !error && stats !== null;
 
-  // ИСПРАВЛЕНО: нейтральные строки (числа, даты) остаются с ok=null (серая точка),
-  // а не ok=true. Логика была: stats существует → ok=true для "База данных",
-  // но все остальные строки (счётчики, даты) получали ok=null.
-  // Проблема была в том что "База данных" всегда ok=true когда stats загружен,
-  // а остальные были null — но визуально это было несогласованно.
-  // Теперь явно: API и БД имеют булевый статус, остальное — информационные строки (null).
   const statsData = stats as Record<string, unknown> | null;
 
   const serviceItems: ServiceItem[] = [
@@ -143,15 +150,13 @@ export function DashboardPage() {
     },
     {
       label: "База данных",
-      // ok=true только когда stats реально пришли из БД (значит БД работает),
-      // ok=false когда API вернул ошибку, ok=null пока грузим
       ok: isLoading ? null : apiOk ? true : false,
       value: isLoading ? "Проверяем..." : apiOk ? "Подключена" : "Нет данных",
     },
     {
       label: "Закупок в базе",
       value: statsData?.purchases_count != null ? String(statsData.purchases_count) : "—",
-      ok: null, // информационная строка, без статусного цвета
+      ok: null,
     },
     {
       label: "Подписчиков рассылки",
@@ -159,19 +164,12 @@ export function DashboardPage() {
       ok: null,
     },
     {
-      label: "Последний backfill",
-      value: statsData?.last_backfill_at
-        ? ago(String(statsData.last_backfill_at))
-        : "—",
-      ok: null,
-    },
-    {
-      label: "Последний run_process_day",
+      label: "Последняя обработка даты",
       value: statsData?.last_process_day_at
-        ? ago(String(statsData.last_process_day_at))
+        ? formatMoscowTime(String(statsData.last_process_day_at))
         : "—",
       ok: null,
-    },
+    }
   ];
 
   return (
@@ -214,10 +212,11 @@ export function DashboardPage() {
                 Данные получены
               </div>
               <div className="text-2xl font-bold text-[color:var(--se-text)]">
-                {formatDate(stats?.timestamp)}
+                {/* МОСКОВСКОЕ ВРЕМЯ: заменили formatDate на formatMoscowTime */}
+                {formatMoscowTime(stats?.timestamp)}
               </div>
               <div className="text-xs text-[color:var(--se-muted)]">
-                {ago(stats?.timestamp)}
+                {ago(stats?.timestamp)} {/* относительное время оставляем */}
               </div>
               <div className="mt-2 flex items-center gap-2 text-sm font-semibold text-[color:var(--se-techno-green)]">
                 {isLoading
@@ -261,8 +260,9 @@ export function DashboardPage() {
           />
           <BigStat
             label="Последнее обновление"
-            value={ago(stats?.timestamp)}
-            sub={formatDate(stats?.timestamp) ?? ""}
+            value={ago(stats?.timestamp)} // относительное время
+            // МОСКОВСКОЕ ВРЕМЯ: абсолютное время в подсказке
+            sub={formatMoscowTime(stats?.timestamp)}
             icon={Clock3}
             tone="amber"
           />

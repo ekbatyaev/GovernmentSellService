@@ -23,7 +23,32 @@ logger = logging.getLogger(__name__)
 
 # Регионы для фильтров
 
-REGIONS_ROSSETI = {"77": True}
+REGIONS_ROSSETI = {
+    "77": True,  # Москва
+    "12": True,  # Республика Марий Эл (Мариэнерго)
+    "52": True,  # Нижегородская область (Нижновэнерго)
+    "43": True,  # Кировская область (Кировэнерго)
+    "56": True,  # Оренбургская область (Оренбургэнерго)
+    "18": True,  # Удмуртская Республика (Удмуртэнерго)
+    "36": True,  # Воронежская область (Воронежэнерго)
+    "63": True,  # Самарская область (Самарские РС)
+    "31": True,  # Белгородская область (Белгородэнерго)
+    "57": True,  # Орловская область (Орелэнерго)
+    "64": True,  # Саратовская область (Саратовские РС)
+    "33": True,  # Владимирская область (Владимирэнерго)
+    "37": True,  # Ивановская область (Ивэнерго)
+    "62": True,  # Рязанская область (Рязаньэнерго)
+    "71": True,  # Тульская область (Тулаэнерго)
+    "44": True,  # Костромская область (Костромаэнерго)
+    "76": True,  # Ярославская область (Ярэнерго)
+    "69": True,  # Тверская область (Тверьэнерго)
+    "67": True,  # Смоленская область (Смоленскэнерго)
+    "32": True,  # Брянская область (Брянскэнерго)
+    "46": True,  # Курская область (Курскэнерго)
+    "48": True,  # Липецкая область (Липецкэнерго)
+    "68": True,  # Тамбовская область (Тамбовэнерго)
+    "40": True,  # Калужская область (Калугаэнерго)
+}
 
 
 FIELDS = [
@@ -319,7 +344,7 @@ def parse_zip_archive_protocols(zip_path: str, region: int, filter_number: int) 
                 work_name = normalized.get("name", "") or ""
 
                 if (filter_number == 0 or filter_number == 1) and REGIONS_ROSSETI.get(region, False) and request_filters_rosseti(customer_name, work_name):
-                    normalized["guid"] = uuid.uuid4()
+                    normalized["guid"] = str(uuid.uuid4())
                     normalized["region_number"] = region
                     normalized["filter_type_name"] = "Тендеры для Россетей"
 
@@ -367,7 +392,7 @@ def parse_zip_archive_protocols(zip_path: str, region: int, filter_number: int) 
                     all_data.append(normalized)
 
                 if (filter_number == 0 or filter_number == 2) and request_filters_oem(work_name):
-                    normalized["guid"] = uuid.uuid4()
+                    normalized["guid"] = str(uuid.uuid4())
                     normalized["region_number"] = region
                     normalized["filter_type_name"] = "Тендеры для OEM"
 
@@ -391,30 +416,25 @@ def parse_zip_archive_protocols(zip_path: str, region: int, filter_number: int) 
 
                         continue
 
-                    normalized["result_info"] = purchase.get("result_info") or {}
+                    result_info = purchase.get("result_info") or {}
 
-                    normalized["documents_list"] = purchase.get("documents_list") or []
+                    documents_list = purchase.get("documents_list") or []
 
-                    # normalized["result_info"], normalized["documents_list"] = process_attached_files_and_merge(
-                    #     attached_files=normalized["attached_files"],
-                    #     tmp_dir=TMP_DIR,
-                    #     result_info_old=result_info,
-                    #     documents_list_old=documents_list,
-                    #     protocol_mode=True,
-                    #     filter_type = 2
-                    # )
-                    #
-                    # del normalized["attached_files"]
-                    #
-                    # print("result_info - protocols")
-                    # print(normalized["result_info"])
-                    #
-                    # print("documents_list - protocols")
-                    # print(normalized["documents_list"])
+                    normalized["result_info"], normalized["documents_list"] = process_attached_files_and_merge(
+                        attached_files=normalized["attached_files"],
+                        tmp_dir=TMP_DIR,
+                        result_info_old=result_info,
+                        documents_list_old=documents_list,
+                        protocol_mode=True,
+                        filter_type = 2
+                    )
+
+                    del normalized["attached_files"]
+
                     all_data.append(normalized)
 
                 if (filter_number == 0 or filter_number == 3) and request_filters_itm(work_name):
-                    normalized["guid"] = uuid.uuid4()
+                    normalized["guid"] = str(uuid.uuid4())
                     normalized["region_number"] = region
                     normalized["filter_type_name"] = "Тендеры для ITM"
 
@@ -486,7 +506,7 @@ def parse_zip_archive_purchases(zip_path: str, region: int, filter_number: int) 
                 work_name = normalized.get("name", "") or ""
 
                 if (filter_number == 0 or filter_number == 1) and REGIONS_ROSSETI.get(region, False) and request_filters_rosseti(customer_name, work_name):
-                    normalized["guid"] = uuid.uuid4()
+                    normalized["guid"] = str(uuid.uuid4())
                     normalized["region_number"] = region
                     normalized["filter_type_name"] = "Тендеры для Россетей"
 
@@ -533,7 +553,7 @@ def parse_zip_archive_purchases(zip_path: str, region: int, filter_number: int) 
                     all_data.append(normalized)
 
                 if (filter_number == 0 or filter_number == 2)  and request_filters_oem(work_name):
-                    normalized["guid"] = uuid.uuid4()
+                    normalized["guid"] = str(uuid.uuid4())
                     normalized["region_number"] = region
                     normalized["filter_type_name"] = "Тендеры для OEM"
 
@@ -549,28 +569,27 @@ def parse_zip_archive_purchases(zip_path: str, region: int, filter_number: int) 
 
                     purchase = purchase_response.json().get("data", {})
 
-                    normalized["result_info"] = purchase.get("result_info") or {}
+                    result_info = purchase.get("result_info") or {}
 
-                    normalized["documents_list"] = purchase.get("documents_list") or []
+                    documents_list = purchase.get("documents_list") or []
 
-                    # result_info = purchase.get("result_info") or {}
-                    #
-                    # documents_list = purchase.get("documents_list") or []
-                    #
-                    # normalized["result_info"], normalized["documents_list"] = process_attached_files_and_merge(
-                    #     attached_files=normalized["attached_files"],
-                    #     tmp_dir=TMP_DIR,
-                    #     result_info_old=result_info,
-                    #     documents_list_old=documents_list,
-                    #     filter_type = 2
-                    # )
+                    normalized["result_info"], normalized["documents_list"] = process_attached_files_and_merge(
+                        attached_files=normalized["attached_files"],
+                        tmp_dir=TMP_DIR,
+                        result_info_old=result_info,
+                        documents_list_old=documents_list,
+                        filter_type = 2
+                    )
+
+                    if normalized["result_info"].get("Слова маячки в тз", None) is None or normalized["result_info"]["Слова маячки в тз"] == "":
+                        normalized["result_info"]["Слова маячки в тз"] = "Нету"
 
                     del normalized["attached_files"]
 
                     all_data.append(normalized)
 
                 if (filter_number == 0 or filter_number == 3) and request_filters_itm(work_name):
-                    normalized["guid"] = uuid.uuid4()
+                    normalized["guid"] = str(uuid.uuid4())
                     normalized["region_number"] = region
                     normalized["filter_type_name"] = "Тендеры для ITM"
 
@@ -599,7 +618,7 @@ def parse_zip_archive_purchases(zip_path: str, region: int, filter_number: int) 
                     #     tmp_dir=TMP_DIR,
                     #     result_info_old=result_info,
                     #     documents_list_old=documents_list,
-                    #     filter_type = 2
+                    #     filter_type = 3
                     # )
 
                     del normalized["attached_files"]

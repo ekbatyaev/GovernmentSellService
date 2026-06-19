@@ -216,7 +216,7 @@ async def main():
     по 30.04.2026	В течение 30 рабочих дней после подписания Акта приемки выполненных  работ и (или) форм КС-2 и КС-3
 
     """
-    single = await get_model_extraction(text)
+    single = await rosseti_get_model_extraction(text)
 
 
     print("\n=== SINGLE ===")
