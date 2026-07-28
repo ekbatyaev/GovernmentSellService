@@ -184,6 +184,14 @@ export const FLAG_OPTIONS_OEM = [
   { value: "Нету", label: "Нету" },
 ];
 
+export const OPTIONS_ITM = [
+  { value: "", label: "Не выбрано" },
+  { value: "ITCLG", label: "ITCLG" },
+  { value: "ITRAA", label: "ITRAA" },
+  { value: "ITDIG", label: "ITDIG" },
+  { value: "IT3PH", label: "IT3PH" },
+];
+
 
 
 export function isOemOrItm(filterTypeName: string) {

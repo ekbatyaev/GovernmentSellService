@@ -210,7 +210,6 @@ def normalize_purchase(data: dict) -> dict:
     documentation_delivery = notice.get("documentationDelivery", {}) or {}
 
     result = {}
-    result["body"] = body
     result["registration_number"] = notice.get("registrationNumber")
     result["name"] = notice.get("name")
     result["publication_datetime"] = notice.get("publicationDateTime")
@@ -310,7 +309,6 @@ def normalize_purchase(data: dict) -> dict:
                     "guid": it.get("guid"),
                     "okpd2_code": (it.get("okpd2") or {}).get("code"),
                     "okpd2_name": (it.get("okpd2") or {}).get("name"),
-                    "qty": it.get("qty"),
                     "additional_info": it.get("additionalInfo"),
                 }
             )
@@ -432,11 +430,12 @@ def parse_zip_archive_protocols(zip_path: str, region: int, filter_number: int) 
                     del normalized["attached_files"]
 
                     all_data.append(normalized)
-
-                if (filter_number == 0 or filter_number == 3) and request_filters_itm(work_name):
+                itm_filters_check = request_filters_itm(work_name, normalized["lots"])
+                if (filter_number == 0 or filter_number == 3) and itm_filters_check["result"]:
                     normalized["guid"] = str(uuid.uuid4())
                     normalized["region_number"] = region
                     normalized["filter_type_name"] = "Тендеры для ITM"
+
 
                     # Обращение, получение данных и передача
                     purchase_response = requests.post(
@@ -472,6 +471,8 @@ def parse_zip_archive_protocols(zip_path: str, region: int, filter_number: int) 
                     )
 
                     del normalized["attached_files"]
+
+                    normalized["result_info"]["Категория заявки"] = itm_filters_check["filter_name"]
 
                     all_data.append(normalized)
 
@@ -588,7 +589,8 @@ def parse_zip_archive_purchases(zip_path: str, region: int, filter_number: int) 
 
                     all_data.append(normalized)
 
-                if (filter_number == 0 or filter_number == 3) and request_filters_itm(work_name):
+                itm_filters_check = request_filters_itm(work_name, normalized["lots"])
+                if (filter_number == 0 or filter_number == 3) and itm_filters_check["result"]:
                     normalized["guid"] = str(uuid.uuid4())
                     normalized["region_number"] = region
                     normalized["filter_type_name"] = "Тендеры для ITM"
@@ -622,6 +624,8 @@ def parse_zip_archive_purchases(zip_path: str, region: int, filter_number: int) 
                     # )
 
                     del normalized["attached_files"]
+
+                    normalized["result_info"]["Категория заявки"] = itm_filters_check["filter_name"]
 
                     all_data.append(normalized)
 

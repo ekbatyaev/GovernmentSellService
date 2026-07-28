@@ -15,6 +15,12 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
+# Установка российских корневых сертификатов Минцифры
+# (требуется для HTTPS-взаимодействия с ЕИС на int.zakupki.gov.ru,
+#  замена сертификата безопасности RSA на сертификат Минцифры России)
+COPY certs/russian_ca/*.crt /usr/local/share/ca-certificates/
+RUN update-ca-certificates
+
 RUN set -eux; \
     sed -i 's/^Components: main$/Components: main contrib non-free non-free-firmware/' /etc/apt/sources.list.d/debian.sources; \
     apt-get update; \
@@ -35,6 +41,10 @@ RUN set -eux; \
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Добавляем российские корневые сертификаты Минцифры в certifi (т.к. Python requests
+# использует certifi, а не системный CA store), чтобы SSL-соединение с ЕИС работало.
+RUN cat /etc/ssl/certs/ca-certificates.crt >> /usr/local/lib/python3.12/site-packages/certifi/cacert.pem
 
 COPY app .
 

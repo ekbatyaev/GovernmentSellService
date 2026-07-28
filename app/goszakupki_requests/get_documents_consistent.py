@@ -15,7 +15,6 @@ from typing import Dict, Optional, Iterable, Tuple, List
 import time
 from contextlib import contextmanager
 from collections import OrderedDict
-
 import rarfile
 import requests
 import docx

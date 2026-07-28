@@ -31,7 +31,8 @@ import {
   FEDERAL_DISTRICT_OPTIONS,
   isOemOrItm,
   REGION_OPTIONS,
-  FLAG_OPTIONS_OEM
+  FLAG_OPTIONS_OEM,
+  OPTIONS_ITM
 } from "../lib/purchases";
 import type { Purchase, PurchaseFilters } from "../types/purchase";
 import ExcelJS from "exceljs";
@@ -42,6 +43,7 @@ type RequestPurchaseFilters = PurchaseFilters & {
   filter_type_name?: string;
   region_numbers?: string[];
   oem_flag?: string;
+  itm_option?: string;
 };
 
 const REGION_CODES_BY_FEDERAL_DISTRICT: Record<string, string[]> = {
@@ -164,6 +166,7 @@ type UiFilters = {
   submissionCloseFrom: string;
   submissionCloseTo: string;
   oem_flag: string;
+  itm_option: string;
 };
 
 const defaultFilters: UiFilters = {
@@ -179,7 +182,8 @@ const defaultFilters: UiFilters = {
   submissionStartTo: "",
   submissionCloseFrom: "",
   submissionCloseTo: "",
-  oem_flag: ""
+  oem_flag: "",
+  itm_option: ""
 };
 
 function dateToIsoStart(dateStr: string): string | undefined {
@@ -220,7 +224,8 @@ function buildFilters(token: string, filters: UiFilters): RequestPurchaseFilters
     ...requestMeta,
     filter_type_name: filters.filterTypeName || undefined,
     region_numbers: regionNumbers,
-    oem_flag: filters.oem_flag || undefined
+    oem_flag: filters.oem_flag || undefined,
+    itm_option: filters.itm_option || undefined
   };
 }
 
@@ -906,6 +911,17 @@ function FiltersPanel({
               value={filters.oem_flag}
               onChange={(event) => onChange({ oem_flag: event.target.value })}
               options={FLAG_OPTIONS_OEM}
+            />
+          </div>
+          )}
+
+          {(filters.filterTypeName === "Тендеры для ITM") && (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Select
+              label="Категория заявок"
+              value={filters.itm_option}
+              onChange={(event) => onChange({ itm_option: event.target.value })}
+              options={OPTIONS_ITM}
             />
           </div>
           )}

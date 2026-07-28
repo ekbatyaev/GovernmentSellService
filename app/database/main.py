@@ -144,6 +144,7 @@ class GetAllPurchasesModel(BaseModel):
 
     region_numbers: Optional[list[str]] = None
     oem_flag: Optional[str] = None
+    itm_option: Optional[str] = None
 
 class UpdatePurchaseModel(BaseModel):
     token: str
@@ -458,6 +459,9 @@ def get_all_purchases(purchase_data: GetAllPurchasesModel, db: Session = Depends
 
     if purchase_data.filter_type_name == "Тендеры для OEM" and purchase_data.oem_flag:
         query = query.where(Purchase.result_info["Слова маячки в тз"].astext == purchase_data.oem_flag)
+
+    if purchase_data.filter_type_name == "Тендеры для ITM" and purchase_data.itm_option:
+        query = query.where(Purchase.result_info["Категория заявки"].astext == purchase_data.itm_option)
 
     if purchase_data.region_numbers:
         query = query.where(Purchase.region_number.in_(purchase_data.region_numbers))
