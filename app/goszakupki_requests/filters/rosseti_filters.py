@@ -1,4 +1,5 @@
 import re
+from typing import Dict, Any
 
 # Фильтры в формате регулярных выражений
 
@@ -129,7 +130,7 @@ TARGET_PATTERNS_ROSSETI = [re.compile(p, re.IGNORECASE) for p in TARGET_OBJECT_P
 
 # Функция фильтрация
 
-def request_filters_rosseti(customer_name, work_name)-> bool:
+def request_filters_rosseti(customer_name, work_name) -> Dict[str, Any]:
 
     ok_customer = any(p.search(customer_name) for p in FILTERS_PATTERNS_ROSSETI)
     excluded_hard = any(p.search(work_name) for p in JOB_EXCLUDE_HARD_PATTERNS_ROSSETI)
@@ -320,6 +321,21 @@ def request_filters_rosseti(customer_name, work_name)-> bool:
             or (only_source_object and not source_object_allowed)
     )
 
-    if ok_customer and ok_job and not excluded_job:
-        return True
-    return False
+    result = ok_customer and ok_job and not excluded_job
+
+    if not ok_customer:
+        reason = "customer_mismatch: заказчик не проходит по паттернам Россети"
+    elif not ok_job:
+        reason = "job_mismatch: вид работ не подходит под критерии"
+    elif excluded_job:
+        reason = "excluded_job: сработало условие исключения"
+    else:
+        reason = "match: заказчик и работа подходят"
+
+    return {
+        "result": result,
+        "ok_customer": ok_customer,
+        "ok_job": ok_job,
+        "excluded_job": excluded_job,
+        "reason": reason,
+    }

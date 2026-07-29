@@ -341,7 +341,8 @@ def parse_zip_archive_protocols(zip_path: str, region: int, filter_number: int) 
                 customer_name = (normalized.get("customer") or {}).get("full_name")
                 work_name = normalized.get("name", "") or ""
 
-                if (filter_number == 0 or filter_number == 1) and REGIONS_ROSSETI.get(region, False) and request_filters_rosseti(customer_name, work_name):
+                rosseti_filters_check = request_filters_rosseti(customer_name, work_name)
+                if (filter_number == 0 or filter_number == 1) and REGIONS_ROSSETI.get(region, False) and rosseti_filters_check["result"]:
                     normalized["guid"] = str(uuid.uuid4())
                     normalized["region_number"] = region
                     normalized["filter_type_name"] = "Тендеры для Россетей"
@@ -389,7 +390,8 @@ def parse_zip_archive_protocols(zip_path: str, region: int, filter_number: int) 
                     print(normalized["documents_list"])
                     all_data.append(normalized)
 
-                if (filter_number == 0 or filter_number == 2) and request_filters_oem(work_name):
+                oem_filters_check = request_filters_oem(work_name)
+                if (filter_number == 0 or filter_number == 2) and oem_filters_check["result"]:
                     normalized["guid"] = str(uuid.uuid4())
                     normalized["region_number"] = region
                     normalized["filter_type_name"] = "Тендеры для OEM"
@@ -430,6 +432,7 @@ def parse_zip_archive_protocols(zip_path: str, region: int, filter_number: int) 
                     del normalized["attached_files"]
 
                     all_data.append(normalized)
+
                 itm_filters_check = request_filters_itm(work_name, normalized["lots"])
                 if (filter_number == 0 or filter_number == 3) and itm_filters_check["result"]:
                     normalized["guid"] = str(uuid.uuid4())
@@ -506,7 +509,8 @@ def parse_zip_archive_purchases(zip_path: str, region: int, filter_number: int) 
                 customer_name = (normalized.get("customer") or {}).get("full_name")
                 work_name = normalized.get("name", "") or ""
 
-                if (filter_number == 0 or filter_number == 1) and REGIONS_ROSSETI.get(region, False) and request_filters_rosseti(customer_name, work_name):
+                rosseti_filters_check = request_filters_rosseti(customer_name, work_name)
+                if (filter_number == 0 or filter_number == 1) and REGIONS_ROSSETI.get(region, False) and rosseti_filters_check["result"]:
                     normalized["guid"] = str(uuid.uuid4())
                     normalized["region_number"] = region
                     normalized["filter_type_name"] = "Тендеры для Россетей"
@@ -553,7 +557,8 @@ def parse_zip_archive_purchases(zip_path: str, region: int, filter_number: int) 
 
                     all_data.append(normalized)
 
-                if (filter_number == 0 or filter_number == 2)  and request_filters_oem(work_name):
+                oem_filters_check = request_filters_oem(work_name)
+                if (filter_number == 0 or filter_number == 2)  and oem_filters_check["result"]:
                     normalized["guid"] = str(uuid.uuid4())
                     normalized["region_number"] = region
                     normalized["filter_type_name"] = "Тендеры для OEM"

@@ -432,7 +432,7 @@ def has_okpd2_match(lots, target_codes):
     return False
 
 
-def request_filters_itm(work_name: str, lots: list, debug: bool = False) -> Union[bool, Dict[str, Any]]:
+def request_filters_itm(work_name: str, lots: list) -> Union[bool, Dict[str, Any]]:
     """
     Возвращает True, если закупка проходит любой из фильтров,
     возвращая при этом номер категории.
