@@ -178,6 +178,22 @@ export const REGION_OPTIONS = [
   { value: "92", label: "92 — Севастополь" },
 ];
 
+export const FLAG_OPTIONS_OEM = [
+  { value: "", label: "Не выбрано" },
+  { value: "Есть", label: "Есть" },
+  { value: "Нету", label: "Нету" },
+];
+
+export const OPTIONS_ITM = [
+  { value: "", label: "Не выбрано" },
+  { value: "ITCLG", label: "ITCLG" },
+  { value: "ITRAA", label: "ITRAA" },
+  { value: "ITDIG", label: "ITDIG" },
+  { value: "IT3PH", label: "IT3PH" },
+];
+
+
+
 export function isOemOrItm(filterTypeName: string) {
   const normalized = filterTypeName.toLowerCase();
 

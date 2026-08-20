@@ -1,6 +1,6 @@
 import type { ApiResponse } from "../types/api";
 
-const API_BASE = "/goszakupki";
+const API_BASE = "";
 
 export async function apiGet<T>(path: string): Promise<ApiResponse<T>> {
   const response = await fetch(`${API_BASE}${path}`);

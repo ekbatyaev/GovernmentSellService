@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import {
   Activity,
-  CheckCircle2,
   Clock3,
   Database,
   Mail,
   RefreshCw,
   ServerCrash,
+  CheckCircle2,
   Wifi,
   WifiOff,
   XCircle,
@@ -14,9 +14,8 @@ import {
 import { getStats, type Stats } from "../api/stats";
 import { Card } from "../components/ui/Card";
 import { Header } from "../components/layout/Header";
-import { formatDate } from "../lib/format";
+// ─── утилиты ──────────────────────────────────────────────────────────────────
 
-// ─── маленький утилит ────────────────────────────────────────────────────────
 function ago(iso: string | null | undefined): string {
   if (!iso) return "—";
   const diff = Date.now() - new Date(iso).getTime();
@@ -26,6 +25,20 @@ function ago(iso: string | null | undefined): string {
   const hours = Math.floor(mins / 60);
   if (hours < 24) return `${hours} ч. назад`;
   return `${Math.floor(hours / 24)} дн. назад`;
+}
+
+// МОСКОВСКОЕ ВРЕМЯ: форматирование ISO-строки в московском часовом поясе
+function formatMoscowTime(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const date = new Date(iso);
+  return date.toLocaleString('ru-RU', {
+    timeZone: 'Europe/Moscow',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 // ─── типы ────────────────────────────────────────────────────────────────────
@@ -127,9 +140,8 @@ export function DashboardPage() {
 
   const apiOk = !error && stats !== null;
 
-  // Формируем список строк статуса сервиса из данных stats
-  // stats может содержать поля: purchases_count, timestamp, newsletter_count,
-  // last_backfill_at, last_process_day_at — дополни по своей модели Stats
+  const statsData = stats as Record<string, unknown> | null;
+
   const serviceItems: ServiceItem[] = [
     {
       label: "API backend",
@@ -138,36 +150,26 @@ export function DashboardPage() {
     },
     {
       label: "База данных",
-      value: stats ? "Подключена" : "—",
-      ok: stats ? true : null,
+      ok: isLoading ? null : apiOk ? true : false,
+      value: isLoading ? "Проверяем..." : apiOk ? "Подключена" : "Нет данных",
     },
     {
       label: "Закупок в базе",
-      value: stats?.purchases_count != null ? String(stats.purchases_count) : "—",
+      value: statsData?.purchases_count != null ? String(statsData.purchases_count) : "—",
       ok: null,
     },
     {
       label: "Подписчиков рассылки",
-      // если поле есть в Stats — подставится, иначе "—"
-      value: (stats as Record<string, unknown>)?.newsletter_count != null
-        ? String((stats as Record<string, unknown>).newsletter_count)
-        : "—",
+      value: statsData?.newsletter_count != null ? String(statsData.newsletter_count) : "—",
       ok: null,
     },
     {
-      label: "Последний backfill",
-      value: (stats as Record<string, unknown>)?.last_backfill_at
-        ? ago(String((stats as Record<string, unknown>).last_backfill_at))
+      label: "Последняя обработка даты",
+      value: statsData?.last_process_day_at
+        ? formatMoscowTime(String(statsData.last_process_day_at))
         : "—",
       ok: null,
-    },
-    {
-      label: "Последний run_process_day",
-      value: (stats as Record<string, unknown>)?.last_process_day_at
-        ? ago(String((stats as Record<string, unknown>).last_process_day_at))
-        : "—",
-      ok: null,
-    },
+    }
   ];
 
   return (
@@ -210,10 +212,11 @@ export function DashboardPage() {
                 Данные получены
               </div>
               <div className="text-2xl font-bold text-[color:var(--se-text)]">
-                {formatDate(stats?.timestamp)}
+                {/* МОСКОВСКОЕ ВРЕМЯ: заменили formatDate на formatMoscowTime */}
+                {formatMoscowTime(stats?.timestamp)}
               </div>
               <div className="text-xs text-[color:var(--se-muted)]">
-                {ago(stats?.timestamp)}
+                {ago(stats?.timestamp)} {/* относительное время оставляем */}
               </div>
               <div className="mt-2 flex items-center gap-2 text-sm font-semibold text-[color:var(--se-techno-green)]">
                 {isLoading
@@ -244,21 +247,22 @@ export function DashboardPage() {
             icon={apiOk ? Activity : ServerCrash}
             tone={isLoading ? "blue" : apiOk ? "green" : "rose"}
           />
-         <BigStat
-              label="Подписчиков"
-              value={
-                (stats as Record<string, unknown>)?.newsletter_count != null
-                  ? String((stats as Record<string, unknown>).newsletter_count)
-                  : "—"
-              }
-              sub="Получают email при новых закупках"
-              icon={Mail}
-              tone="blue"
-            />
+          <BigStat
+            label="Подписчиков"
+            value={
+              statsData?.newsletter_count != null
+                ? String(statsData.newsletter_count)
+                : "—"
+            }
+            sub="Получают email при новых закупках"
+            icon={Mail}
+            tone="blue"
+          />
           <BigStat
             label="Последнее обновление"
-            value={ago(stats?.timestamp)}
-            sub={formatDate(stats?.timestamp) ?? ""}
+            value={ago(stats?.timestamp)} // относительное время
+            // МОСКОВСКОЕ ВРЕМЯ: абсолютное время в подсказке
+            sub={formatMoscowTime(stats?.timestamp)}
             icon={Clock3}
             tone="amber"
           />

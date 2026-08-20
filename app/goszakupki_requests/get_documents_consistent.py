@@ -15,7 +15,6 @@ from typing import Dict, Optional, Iterable, Tuple, List
 import time
 from contextlib import contextmanager
 from collections import OrderedDict
-
 import rarfile
 import requests
 import docx
@@ -26,6 +25,7 @@ from docx.table import Table
 from docx.text.paragraph import Paragraph
 from .ai_requests.rosseti_protocol_extractor import rosseti_get_model_extraction
 from .ai_requests.itm_protocol_extractor import itm_get_model_extraction
+from .ai_requests.oem_protocol_extractor import oem_get_model_extraction
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ REQUEST_TIMEOUT = (15, 90)
 CHUNK_SIZE = 1024 * 1024
 
 MAX_TOP_LEVEL_WORKERS = 1
-MAX_ARCHIVE_FILE_WORKERS = 12
+MAX_ARCHIVE_FILE_WORKERS = 8
 MAX_PDF_PAGES = 30
 MAX_TEXT_CHARS = 300_000
 MAX_TEXT_FILE_BYTES = 10 * 1024 * 1024
@@ -84,36 +84,17 @@ FIELDS = \
             "Победитель",
             "ИНН",
             "Итоговая цена контракта",
-            "Другие участники"]
+            "Другие участники"],
+        "oem": [
+            "Победитель",
+            "Слова маячки в тз",
+            "Итоговая цена контракта"]
 }
 
 
 # =========================
 # Утилиты
 # =========================
-
-def run_coro_sync(coro):
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        return asyncio.run(coro)
-
-    result = {}
-    error = {}
-
-    def runner():
-        try:
-            result["value"] = asyncio.run(coro)
-        except Exception as e:
-            error["exc"] = e
-
-    t = threading.Thread(target=runner, daemon=True)
-    t.start()
-    t.join()
-
-    if "exc" in error:
-        raise error["exc"]
-    return result.get("value")
 
 
 def format_log_kv(**kwargs) -> str:
@@ -323,7 +304,7 @@ def init_result_accumulator(field_mode = 1) -> dict:
     if field_mode == 1:
         return {field: OrderedDict() for field in FIELDS["rosseti"]}
     elif field_mode == 2:
-        return {field: OrderedDict() for field in FIELDS["rosseti"]}
+        return {field: OrderedDict() for field in FIELDS["oem"]}
     elif field_mode == 3:
         return {field: OrderedDict() for field in FIELDS["itm"]}
 
@@ -340,6 +321,9 @@ def merge_extracted_into_accumulator(accumulator: dict, extracted: dict) -> None
         value = normalize_merged_value(value)
         if not value:
             continue
+
+        if field not in accumulator:
+            accumulator[field] = OrderedDict()
 
         for part in split_merged_value(value):
             part = normalize_merged_value(part)
@@ -920,6 +904,21 @@ def extract_designer_from_title_text(text: str) -> str:
     return max(cleaned, key=len)
 
 
+def check_availability_of_fields_from_text(text: str) -> str:
+    # Используем корни слов или частичные совпадения, чтобы учесть падежи и числа:
+    # 1. ПЧ|ЧП|УПП|SCADA|ШУ — аббревиатуры (у них нет падежей)
+    # 2. преобразоват.*частот — покроет "Преобразователь частоты", "Преобразователей", "Преобразователи"
+    # 3. устройств.*плавн.*пуск — покроет "Устройство плавного пуска", "Устройства", "Устройств"
+    # 4. шкаф.*управл — покроет "Шкаф управления", "Шкафы управления"
+
+    pattern = r"(ПЧ|ЧП|УПП|SCADA|ШУ|преобразоват.*частот|устройств.*плавн.*пуск|шкаф.*управл)"
+
+    if re.search(pattern, text, re.IGNORECASE):
+        return "Есть"
+    return "Нету"
+
+
+
 def iter_block_items(parent):
     from docx.oxml.text.paragraph import CT_P
     from docx.oxml.table import CT_Tbl
@@ -1109,7 +1108,7 @@ def process_text_into_accumulator(
             return True
 
         if filter_type == 1 and "протокол" in filename.lower() and protocol_mode:
-            extracted = run_coro_sync(rosseti_get_model_extraction(text))
+            extracted = asyncio.run(rosseti_get_model_extraction(text))
             merge_extracted_into_accumulator(accumulator, extracted)
 
         elif filter_type == 1 and not protocol_mode and path_name == ".pdf" and is_working_documentation_title_page(text):
@@ -1139,9 +1138,31 @@ def process_text_into_accumulator(
                     )
                 )
 
+        if filter_type == 2 and "протокол" in filename.lower() and protocol_mode:
+            extracted = asyncio.run(oem_get_model_extraction(text))
+            merge_extracted_into_accumulator(accumulator, extracted)
+
+        elif filter_type == 2 and re.search(r"(тз|техзадан[а-яё]{1,2}|техническ[а-яё]{1,2}[_\-\s]+задан[а-яё]{1,2})", filename, re.IGNORECASE):
+
+            result_of_search = check_availability_of_fields_from_text(text)
+
+            merge_extracted_into_accumulator(
+                accumulator,
+                {"Слова маячки в тз": result_of_search}
+            )
+
+            logger.info(
+                "PURCHASE WORK FILE COMPLETED | %s",
+                format_log_kv(
+                    task_id=task_id,
+                    filename=filename,
+                    designer=result_of_search,
+                )
+            )
+
         if filter_type == 3 and "протокол" in filename.lower() and protocol_mode:
 
-            extracted = run_coro_sync(itm_get_model_extraction(text))
+            extracted = asyncio.run(itm_get_model_extraction(text))
             merge_extracted_into_accumulator(accumulator, extracted)
 
         add_processed_document(documents_accumulator, filename)
@@ -1712,6 +1733,13 @@ def process_attached_files_and_merge(attached_files: list, tmp_dir: str | Path, 
                 parts.append(x)
 
         result["Проектировщик"] = max(parts, key=len) if parts else ""
+
+    if filter_type == 2:
+        if "Есть" in result["Слова маячки в тз"]:
+             result["Слова маячки в тз"] = "Есть"
+        else:
+            result["Слова маячки в тз"] = "Нету"
+
 
     documents_list = finalize_documents_accumulator(documents_accumulator)
 

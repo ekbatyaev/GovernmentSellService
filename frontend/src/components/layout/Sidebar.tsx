@@ -10,7 +10,7 @@ const items = [
   { id: "dashboard", label: "Дашборд", icon: LayoutDashboard },
   { id: "purchases", label: "Закупки", icon: Database },
   { id: "newsletter", label: "Рассылка", icon: Bell },
-  { id: "admin", label: "Админка", icon: Settings },
+  { id: "admin", label: "Админ-панель", icon: Settings },
 ];
 
 export function Sidebar({ activePage, onChangePage }: SidebarProps) {

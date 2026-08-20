@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import {
   CalendarDays,
   CalendarRange,
-  CheckCircle2,
   Loader2,
   ServerCrash,
   Settings2,
@@ -17,11 +16,11 @@ import { Select } from "../components/ui/Select";
 
 // ─── константы ───────────────────────────────────────────────────────────────
 
-const API_BASE = "/goszakupki";
+const API_BASE = "";
 
 const FILTER_TYPE_OPTIONS = [
   { label: "Все типы", value: "0" },
-  { label: "Тендеры для Россетей", value: "1" },
+  { label: "Тендеры для Россетей", value: "1"},
   { label: "Тендеры для OEM", value: "2" },
   { label: "Тендеры для ITM", value: "3" },
 ];
@@ -150,7 +149,7 @@ export function AdminPage() {
         token,
         date_from: `${backfillFrom}T00:00:00`,
         date_to: `${backfillTo}T23:59:59`,
-        ...(backfillFilterType ? { filter_number: backfillFilterType } : {}),
+        filter_number: backfillFilterType,
       },
     );
   }
@@ -167,7 +166,7 @@ export function AdminPage() {
       {
         token,
         date: `${processDay}T00:00:00`,
-        ...(processDayFilterType ? { filter_number: processDayFilterType } : {}),
+        filter_number: processDayFilterType,
       },
     );
   }

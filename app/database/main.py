@@ -91,6 +91,7 @@ class PutPurchaseModel(BaseModel):
     guid: str
     registration_number: str
     name: str
+    filter_type_name: str
     source_file: Optional[str] = None
     initial_sum: Optional[float] = None
     publication_datetime: Optional[datetime] = None
@@ -102,7 +103,6 @@ class PutPurchaseModel(BaseModel):
     result_info: Any
     documents_list: List[Any]
 
-    filter_type_name: Optional[str] = None
     region_number: Optional[str] = None
 
     lots: List[Any]
@@ -117,10 +117,10 @@ class DeletePurchaseModel(BaseModel):
 
 class GetPurchaseModel(BaseModel):
     token: str
+    registration_number: str
+    filter_type_name: str
     guid: Optional[str] = None
-    filter_type_name: Optional[str] = None
     region_number: Optional[str] = None
-    registration_number: Optional[str] = None
 
 
 class GetAllPurchasesModel(BaseModel):
@@ -143,11 +143,14 @@ class GetAllPurchasesModel(BaseModel):
     region_number: Optional[str] = None
 
     region_numbers: Optional[list[str]] = None
+    oem_flag: Optional[str] = None
+    itm_option: Optional[str] = None
 
 class UpdatePurchaseModel(BaseModel):
     token: str
     guid: Optional[str] = None
     registration_number: Optional[str] = None
+    filter_type_name: Optional[str] = None
     name: Optional[str] = None
     source_file: Optional[str] = None
     initial_sum: Optional[float] = None
@@ -160,7 +163,6 @@ class UpdatePurchaseModel(BaseModel):
     result_info: Optional[Any] = None
     documents_list: Optional[Any] = None
     lots: Optional[Any] = None
-    filter_type_name: Optional[str] = None
     region_number: Optional[str] = None
 
 
@@ -262,6 +264,8 @@ scheduler: BackgroundScheduler | None = None
 
 def _create_scheduler() -> BackgroundScheduler:
     s = BackgroundScheduler(timezone=MOSCOW_TZ)
+    global last_process_day_at
+    last_process_day_at = datetime.now(MOSCOW_TZ).isoformat()
     s.add_job(
         run_daily_job,
         trigger=CronTrigger(hour=DAILY_HOUR_MSK, minute=DAILY_MINUTE_MSK, timezone=MOSCOW_TZ),
@@ -320,11 +324,11 @@ async def root():
 def put_purchase(purchase_data: PutPurchaseModel, db: Session = Depends(get_db)):
     verify_token(purchase_data.token)
 
-    existing_purchase = db.scalar(
-        select(Purchase).where(
-            Purchase.registration_number == purchase_data.registration_number
-        )
-    )
+    query = select(Purchase).where(Purchase.registration_number == purchase_data.registration_number)
+
+    query = query.where(Purchase.filter_type_name == purchase_data.filter_type_name)
+
+    existing_purchase = db.scalar(query)
 
     if existing_purchase:
         existing_purchase.guid = purchase_data.guid
@@ -404,29 +408,27 @@ def delete_purchase(purchase_data: DeletePurchaseModel, db: Session = Depends(ge
 def get_purchase(purchase_data: GetPurchaseModel, db: Session = Depends(get_db)):
     verify_token(purchase_data.token)
 
+    query = db.query(Purchase)
 
-    guid = purchase_data.guid.strip() if purchase_data.guid else None
-    registration_number = (
-        purchase_data.registration_number.strip()
-        if purchase_data.registration_number
-        else None
-    )
+    if purchase_data.registration_number:
+        query = query.filter(Purchase.registration_number == purchase_data.registration_number.strip())
 
-    if registration_number:
-        purchase = (
-            db.query(Purchase)
-            .filter(Purchase.registration_number == registration_number)
-            .first()
-        )
+    # Если есть guid — добавляем условие (если это не первичный ключ, используем .filter)
+    if purchase_data.guid:
+        query = query.filter(Purchase.guid == purchase_data.guid.strip())
 
-    elif guid:
-        purchase = db.get(Purchase, guid)
+    # Интегрируем вашу фильтрацию по типу
+    if purchase_data.filter_type_name:
+        query = query.filter(Purchase.filter_type_name == purchase_data.filter_type_name)
 
-    else:
+    if not purchase_data.guid and not purchase_data.registration_number:
         raise HTTPException(
             status_code=400,
             detail="Не передан ни один ключ поиска: guid или registration_number",
         )
+
+    # 4. Выполняем запрос в БД
+    purchase = query.first()
 
     if not purchase:
         return SuccessResponseModel(
@@ -442,10 +444,11 @@ def get_purchase(purchase_data: GetPurchaseModel, db: Session = Depends(get_db))
     )
 
 
+
 @app.post(f"{API_BASE}/get_all_purchases", response_model=SuccessResponseModel)
 def get_all_purchases(purchase_data: GetAllPurchasesModel, db: Session = Depends(get_db)):
     verify_token(purchase_data.token)
-
+    print(purchase_data)
     query = select(Purchase)
 
     if purchase_data.name:
@@ -453,6 +456,12 @@ def get_all_purchases(purchase_data: GetAllPurchasesModel, db: Session = Depends
 
     if purchase_data.filter_type_name:
         query = query.where(Purchase.filter_type_name == purchase_data.filter_type_name)
+
+    if purchase_data.filter_type_name == "Тендеры для OEM" and purchase_data.oem_flag:
+        query = query.where(Purchase.result_info["Слова маячки в тз"].astext == purchase_data.oem_flag)
+
+    if purchase_data.filter_type_name == "Тендеры для ITM" and purchase_data.itm_option:
+        query = query.where(Purchase.result_info["Категория заявки"].astext == purchase_data.itm_option)
 
     if purchase_data.region_numbers:
         query = query.where(Purchase.region_number.in_(purchase_data.region_numbers))
@@ -549,24 +558,29 @@ def update_purchase(purchase_data: UpdatePurchaseModel, db: Session = Depends(ge
         else None
     )
 
-    if registration_number:
-        purchase = (
-            db.query(Purchase)
-            .filter(Purchase.registration_number == registration_number)
-            .first()
-        )
-
-    elif guid:
-        purchase = db.get(Purchase, guid)
-
+    if guid:
+        purchase = db.query(Purchase).filter(Purchase.guid == guid).first()
+    elif registration_number:
+        purchase = db.query(Purchase).filter(Purchase.registration_number == registration_number).first()
     else:
         raise HTTPException(
             status_code=400,
             detail="Не передан ни один ключ поиска: guid или registration_number",
         )
 
+    # Если даже при наличии одного из ключей запись не найдена в БД
     if not purchase:
         return SuccessResponseModel(
+            status="success",
+            message="Purchase not found",
+            data={}
+        )
+
+    if purchase_data.filter_type_name and purchase.filter_type_name != purchase_data.filter_type_name:
+        purchase = None
+
+    if not purchase:
+         return SuccessResponseModel(
             status="success",
             message="Purchase not found",
             data={},
@@ -591,6 +605,7 @@ def update_purchase(purchase_data: UpdatePurchaseModel, db: Session = Depends(ge
     )
 
 
+
 @app.get(f"{API_BASE}/stats", response_model=SuccessResponseModel)
 def get_statistics(db: Session = Depends(get_db)):
     global last_backfill_at, last_process_day_at
@@ -599,7 +614,7 @@ def get_statistics(db: Session = Depends(get_db)):
     return SuccessResponseModel(
         status="success",
         message="Statistics",
-        data={"purchases_count": purchases_count, "timestamp": datetime.utcnow().isoformat(),
+        data={"purchases_count": purchases_count, "timestamp": datetime.now(MOSCOW_TZ).isoformat(),
               "newsletter_count": newsletter_count, "last_backfill_at": last_backfill_at,"last_process_day_at": last_process_day_at})
 
 

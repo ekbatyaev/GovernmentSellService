@@ -3,7 +3,7 @@ import re
 import os
 import zipfile
 import logging
-
+import uuid
 import xmltodict
 import requests
 from typing import Dict, List, Any, Union, Optional
@@ -23,7 +23,32 @@ logger = logging.getLogger(__name__)
 
 # Регионы для фильтров
 
-REGIONS_ROSSETI = {"77": True}
+REGIONS_ROSSETI = {
+    "77": True,  # Москва
+    "12": True,  # Республика Марий Эл (Мариэнерго)
+    "52": True,  # Нижегородская область (Нижновэнерго)
+    "43": True,  # Кировская область (Кировэнерго)
+    "56": True,  # Оренбургская область (Оренбургэнерго)
+    "18": True,  # Удмуртская Республика (Удмуртэнерго)
+    "36": True,  # Воронежская область (Воронежэнерго)
+    "63": True,  # Самарская область (Самарские РС)
+    "31": True,  # Белгородская область (Белгородэнерго)
+    "57": True,  # Орловская область (Орелэнерго)
+    "64": True,  # Саратовская область (Саратовские РС)
+    "33": True,  # Владимирская область (Владимирэнерго)
+    "37": True,  # Ивановская область (Ивэнерго)
+    "62": True,  # Рязанская область (Рязаньэнерго)
+    "71": True,  # Тульская область (Тулаэнерго)
+    "44": True,  # Костромская область (Костромаэнерго)
+    "76": True,  # Ярославская область (Ярэнерго)
+    "69": True,  # Тверская область (Тверьэнерго)
+    "67": True,  # Смоленская область (Смоленскэнерго)
+    "32": True,  # Брянская область (Брянскэнерго)
+    "46": True,  # Курская область (Курскэнерго)
+    "48": True,  # Липецкая область (Липецкэнерго)
+    "68": True,  # Тамбовская область (Тамбовэнерго)
+    "40": True,  # Калужская область (Калугаэнерго)
+}
 
 
 FIELDS = [
@@ -67,7 +92,6 @@ def normalize_protocol(data: dict) -> dict:
 
     result = {}
 
-    result["guid"] = purchase_info.get("guid")
     result["registration_number"] = purchase_info.get("purchaseNoticeNumber")
     result["name"] = purchase_info.get("name")
     result["publication_datetime"] = protocol.get("publicationDateTime")
@@ -183,18 +207,30 @@ def normalize_purchase(data: dict) -> dict:
     body = data.get("purchaseNotice", {}).get("body", {})
     item = body.get("item", {}) or {}
     notice = item.get("purchaseNoticeData", {}) or {}
+    documentation_delivery = notice.get("documentationDelivery", {}) or {}
 
     result = {}
-
-    result["guid"] = item.get("guid")
     result["registration_number"] = notice.get("registrationNumber")
     result["name"] = notice.get("name")
     result["publication_datetime"] = notice.get("publicationDateTime")
+
     submission_start = notice.get("applSubmisionStartDate")
     result["submission_start_datetime"] = (
         f"{submission_start}T00:00:00" if submission_start else None
     )
     result["submission_close_datetime"] = notice.get("submissionCloseDateTime")
+
+    if result["submission_start_datetime"] is None:
+        result["submission_start_datetime"] = (
+            f"{documentation_delivery.get("deliveryStartDateTime")}T00:00:00" if documentation_delivery.get(
+                "deliveryStartDateTime") else None
+        )
+
+    if result["submission_close_datetime"] is None:
+        result["submission_close_datetime"] = (
+        f"{documentation_delivery.get("deliveryEndDateTime")}T23:59:59" if documentation_delivery.get(
+            "deliveryEndDateTime") else None
+    )
 
     customer = (notice.get("customer") or {}).get("mainInfo") or {}
     result["customer"] = {
@@ -247,7 +283,7 @@ def normalize_purchase(data: dict) -> dict:
         lot = lot or {}
         lot_data = (lot.get("lotData") or {}) if isinstance(lot, dict) else {}
 
-        initial_sum_raw = lot_data.get("initialSum", 0) or 0
+        initial_sum_raw = lot_data.get("initialSum", 0) or lot_data.get("maxContractPrice", 0)
         try:
             initial_sum_val = float(initial_sum_raw)
         except Exception:
@@ -273,7 +309,6 @@ def normalize_purchase(data: dict) -> dict:
                     "guid": it.get("guid"),
                     "okpd2_code": (it.get("okpd2") or {}).get("code"),
                     "okpd2_name": (it.get("okpd2") or {}).get("name"),
-                    "qty": it.get("qty"),
                     "additional_info": it.get("additionalInfo"),
                 }
             )
@@ -306,14 +341,17 @@ def parse_zip_archive_protocols(zip_path: str, region: int, filter_number: int) 
                 customer_name = (normalized.get("customer") or {}).get("full_name")
                 work_name = normalized.get("name", "") or ""
 
-                if (filter_number == 0 or filter_number == 1) and REGIONS_ROSSETI.get(region, False) and request_filters_rosseti(customer_name, work_name):
+                rosseti_filters_check = request_filters_rosseti(customer_name, work_name)
+                if (filter_number == 0 or filter_number == 1) and REGIONS_ROSSETI.get(region, False) and rosseti_filters_check["result"]:
+                    normalized["guid"] = str(uuid.uuid4())
                     normalized["region_number"] = region
                     normalized["filter_type_name"] = "Тендеры для Россетей"
 
                     # Обращение, получение данных и передача
                     purchase_response = requests.post(
                         f"{APP_URL}{API_BASE}/get_purchase",
-                        json={"token": TOKEN, "registration_number": normalized["registration_number"]},
+                        json={"token": TOKEN, "registration_number": normalized["registration_number"],
+                              "filter_type_name": normalized["filter_type_name"]},
                         timeout=30,
                     )
 
@@ -352,14 +390,17 @@ def parse_zip_archive_protocols(zip_path: str, region: int, filter_number: int) 
                     print(normalized["documents_list"])
                     all_data.append(normalized)
 
-                if (filter_number == 0 or filter_number == 2) and request_filters_oem(work_name):
+                oem_filters_check = request_filters_oem(work_name)
+                if (filter_number == 0 or filter_number == 2) and oem_filters_check["result"]:
+                    normalized["guid"] = str(uuid.uuid4())
                     normalized["region_number"] = region
                     normalized["filter_type_name"] = "Тендеры для OEM"
 
                     # Обращение, получение данных и передача
                     purchase_response = requests.post(
                         f"{APP_URL}{API_BASE}/get_purchase",
-                        json={"token": TOKEN, "registration_number": normalized["registration_number"]},
+                        json={"token": TOKEN, "registration_number": normalized["registration_number"],
+                              "filter_type_name": normalized["filter_type_name"]},
                         timeout=30,
                     )
 
@@ -375,36 +416,35 @@ def parse_zip_archive_protocols(zip_path: str, region: int, filter_number: int) 
 
                         continue
 
-                    normalized["result_info"] = purchase.get("result_info") or {}
+                    result_info = purchase.get("result_info") or {}
 
-                    normalized["documents_list"] = purchase.get("documents_list") or []
+                    documents_list = purchase.get("documents_list") or []
 
-                    # normalized["result_info"], normalized["documents_list"] = process_attached_files_and_merge(
-                    #     attached_files=normalized["attached_files"],
-                    #     tmp_dir=TMP_DIR,
-                    #     result_info_old=result_info,
-                    #     documents_list_old=documents_list,
-                    #     protocol_mode=True,
-                    #     filter_type = 2
-                    # )
-                    #
-                    # del normalized["attached_files"]
-                    #
-                    # print("result_info - protocols")
-                    # print(normalized["result_info"])
-                    #
-                    # print("documents_list - protocols")
-                    # print(normalized["documents_list"])
+                    normalized["result_info"], normalized["documents_list"] = process_attached_files_and_merge(
+                        attached_files=normalized["attached_files"],
+                        tmp_dir=TMP_DIR,
+                        result_info_old=result_info,
+                        documents_list_old=documents_list,
+                        protocol_mode=True,
+                        filter_type = 2
+                    )
+
+                    del normalized["attached_files"]
+
                     all_data.append(normalized)
 
-                if (filter_number == 0 or filter_number == 3) and request_filters_itm(work_name):
+                itm_filters_check = request_filters_itm(work_name, normalized["lots"])
+                if (filter_number == 0 or filter_number == 3) and itm_filters_check["result"]:
+                    normalized["guid"] = str(uuid.uuid4())
                     normalized["region_number"] = region
                     normalized["filter_type_name"] = "Тендеры для ITM"
+
 
                     # Обращение, получение данных и передача
                     purchase_response = requests.post(
                         f"{APP_URL}{API_BASE}/get_purchase",
-                        json={"token": TOKEN, "registration_number": normalized["registration_number"]},
+                        json={"token": TOKEN, "registration_number": normalized["registration_number"],
+                              "filter_type_name": normalized["filter_type_name"]},
                         timeout=30,
                     )
 
@@ -419,10 +459,6 @@ def parse_zip_archive_protocols(zip_path: str, region: int, filter_number: int) 
                         )
 
                         continue
-
-                    # normalized["result_info"] = purchase.get("result_info") or {}
-                    #
-                    # normalized["documents_list"] = purchase.get("documents_list") or []
 
                     result_info = purchase.get("result_info") or {}
 
@@ -438,12 +474,9 @@ def parse_zip_archive_protocols(zip_path: str, region: int, filter_number: int) 
                     )
 
                     del normalized["attached_files"]
-                    #
-                    # print("result_info - protocols")
-                    # print(normalized["result_info"])
-                    #
-                    # print("documents_list - protocols")
-                    # print(normalized["documents_list"])
+
+                    normalized["result_info"]["Категория заявки"] = itm_filters_check["filter_name"]
+
                     all_data.append(normalized)
 
 
@@ -476,14 +509,17 @@ def parse_zip_archive_purchases(zip_path: str, region: int, filter_number: int) 
                 customer_name = (normalized.get("customer") or {}).get("full_name")
                 work_name = normalized.get("name", "") or ""
 
-                if (filter_number == 0 or filter_number == 1) and REGIONS_ROSSETI.get(region, False) and request_filters_rosseti(customer_name, work_name):
+                rosseti_filters_check = request_filters_rosseti(customer_name, work_name)
+                if (filter_number == 0 or filter_number == 1) and REGIONS_ROSSETI.get(region, False) and rosseti_filters_check["result"]:
+                    normalized["guid"] = str(uuid.uuid4())
                     normalized["region_number"] = region
-                    normalized["filter_type_name"] = "Тендеры Россетей"
+                    normalized["filter_type_name"] = "Тендеры для Россетей"
 
                     # Обращение, получение данных и передача
                     purchase_response = requests.post(
                         f"{APP_URL}{API_BASE}/get_purchase",
-                        json={"token": TOKEN, "registration_number": normalized["registration_number"]},
+                        json={"token": TOKEN, "registration_number": normalized["registration_number"],
+                              "filter_type_name": normalized["filter_type_name"]},
                         timeout=30,
                     )
 
@@ -492,6 +528,7 @@ def parse_zip_archive_purchases(zip_path: str, region: int, filter_number: int) 
                     purchase = purchase_response.json().get("data", {})
 
                     result_info = purchase.get("result_info") or {}
+                    documents_list = purchase.get("documents_list") or []
 
                     match = re.search(r'для нужд\s+([^.,()\-–—]+)', normalized["name"], re.IGNORECASE)
 
@@ -507,7 +544,6 @@ def parse_zip_archive_purchases(zip_path: str, region: int, filter_number: int) 
 
                         result_info["Филиал/РЭС"] = None
 
-                    documents_list = purchase.get("documents_list") or []
 
                     normalized["result_info"], normalized["documents_list"] = process_attached_files_and_merge(
                         attached_files=normalized["attached_files"],
@@ -521,15 +557,17 @@ def parse_zip_archive_purchases(zip_path: str, region: int, filter_number: int) 
 
                     all_data.append(normalized)
 
-                if (filter_number == 0 or filter_number == 2)  and request_filters_oem(work_name):
-
+                oem_filters_check = request_filters_oem(work_name)
+                if (filter_number == 0 or filter_number == 2)  and oem_filters_check["result"]:
+                    normalized["guid"] = str(uuid.uuid4())
                     normalized["region_number"] = region
                     normalized["filter_type_name"] = "Тендеры для OEM"
 
                     # Обращение, получение данных и передача
                     purchase_response = requests.post(
                         f"{APP_URL}{API_BASE}/get_purchase",
-                        json={"token": TOKEN, "registration_number": normalized["registration_number"]},
+                        json={"token": TOKEN, "registration_number": normalized["registration_number"],
+                              "filter_type_name": normalized["filter_type_name"]},
                         timeout=30,
                     )
 
@@ -537,35 +575,36 @@ def parse_zip_archive_purchases(zip_path: str, region: int, filter_number: int) 
 
                     purchase = purchase_response.json().get("data", {})
 
-                    normalized["result_info"] = purchase.get("result_info") or {}
+                    result_info = purchase.get("result_info") or {}
 
-                    normalized["documents_list"] = purchase.get("documents_list") or []
+                    documents_list = purchase.get("documents_list") or []
 
-                    # result_info = purchase.get("result_info") or {}
-                    #
-                    # documents_list = purchase.get("documents_list") or []
-                    #
-                    # normalized["result_info"], normalized["documents_list"] = process_attached_files_and_merge(
-                    #     attached_files=normalized["attached_files"],
-                    #     tmp_dir=TMP_DIR,
-                    #     result_info_old=result_info,
-                    #     documents_list_old=documents_list,
-                    #     filter_type = 2
-                    # )
+                    normalized["result_info"], normalized["documents_list"] = process_attached_files_and_merge(
+                        attached_files=normalized["attached_files"],
+                        tmp_dir=TMP_DIR,
+                        result_info_old=result_info,
+                        documents_list_old=documents_list,
+                        filter_type = 2
+                    )
+
+                    if normalized["result_info"].get("Слова маячки в тз", None) is None or normalized["result_info"]["Слова маячки в тз"] == "":
+                        normalized["result_info"]["Слова маячки в тз"] = "Нету"
 
                     del normalized["attached_files"]
 
                     all_data.append(normalized)
 
-                if (filter_number == 0 or filter_number == 3) and request_filters_itm(work_name):
-
+                itm_filters_check = request_filters_itm(work_name, normalized["lots"])
+                if (filter_number == 0 or filter_number == 3) and itm_filters_check["result"]:
+                    normalized["guid"] = str(uuid.uuid4())
                     normalized["region_number"] = region
                     normalized["filter_type_name"] = "Тендеры для ITM"
 
                     # Обращение, получение данных и передача
                     purchase_response = requests.post(
                         f"{APP_URL}{API_BASE}/get_purchase",
-                        json={"token": TOKEN, "registration_number": normalized["registration_number"]},
+                        json={"token": TOKEN, "registration_number": normalized["registration_number"],
+                              "filter_type_name": normalized["filter_type_name"]},
                         timeout=30,
                     )
 
@@ -586,10 +625,12 @@ def parse_zip_archive_purchases(zip_path: str, region: int, filter_number: int) 
                     #     tmp_dir=TMP_DIR,
                     #     result_info_old=result_info,
                     #     documents_list_old=documents_list,
-                    #     filter_type = 2
+                    #     filter_type = 3
                     # )
 
                     del normalized["attached_files"]
+
+                    normalized["result_info"]["Категория заявки"] = itm_filters_check["filter_name"]
 
                     all_data.append(normalized)
 

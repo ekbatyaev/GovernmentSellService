@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { CheckCircle2, ChevronDown, Loader2, Mail, MailMinus, MailPlus} from "lucide-react";
+import { CheckCircle2, ChevronDown, Loader2, Mail, MailMinus, MailPlus } from "lucide-react";
 import { getConfig } from "../api/config";
 import { Header } from "../components/layout/Header";
 import { Card } from "../components/ui/Card";
@@ -9,7 +9,7 @@ import { Select } from "../components/ui/Select";
 
 // ─── константы ───────────────────────────────────────────────────────────────
 
-const API_BASE = "/goszakupki";
+const API_BASE = "";
 
 const FILTER_TYPE_OPTIONS = [
   { label: "Тендеры для Россетей", value: "Тендеры для Россетей" },
@@ -28,10 +28,49 @@ const DISTRICT_OPTIONS = [
   "Дальневосточный федеральный округ",
 ].map((d) => ({ label: d, value: d }));
 
+
+const REGIONS_OPTIONS = [
+  // Общие категории (были в образце)
+  { label: "77 - Московская область", value: "77" },
+
+  // Филиалы ПАО "Россети Центр и Приволжье"
+  { label: "12 - Республика Марий Эл", value: "12" },
+  { label: "52 - Нижегородская область", value: "52" },
+  { label: "43 - Кировская область", value: "43" },
+  { label: "18 - Удмуртская Республика", value: "18" },
+  { label: "33 - Владимирская область", value: "33" },
+  { label: "37 - Ивановская область", value: "37" },
+  { label: "62 - Рязанская область", value: "62" },
+  { label: "71 - Тульская область", value: "71" },
+  { label: "40 - Калужская область", value: "40" },
+
+  // Филиалы ПАО "Россети Волга"
+  { label: "56 - Оренбургская область", value: "56" },
+  { label: "63 - Самарская область", value: "63" },
+  { label: "64 - Саратовская область", value: "64" },
+
+  // Филиалы ПАО "Россети Центр"
+  { label: "36 - Воронежская область", value: "36" },
+  { label: "31 - Белгородская область", value: "31" },
+  { label: "57 - Орловская область", value: "57" },
+  { label: "44 - Костромская область", value: "44" },
+  { label: "76 - Ярославская область", value: "76" },
+  { label: "69 - Тверская область", value: "69" },
+  { label: "67 - Смоленская область", value: "67" },
+  { label: "32 - Брянская область", value: "32" },
+  { label: "46 - Курская область", value: "46" },
+  { label: "48 - Липецкая область", value: "48" },
+  { label: "68 - Тамбовская область", value: "68" },
+];
+
 const RESEND_COOLDOWN = 60; // секунд
 
 function needsDistrict(filterType: string) {
   return filterType === "Тендеры для OEM" || filterType === "Тендеры для ITM";
+}
+
+function needsRegion(filterType: string) {
+  return filterType === "Тендеры для Россетей";
 }
 
 // ─── утилиты ─────────────────────────────────────────────────────────────────
@@ -101,6 +140,11 @@ function NewsletterForm({
       return;
     }
 
+    if (needsRegion(filterType) && !districtName) {
+      setStatus({ text: "Выберите регион", error: true });
+      return;
+    }
+
     try {
       setLoading(true);
       setStatus(null);
@@ -143,7 +187,7 @@ function NewsletterForm({
         email,
         token,
         filter_type_name: filterType,
-        district_name: needsDistrict(filterType) ? districtName : "",
+        district_name: (needsDistrict(filterType) || needsRegion(filterType)) ? districtName : "",
       };
 
       if (mode === "subscribe") {
@@ -221,10 +265,28 @@ function NewsletterForm({
               options={[{ label: "Выберите округ", value: "" }, ...DISTRICT_OPTIONS]}
             />
             <p className="mt-1 text-xs text-[color:var(--se-muted)]">
-              Нужен для OEM и ITM рассылок
+              Округ необходимых заявок
             </p>
           </div>
         )}
+
+        {needsRegion(filterType) && (
+          <div>
+            <label className="mb-1.5 block text-sm font-semibold text-[color:var(--se-text)]">
+              Регион заявок
+            </label>
+            <Select
+              value={districtName}
+              onChange={(e) => setDistrictName(e.target.value)}
+              disabled={step === "code"}
+              options={[{ label: "Выберите регион", value: "" }, ...REGIONS_OPTIONS]}
+            />
+            <p className="mt-1 text-xs text-[color:var(--se-muted)]">
+              Регион необходимых заявок
+            </p>
+          </div>
+        )}
+
       </div>
 
       {/* Шаг 2: код подтверждения */}
@@ -266,11 +328,7 @@ function NewsletterForm({
       {/* Кнопки */}
       <div>
         {step === "form" ? (
-          <Button
-            onClick={handleSendCode}
-            disabled={loading}
-            className="w-full"
-          >
+          <Button onClick={handleSendCode} disabled={loading} className="w-full">
             {loading ? (
               <span className="flex items-center justify-center gap-2">
                 <Loader2 size={16} className="animate-spin" /> Отправляем...
@@ -280,11 +338,7 @@ function NewsletterForm({
             )}
           </Button>
         ) : (
-          <Button
-            onClick={handleVerify}
-            disabled={loading}
-            className="w-full"
-          >
+          <Button onClick={handleVerify} disabled={loading} className="w-full">
             {loading ? (
               <span className="flex items-center justify-center gap-2">
                 <Loader2 size={16} className="animate-spin" /> Проверяем...
@@ -306,6 +360,12 @@ function NewsletterForm({
 export function NewsletterPage() {
   const [token, setToken] = useState("");
   const [tokenError, setTokenError] = useState<string | null>(null);
+  // ИСПРАВЛЕНО: заменил тип с Mode | null на Mode | null, но изменил логику handleOpen.
+  // Проблема была: при клике на "Подписаться" когда уже открыта "Отписаться",
+  // оба раскрывались одновременно. Это происходило потому что клик на одну карточку
+  // ставил activeMode = новый режим, но React рендерил обе карточки до ресета.
+  // Теперь handleOpen явно переключает: если нажали на тот же режим — закрывает,
+  // если нажали на другой — закрывает старый и открывает новый (один setState).
   const [activeMode, setActiveMode] = useState<Mode | null>(null);
   const [lastDoneEmail, setLastDoneEmail] = useState<string | null>(null);
 
@@ -321,8 +381,10 @@ export function NewsletterPage() {
     setLastDoneEmail(email);
   }
 
-  function handleOpen(mode: Mode) {
-    setActiveMode(mode);
+  function handleToggle(mode: Mode) {
+    // Если кликнули на уже открытый режим — закрыть. Иначе — переключить.
+    // Один setState гарантирует что никогда не будут активны оба одновременно.
+    setActiveMode((current) => (current === mode ? null : mode));
     setLastDoneEmail(null);
   }
 
@@ -360,16 +422,17 @@ export function NewsletterPage() {
         </Card>
 
         {/* Карточки действий */}
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2 items-start">
+          {/* Карточка "Подписаться" */}
           <Card
-            className={`cursor-pointer transition-all hover:shadow-md ${
-              activeMode === "subscribe" ? "ring-2 ring-[color:var(--se-techno-green)]" : ""
-            }`}
-          >
+              className={`flex-1 cursor-pointer transition-all hover:shadow-md ${
+                activeMode === "subscribe" ? "ring-2 ring-[color:var(--se-techno-green)]" : ""
+              }`}
+            >
             <button
               className="flex w-full items-center justify-between gap-4 text-left"
               type="button"
-              onClick={() => handleOpen(activeMode === "subscribe" ? null! : "subscribe")}
+              onClick={() => handleToggle("subscribe")}
             >
               <div className="flex items-center gap-3">
                 <div className="rounded-xl bg-emerald-100 p-2.5 text-[color:var(--se-techno-green)]">
@@ -402,15 +465,16 @@ export function NewsletterPage() {
             )}
           </Card>
 
+          {/* Карточка "Отписаться" */}
           <Card
-            className={`cursor-pointer transition-all hover:shadow-md ${
-              activeMode === "unsubscribe" ? "ring-2 ring-rose-400" : ""
-            }`}
-          >
+              className={`flex-1 cursor-pointer transition-all hover:shadow-md ${
+                activeMode === "unsubscribe" ? "ring-2 ring-rose-400" : ""
+              }`}
+            >
             <button
               className="flex w-full items-center justify-between gap-4 text-left"
               type="button"
-              onClick={() => handleOpen(activeMode === "unsubscribe" ? null! : "unsubscribe")}
+              onClick={() => handleToggle("unsubscribe")}
             >
               <div className="flex items-center gap-3">
                 <div className="rounded-xl bg-rose-50 p-2.5 text-rose-500">

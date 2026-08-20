@@ -174,7 +174,7 @@ async def main():
     9. Настоящий протокол подлежит опубликованию на официальном сайте www.zakupki.gov.ru не позднее чем через 3 (три) дня со дня его подписания.
     Члены комиссии, присутствующие на заседании:"""
 
-    single = await get_model_extraction(text)
+    single = await itm_get_model_extraction(text)
 
 
     print("\n=== SINGLE ===")
