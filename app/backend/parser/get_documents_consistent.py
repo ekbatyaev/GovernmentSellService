@@ -23,9 +23,9 @@ from pypdf import PdfReader
 from charset_normalizer import from_bytes
 from docx.table import Table
 from docx.text.paragraph import Paragraph
-from .ai_requests.rosseti_protocol_extractor import rosseti_get_model_extraction
-from .ai_requests.itm_protocol_extractor import itm_get_model_extraction
-from .ai_requests.oem_protocol_extractor import oem_get_model_extraction
+from .ai.rosseti_protocol_extractor import rosseti_get_model_extraction
+from .ai.itm_protocol_extractor import itm_get_model_extraction
+from .ai.oem_protocol_extractor import oem_get_model_extraction
 
 logger = logging.getLogger(__name__)
 
