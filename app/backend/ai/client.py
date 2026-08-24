@@ -1,0 +1,177 @@
+import asyncio
+import json
+import re
+from dataclasses import dataclass, field
+from typing import Any, Optional
+import httpx
+from src.settings import settings, logger
+
+class LLMClientError(Exception):
+    """Базовое исключение клиента."""
+
+
+class LLMRequestError(LLMClientError):
+    """Не удалось получить корректный ответ после всех попыток."""
+
+
+class LLMResponseParseError(LLMClientError):
+    """Ответ модели пришёл, но его не удалось распарсить в ожидаемый формат."""
+
+
+_CODE_FENCE_RE = re.compile(r"^```(?:json)?\s*|\s*```$", re.IGNORECASE | re.MULTILINE)
+
+
+def _extract_json(content: str) -> Any:
+    """
+    Достаёт JSON из ответа модели, даже если он обёрнут в markdown-разметку
+    (```json ... ```) или окружён лишним текстом.
+    """
+    cleaned = content.strip()
+
+    # Снимаем обрамляющие ```json ... ``` / ``` ... ```
+    cleaned = _CODE_FENCE_RE.sub("", cleaned).strip()
+
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        pass
+
+    # Фолбэк: вырезаем содержимое между первой '{' и последней '}'
+    start = cleaned.find("{")
+    end = cleaned.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        candidate = cleaned[start : end + 1]
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError as e:
+            raise LLMResponseParseError(
+                f"Не удалось распарсить content как JSON: {content!r}"
+            ) from e
+
+    raise LLMResponseParseError(f"Не удалось распарсить content как JSON: {content!r}")
+
+
+@dataclass
+class LLMClient:
+    api_key: str = settings.llm_api_key
+    api_base: str = settings.llm_base_url
+    model_name: str = settings.llm_model_name or "Qwen3.5-35B"
+    max_tokens: int = 30000
+    temperature: float = 0.8
+    request_timeout: float = 100.0
+    max_retries: int = 3
+    system_prompt: str = ""
+    extra_headers: dict = field(default_factory=dict)
+
+    def _headers(self) -> dict:
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        headers.update(self.extra_headers)
+        return headers
+
+    def _build_payload(
+        self,
+        user_content: Any,
+        guided_json: Optional[dict] = None,
+        system_prompt: Optional[str] = None,
+    ) -> dict:
+        payload = {
+            "model": self.model_name,
+            "temperature": self.temperature,
+            "max_tokens": self.max_tokens,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": system_prompt if system_prompt is not None else self.system_prompt,
+                },
+                {
+                    "role": "user",
+                    "content": user_content,
+                },
+            ],
+            "stream": False,
+        }
+        if guided_json is not None:
+            payload["guided_json"] = guided_json
+        return payload
+
+    async def send_request(
+        self,
+        user_content: Any,
+        guided_json: Optional[dict] = None,
+        system_prompt: Optional[str] = None,
+    ) -> dict:
+        """
+        Отправляет запрос в LLM с retry-логикой и обработкой ошибок.
+
+        user_content: строка или список content-блоков (text/image и т.д.)
+        guided_json: JSON-схема для structured output (опционально)
+        system_prompt: переопределить системный промпт по умолчанию (опционально)
+
+        Возвращает распарсенный JSON-объект из content ответа модели.
+        """
+        url = f"{self.api_base}/chat/completions"
+        headers = self._headers()
+        payload = self._build_payload(user_content, guided_json, system_prompt)
+
+        last_error: Optional[Exception] = None
+
+        async with httpx.AsyncClient(timeout=self.request_timeout) as http_client:
+            for attempt in range(1, self.max_retries + 1):
+                try:
+                    response = await http_client.post(url, json=payload, headers=headers)
+                    response.raise_for_status()
+
+                    data = response.json()
+
+                    try:
+                        content = data["choices"][0]["message"]["content"]
+                    except (KeyError, IndexError, TypeError) as e:
+                        raise LLMResponseParseError(
+                            f"Неожиданная структура ответа: {data}"
+                        ) from e
+
+                    result = _extract_json(content)
+                    return result
+
+                except httpx.TimeoutException as e:
+                    last_error = e
+                    logger.warning("Таймаут на попытке %s/%s", attempt, self.max_retries)
+
+                except httpx.HTTPError as e:
+                    last_error = e
+                    logger.warning(
+                        "Ошибка запроса на попытке %s/%s: %s", attempt, self.max_retries, e
+                    )
+
+                except LLMResponseParseError as e:
+                    last_error = e
+                    logger.warning(
+                        "Ошибка парсинга ответа на попытке %s/%s: %s",
+                        attempt,
+                        self.max_retries,
+                        e,
+                    )
+
+        raise LLMRequestError(
+            f"Превышено количество попыток ({self.max_retries})"
+        ) from last_error
+
+client = LLMClient()
+
+if __name__ == "__main__":
+
+    async def _main() -> None:
+        result = await client.send_request(
+            user_content=[{"type": "text", "text": "Верни JSON с полем code = 'print(1)'"}],
+            guided_json={
+                "type": "object",
+                "properties": {"code": {"type": "string"}},
+                "required": ["code"],
+            },
+        )
+        print(result)
+
+    asyncio.run(_main())

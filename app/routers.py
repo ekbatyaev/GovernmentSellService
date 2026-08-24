@@ -1,3 +1,5 @@
+
+
 @app.get(f"{API_BASE}/config", response_model=SuccessResponseModel)
 async def get_config():
     return SuccessResponseModel(

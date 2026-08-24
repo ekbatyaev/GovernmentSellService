@@ -1,7 +1,6 @@
 from sqlalchemy import Column, String, DateTime, Numeric, Integer, UniqueConstraint, Index
 from sqlalchemy.dialects.postgresql import JSONB, ARRAY
-
-from .connection_to_database import Base
+from app.backend.db.settings import Base
 
 
 class Purchase(Base):
