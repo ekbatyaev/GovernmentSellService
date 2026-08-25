@@ -1,7 +1,10 @@
 from pathlib import Path
+import httpx
 from pydantic_settings import BaseSettings, SettingsConfigDict
 import logging
 import sys
+
+async_client = httpx.AsyncClient(timeout=30)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 ENV_PATH = BASE_DIR / ".env"
@@ -22,6 +25,11 @@ class Settings(BaseSettings):
         case_sensitive=False,
         extra="ignore",
     )
+
+    llm_api_key: str
+    llm_base_url: str
+    llm_model_name: str
+    llm_folder_id: str
 
     system_token: str
 
@@ -45,6 +53,13 @@ class Settings(BaseSettings):
 
     app_url: str
     app_base: str = ""
+
+    smtp_server: str
+    smtp_port: str
+    smtp_user: str
+    smtp_email: str
+    smtp_password: str
+    smtp_test_email: str
 
 settings = Settings()
 

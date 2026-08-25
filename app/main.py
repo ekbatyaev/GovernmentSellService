@@ -4,14 +4,14 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from app.backend.scheduler import create_scheduler, run_backfill_on_startup
+from app.backend.scheduler import create_scheduler, run_backfill
 from app.backend.db.settings import init_db
 from app.settings import logger, settings
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
 
-    global scheduler
+    scheduler = None
 
     try:
         logger.info("Инициализация приложения...")
@@ -22,9 +22,8 @@ async def lifespan(app: FastAPI):
 
         scheduler.start()
 
-        # backfill 10 дней назад при старте
-
-        await run_backfill_on_startup()
+        if settings.backfill_on_startup:
+            await run_backfill(settings.backfill_days)
 
         logger.info("Startup complete (db + scheduler)")
 
@@ -37,7 +36,6 @@ async def lifespan(app: FastAPI):
     finally:
         if scheduler:
             scheduler.shutdown(wait=False)
-            scheduler = None
 
 
 app = FastAPI(title="Zakupki Database API",
@@ -56,7 +54,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 from app import routers  # noqa: E402  — импорт регистрирует роуты через декораторы
 
