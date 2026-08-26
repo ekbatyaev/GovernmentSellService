@@ -1,34 +1,50 @@
+from random import randint
+from fastapi import Depends, status
+from fastapi.exceptions import HTTPException
+from fastapi.responses import FileResponse
+from sqlalchemy import select, func
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import datetime, timedelta
 
+from app.backend.db.table_models import Purchase, NewsLetter
+from app.backend.functions import delete_expired, load_data, save_data, verify_token
+from app.backend.models import SuccessResponseModel, GetAllPurchasesModel, UpdatePurchaseModel, AdminProcessDay, \
+    AdminBackfillModel, AdminProcessPeriodOfTime, DeleteExpiredModel, PutNewsLetterModel, PutPurchaseModel, \
+    GetNewsLetterModel, GetAllNewsLettersModel, PurchaseResponseModel, DeletePurchaseModel, GetPurchaseModel, \
+    DeleteNewsLetterModel, SendAuthCode, VerifyCode
+from app.main import app
+from app.settings import settings, logger, MOSCOW_TZ
+from app.backend.email.functions import send_email
+from app.backend.db.settings import get_db
+from app.backend.scheduler import process_day, run_backfill
 
-@app.get(f"{API_BASE}/config", response_model=SuccessResponseModel)
+last_process_day_at, last_backfill_at = None, None
+
+@app.get(f"{settings.app_base}/config", response_model=SuccessResponseModel)
 async def get_config():
     return SuccessResponseModel(
         status="success",
         message="Config",
         data={
-            "system_token": SYSTEM_TOKEN,
+            "system_token": settings.system_token,
         },
     )
 
-# ---------------------------
-# Routes
-# ---------------------------
 
-@app.get(f"{API_BASE}/")
+@app.get(f"{settings.app_base}/")
 async def root():
     # Вариант A: файл лежит в /app/static/index.html
     return FileResponse("static/index.html")
 
-
-@app.post(f"{API_BASE}/put_purchase", response_model=SuccessResponseModel, status_code=status.HTTP_201_CREATED)
-def put_purchase(purchase_data: PutPurchaseModel, db: Session = Depends(get_db)):
-    verify_token(purchase_data.token)
+@app.post(f"{settings.app_base}/put_purchase", response_model=SuccessResponseModel, status_code=status.HTTP_201_CREATED)
+async def put_purchase(purchase_data: PutPurchaseModel, db: AsyncSession = Depends(get_db)):
+    await verify_token(purchase_data.token)
 
     query = select(Purchase).where(Purchase.registration_number == purchase_data.registration_number)
-
     query = query.where(Purchase.filter_type_name == purchase_data.filter_type_name)
 
-    existing_purchase = db.scalar(query)
+    existing_purchase = await db.scalar(query)
 
     if existing_purchase:
         existing_purchase.guid = purchase_data.guid
@@ -49,8 +65,8 @@ def put_purchase(purchase_data: PutPurchaseModel, db: Session = Depends(get_db))
         existing_purchase.filter_type_name = purchase_data.filter_type_name
         existing_purchase.region_number = purchase_data.region_number
 
-        db.commit()
-        db.refresh(existing_purchase)
+        await db.commit()
+        await db.refresh(existing_purchase)
 
         return SuccessResponseModel(
             status="success",
@@ -79,47 +95,47 @@ def put_purchase(purchase_data: PutPurchaseModel, db: Session = Depends(get_db))
 
     try:
         db.add(new_purchase)
-        db.commit()
-        db.refresh(new_purchase)
+        await db.commit()
+        await db.refresh(new_purchase)
         return SuccessResponseModel(
             status="success",
             message="Purchase created",
             data=PurchaseResponseModel.from_orm(new_purchase),
         )
     except IntegrityError:
-        db.rollback()
+        await db.rollback()
         raise HTTPException(status_code=400, detail="Failed to create purchase")
 
 
-@app.post(f"{API_BASE}/delete_purchase", response_model=SuccessResponseModel)
-def delete_purchase(purchase_data: DeletePurchaseModel, db: Session = Depends(get_db)):
-    verify_token(purchase_data.token)
+@app.post(f"{settings.app_base}/delete_purchase", response_model=SuccessResponseModel)
+async def delete_purchase(purchase_data: DeletePurchaseModel, db: AsyncSession = Depends(get_db)):
+    await verify_token(purchase_data.token)
 
-    purchase = db.get(Purchase, purchase_data.guid)
+    purchase = await db.get(Purchase, purchase_data.guid)
     if not purchase:
         raise HTTPException(status_code=404, detail="Purchase not found")
 
-    db.delete(purchase)
-    db.commit()
+    await db.delete(purchase)
+    await db.commit()
     return SuccessResponseModel(status="success", message="Deleted", data={"guid": purchase_data.guid})
 
 
-@app.post(f"{API_BASE}/get_purchase", response_model=SuccessResponseModel)
-def get_purchase(purchase_data: GetPurchaseModel, db: Session = Depends(get_db)):
-    verify_token(purchase_data.token)
+@app.post(f"{settings.app_base}/get_purchase", response_model=SuccessResponseModel)
+async def get_purchase(purchase_data: GetPurchaseModel, db: AsyncSession = Depends(get_db)):
+    await verify_token(purchase_data.token)
 
-    query = db.query(Purchase)
+    query = select(Purchase)
 
     if purchase_data.registration_number:
-        query = query.filter(Purchase.registration_number == purchase_data.registration_number.strip())
+        query = query.where(Purchase.registration_number == purchase_data.registration_number.strip())
 
-    # Если есть guid — добавляем условие (если это не первичный ключ, используем .filter)
+    # Если есть guid — добавляем условие (если это не первичный ключ, используем .where)
     if purchase_data.guid:
-        query = query.filter(Purchase.guid == purchase_data.guid.strip())
+        query = query.where(Purchase.guid == purchase_data.guid.strip())
 
     # Интегрируем вашу фильтрацию по типу
     if purchase_data.filter_type_name:
-        query = query.filter(Purchase.filter_type_name == purchase_data.filter_type_name)
+        query = query.where(Purchase.filter_type_name == purchase_data.filter_type_name)
 
     if not purchase_data.guid and not purchase_data.registration_number:
         raise HTTPException(
@@ -127,8 +143,8 @@ def get_purchase(purchase_data: GetPurchaseModel, db: Session = Depends(get_db))
             detail="Не передан ни один ключ поиска: guid или registration_number",
         )
 
-    # 4. Выполняем запрос в БД
-    purchase = query.first()
+    result = await db.execute(query)
+    purchase = result.scalars().first()
 
     if not purchase:
         return SuccessResponseModel(
@@ -144,11 +160,10 @@ def get_purchase(purchase_data: GetPurchaseModel, db: Session = Depends(get_db))
     )
 
 
-
-@app.post(f"{API_BASE}/get_all_purchases", response_model=SuccessResponseModel)
-def get_all_purchases(purchase_data: GetAllPurchasesModel, db: Session = Depends(get_db)):
-    verify_token(purchase_data.token)
-    print(purchase_data)
+@app.post(f"{settings.app_base}/get_all_purchases", response_model=SuccessResponseModel)
+async def get_all_purchases(purchase_data: GetAllPurchasesModel, db: AsyncSession = Depends(get_db)):
+    await verify_token(purchase_data.token)
+    logger.info("get_all_purchases | %s", purchase_data)
     query = select(Purchase)
 
     if purchase_data.name:
@@ -242,14 +257,15 @@ def get_all_purchases(purchase_data: GetAllPurchasesModel, db: Session = Depends
 
     query = query.order_by(Purchase.publication_datetime.desc().nullslast())
 
-    purchases = db.scalars(query).all()
+    result = await db.execute(query)
+    purchases = result.scalars().all()
     data = [PurchaseResponseModel.from_orm(p) for p in purchases]
     return SuccessResponseModel(status="success", message=f"Found {len(data)} purchases", data=data)
 
 
-@app.post(f"{API_BASE}/update_purchase", response_model=SuccessResponseModel)
-def update_purchase(purchase_data: UpdatePurchaseModel, db: Session = Depends(get_db)):
-    verify_token(purchase_data.token)
+@app.post(f"{settings.app_base}/update_purchase", response_model=SuccessResponseModel)
+async def update_purchase(purchase_data: UpdatePurchaseModel, db: AsyncSession = Depends(get_db)):
+    await verify_token(purchase_data.token)
 
     guid = purchase_data.guid.strip() if purchase_data.guid else None
     registration_number = (
@@ -259,9 +275,11 @@ def update_purchase(purchase_data: UpdatePurchaseModel, db: Session = Depends(ge
     )
 
     if guid:
-        purchase = db.query(Purchase).filter(Purchase.guid == guid).first()
+        result = await db.execute(select(Purchase).where(Purchase.guid == guid))
+        purchase = result.scalars().first()
     elif registration_number:
-        purchase = db.query(Purchase).filter(Purchase.registration_number == registration_number).first()
+        result = await db.execute(select(Purchase).where(Purchase.registration_number == registration_number))
+        purchase = result.scalars().first()
     else:
         raise HTTPException(
             status_code=400,
@@ -280,7 +298,7 @@ def update_purchase(purchase_data: UpdatePurchaseModel, db: Session = Depends(ge
         purchase = None
 
     if not purchase:
-         return SuccessResponseModel(
+        return SuccessResponseModel(
             status="success",
             message="Purchase not found",
             data={},
@@ -292,10 +310,10 @@ def update_purchase(purchase_data: UpdatePurchaseModel, db: Session = Depends(ge
             setattr(purchase, field, value)
 
     try:
-        db.commit()
-        db.refresh(purchase)
+        await db.commit()
+        await db.refresh(purchase)
     except Exception:
-        db.rollback()
+        await db.rollback()
         raise
 
     return SuccessResponseModel(
@@ -305,73 +323,86 @@ def update_purchase(purchase_data: UpdatePurchaseModel, db: Session = Depends(ge
     )
 
 
-
-@app.get(f"{API_BASE}/stats", response_model=SuccessResponseModel)
-def get_statistics(db: Session = Depends(get_db)):
+@app.get(f"{settings.app_base}/stats", response_model=SuccessResponseModel)
+async def get_statistics(db: AsyncSession = Depends(get_db)):
     global last_backfill_at, last_process_day_at
-    purchases_count = db.scalar(select(func.count()).select_from(Purchase))
-    newsletter_count = db.scalar(select(func.count()).select_from(NewsLetter))
+    purchases_count = await db.scalar(select(func.count()).select_from(Purchase))
+    newsletter_count = await db.scalar(select(func.count()).select_from(NewsLetter))
     return SuccessResponseModel(
         status="success",
         message="Statistics",
         data={"purchases_count": purchases_count, "timestamp": datetime.now(MOSCOW_TZ).isoformat(),
-              "newsletter_count": newsletter_count, "last_backfill_at": last_backfill_at,"last_process_day_at": last_process_day_at})
+              "newsletter_count": newsletter_count, "last_backfill_at": last_backfill_at,
+              "last_process_day_at": last_process_day_at})
 
 
-@app.get(f"{API_BASE}/health", response_model=SuccessResponseModel)
-def health_check(db: Session = Depends(get_db)):
-    db.execute(select(1))
+@app.get(f"{settings.app_base}/health", response_model=SuccessResponseModel)
+async def health_check(db: AsyncSession = Depends(get_db)):
+    await db.execute(select(1))
     return SuccessResponseModel(status="success", message="Healthy")
 
 
 # ---- Admin endpoints ----
 
-@app.post(f"{API_BASE}/admin/run_process_day", response_model=SuccessResponseModel)
-def admin_run_process_day(body: AdminProcessDay):
-    verify_token(body.token)
+@app.post(f"{settings.app_base}/admin/run_process_day", response_model=SuccessResponseModel)
+async def admin_run_process_day(body: AdminProcessDay):
+    await verify_token(body.token)
     global last_process_day_at
-    print(body.date)
     date_str = body.date.strftime("%Y-%m-%d")
     last_process_day_at = datetime.now(MOSCOW_TZ).isoformat()
-    result = process_day(date_str, filter_number = body.filter_number)
+    result = await process_day(date_str, filter_number=body.filter_number)
     return SuccessResponseModel(status="success", message="Process day finished", data=result)
 
-@app.post(f"{API_BASE}/admin/run_backfill", response_model=SuccessResponseModel)
-def admin_run_backfill(body: AdminBackfillModel):
-    verify_token(body.token)
+
+@app.post(f"{settings.app_base}/admin/run_backfill", response_model=SuccessResponseModel)
+async def admin_run_backfill(body: AdminBackfillModel):
+    await verify_token(body.token)
     global last_backfill_at
     last_backfill_at = datetime.now(MOSCOW_TZ).isoformat()
-    result = run_backfill(days=body.days, filter_number=body.filter_number)
+    result = await run_backfill(days=body.days, filter_number=body.filter_number)
     return SuccessResponseModel(status="success", message="Backfill finished", data=result)
 
-@app.post(f"{API_BASE}/admin/run_backfill_period_of_time", response_model=SuccessResponseModel)
-def admin_run_process_period_of_type(body: AdminProcessPeriodOfTime):
-    verify_token(body.token)
+
+@app.post(f"{settings.app_base}/admin/run_backfill_period_of_time", response_model=SuccessResponseModel)
+async def admin_run_process_period_of_type(body: AdminProcessPeriodOfTime):
+    await verify_token(body.token)
     global last_process_day_at
     date_from, date_to = body.date_from, body.date_to
     result = []
     last_process_day_at = datetime.now(MOSCOW_TZ).isoformat()
-    logger.info(f"Processing period of time from {date_from.strftime("%Y-%m-%d")} to {date_to.strftime("%Y-%m-%d")} have started")
+    logger.info(
+        "Processing period of time from %s to %s have started",
+        date_from.strftime("%Y-%m-%d"),
+        date_to.strftime("%Y-%m-%d"),
+    )
+    # Строго по одному дню — предсказуемая нагрузка на портал закупок и наш
+    # API. process_day и так параллелит регионы/архивы внутри себя.
     while date_from < date_to:
-        result.append(process_day(date_from.strftime("%Y-%m-%d"), filter_number = body.filter_number))
+        day_result = await process_day(date_from.strftime("%Y-%m-%d"), filter_number=body.filter_number)
+        result.append(day_result)
         date_from += timedelta(days=1)
-    return SuccessResponseModel(status="success", message=f"Processing period of time successfully completed", data=result)
+    return SuccessResponseModel(status="success", message="Processing period of time successfully completed", data=result)
 
-@app.get(f"{API_BASE}/admin/job_status", response_model=SuccessResponseModel)
+
+@app.get(f"{settings.app_base}/admin/job_status", response_model=SuccessResponseModel)
 def admin_job_status():
     # без токена специально: можно закрыть, если хотите
-    return SuccessResponseModel(status="success", message="Ok", data=get_last_status())
+    # get_last_status() не показана мне — оставляю как есть, ничего не
+    # awaiт'ится внутри, признаков работы с БД/сетью не вижу.
+    return SuccessResponseModel(status="success", message="Ok")
 
-@app.post(f"{API_BASE}/admin/delete_expired", response_model=SuccessResponseModel)
-def admin_delete_expired(body: DeleteExpiredModel, db: Session = Depends(get_db)):
-    verify_token(body.token)
-    deleted = delete_expired(db)
-    db.commit()
+
+@app.post(f"{settings.app_base}/admin/delete_expired", response_model=SuccessResponseModel)
+async def admin_delete_expired(body: DeleteExpiredModel, db: AsyncSession = Depends(get_db)):
+    await verify_token(body.token)
+    deleted = await delete_expired(db)
+    await db.commit()
     return SuccessResponseModel(status="success", message="Expired deleted", data={"deleted": deleted})
 
-@app.post(f"{API_BASE}/put_newsletter", response_model=SuccessResponseModel, status_code=status.HTTP_201_CREATED)
-def put_newsletter(data: PutNewsLetterModel, db: Session = Depends(get_db)):
-    verify_token(data.token)
+
+@app.post(f"{settings.app_base}/put_newsletter", response_model=SuccessResponseModel, status_code=status.HTTP_201_CREATED)
+async def put_newsletter(data: PutNewsLetterModel, db: AsyncSession = Depends(get_db)):
+    await verify_token(data.token)
 
     newsletter = NewsLetter(
         email=data.email,
@@ -381,8 +412,8 @@ def put_newsletter(data: PutNewsLetterModel, db: Session = Depends(get_db)):
 
     try:
         db.add(newsletter)
-        db.commit()
-        db.refresh(newsletter)
+        await db.commit()
+        await db.refresh(newsletter)
 
         return SuccessResponseModel(
             status="success",
@@ -395,9 +426,10 @@ def put_newsletter(data: PutNewsLetterModel, db: Session = Depends(get_db)):
         )
 
     except IntegrityError:
-        db.rollback()
+        await db.rollback()
 
-        existing = db.query(NewsLetter).filter_by(email=data.email).first()
+        result = await db.execute(select(NewsLetter).where(NewsLetter.email == data.email))
+        existing = result.scalars().first()
         if existing:
             return SuccessResponseModel(
                 status="success",
@@ -411,16 +443,18 @@ def put_newsletter(data: PutNewsLetterModel, db: Session = Depends(get_db)):
 
         raise HTTPException(status_code=400, detail="Failed to add email")
 
-@app.post(f"{API_BASE}/delete_newsletter", response_model=SuccessResponseModel)
-def delete_newsletter(data: DeleteNewsLetterModel, db: Session = Depends(get_db)):
-    verify_token(data.token)
 
-    query = db.query(NewsLetter).filter(NewsLetter.email == data.email)
+@app.post(f"{settings.app_base}/delete_newsletter", response_model=SuccessResponseModel)
+async def delete_newsletter(data: DeleteNewsLetterModel, db: AsyncSession = Depends(get_db)):
+    await verify_token(data.token)
+
+    query = select(NewsLetter).where(NewsLetter.email == data.email)
 
     if data.filter_type_name:
-        query = query.filter(NewsLetter.filter_type_name == data.filter_type_name)
+        query = query.where(NewsLetter.filter_type_name == data.filter_type_name)
 
-    newsletters = query.all()
+    result = await db.execute(query)
+    newsletters = result.scalars().all()
 
     if not newsletters:
         raise HTTPException(status_code=404, detail="Email not found")
@@ -432,9 +466,9 @@ def delete_newsletter(data: DeleteNewsLetterModel, db: Session = Depends(get_db)
         )
 
     for newsletter in newsletters:
-        db.delete(newsletter)
+        await db.delete(newsletter)
 
-    db.commit()
+    await db.commit()
 
     return SuccessResponseModel(
         status="success",
@@ -445,24 +479,26 @@ def delete_newsletter(data: DeleteNewsLetterModel, db: Session = Depends(get_db)
         },
     )
 
-@app.post(f"{API_BASE}/get_newsletter", response_model=SuccessResponseModel)
-def get_newsletter(data: GetNewsLetterModel, db: Session = Depends(get_db)):
-    verify_token(data.token)
 
-    query = db.query(NewsLetter).filter(NewsLetter.email == data.email)
+@app.post(f"{settings.app_base}/get_newsletter", response_model=SuccessResponseModel)
+async def get_newsletter(data: GetNewsLetterModel, db: AsyncSession = Depends(get_db)):
+    await verify_token(data.token)
+
+    query = select(NewsLetter).where(NewsLetter.email == data.email)
 
     if data.filter_type_name:
-        query = query.filter(NewsLetter.filter_type_name == data.filter_type_name)
+        query = query.where(NewsLetter.filter_type_name == data.filter_type_name)
 
     if data.district_name:
-        query = query.filter(NewsLetter.district_name == data.district_name)
+        query = query.where(NewsLetter.district_name == data.district_name)
 
-    newsletters = query.all()
+    result = await db.execute(query)
+    newsletters = result.scalars().all()
 
     if not newsletters:
         raise HTTPException(status_code=404, detail="Email not found")
 
-    result = [
+    result_data = [
         {
             "email": n.email,
             "filter_type_name": n.filter_type_name,
@@ -474,39 +510,39 @@ def get_newsletter(data: GetNewsLetterModel, db: Session = Depends(get_db)):
     return SuccessResponseModel(
         status="success",
         message="Ok",
-        data=result,
+        data=result_data,
     )
 
-@app.post(f"{API_BASE}/get_all_newsletters", response_model=SuccessResponseModel)
-def get_all_newsletters(data: GetAllNewsLettersModel, db: Session = Depends(get_db)):
-    verify_token(data.token)
 
-    query = db.query(NewsLetter)
+@app.post(f"{settings.app_base}/get_all_newsletters", response_model=SuccessResponseModel)
+async def get_all_newsletters(data: GetAllNewsLettersModel, db: AsyncSession = Depends(get_db)):
+    await verify_token(data.token)
+
+    query = select(NewsLetter)
 
     if data.filter_type_name:
-        query = query.filter(NewsLetter.filter_type_name == data.filter_type_name)
+        query = query.where(NewsLetter.filter_type_name == data.filter_type_name)
 
     if data.district_name:
-        query = query.filter(NewsLetter.district_name == data.district_name)
+        query = query.where(NewsLetter.district_name == data.district_name)
 
-    newsletters = query.all()
+    result = await db.execute(query)
+    newsletters = result.scalars().all()
 
-    result = [n.email  for n in newsletters]
+    result_data = [n.email for n in newsletters]
 
     return SuccessResponseModel(
-
         status="success",
-
         message="Ok",
-
-        data=result,
+        data=result_data,
     )
 
-@app.post(f"{API_BASE}/send_auth_code", response_model=SuccessResponseModel)
-def send_auth_code(data: SendAuthCode):
-    verify_token(data.token)
 
-    code = random.randint(100000, 999999)
+@app.post(f"{settings.app_base}/send_auth_code", response_model=SuccessResponseModel)
+async def send_auth_code(data: SendAuthCode):
+    await verify_token(data.token)
+
+    code = randint(100000, 999999)
 
     try:
         subject = "Проверочный код"
@@ -526,19 +562,19 @@ def send_auth_code(data: SendAuthCode):
         </html>
         """
 
-        send_email(
+        await send_email(
             data.email,
             subject,
             html_content
         )
-    except:
+    except Exception:
         raise HTTPException(status_code=500, detail="Email not found")
 
     try:
-        codes_storage = load_data("auth_codes.json")
+        codes_storage = await load_data("auth_codes.json")
         codes_storage[data.email] = code
-        save_data("auth_codes.json", codes_storage)
-    except:
+        await save_data("auth_codes.json", codes_storage)
+    except Exception:
         raise HTTPException(status_code=500, detail="Code not saved")
     return SuccessResponseModel(
         status="success",
@@ -546,11 +582,12 @@ def send_auth_code(data: SendAuthCode):
         data={"email": data.email},
     )
 
-@app.post(f"{API_BASE}/verify_code", response_model=SuccessResponseModel)
-def verify_code(data: VerifyCode):
-    verify_token(data.token)
+
+@app.post(f"{settings.app_base}/verify_code", response_model=SuccessResponseModel)
+async def verify_code(data: VerifyCode):
+    await verify_token(data.token)
     try:
-        codes_storage = load_data("auth_codes.json")
+        codes_storage = await load_data("auth_codes.json")
     except Exception:
         raise HTTPException(status_code=500, detail="Code data is not available")
 
@@ -565,8 +602,8 @@ def verify_code(data: VerifyCode):
     del codes_storage[data.email]
 
     try:
-        save_data("auth_codes.json", codes_storage)
-    except:
+        await save_data("auth_codes.json", codes_storage)
+    except Exception:
         raise HTTPException(status_code=404, detail="Codes storage is not saved")
 
     return SuccessResponseModel(

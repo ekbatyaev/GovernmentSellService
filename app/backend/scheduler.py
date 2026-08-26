@@ -1,17 +1,14 @@
 import asyncio
-from zoneinfo import ZoneInfo
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from dateutil.relativedelta import relativedelta
 from datetime import datetime, timedelta
 from typing import Dict, Any
-from app.settings import logger, settings
+from app.settings import logger, settings, MOSCOW_TZ
 from app.backend.functions import process_day, api_datum_query, send_analysis
 from app.backend.db.static_info import REGIONS_OF_THE_FILTERS, REGION_CODES_BY_FEDERAL_DISTRICT
 
 scheduler: AsyncIOScheduler | None = None
-
-MOSCOW_TZ = ZoneInfo("Europe/Moscow")
 
 async def create_scheduler() -> AsyncIOScheduler:
     s = AsyncIOScheduler(timezone = MOSCOW_TZ)
@@ -86,14 +83,14 @@ async def run_daily_job() -> Dict[str, Any]:
 
         delete_date_to = now - relativedelta(years=1)
 
-        purchases = await api_datum_query(token=settings.token,
+        purchases = await api_datum_query(token=settings.system_token,
                                               endpoint="get_all_purchases",
                                               publication_datetime_to = delete_date_to.replace(microsecond=0).isoformat())
 
         count = 0
         for purchase in purchases:
             try:
-                await api_datum_query(token=settings.token,
+                await api_datum_query(token=settings.system_token,
                                               endpoint="delete_purchase",
                                               guid = purchase["guid"])
                 count += 1
@@ -139,14 +136,14 @@ async def run_daily_job() -> Dict[str, Any]:
                                          day_result[filter_name][region]["updated"] +
                                          day_result[filter_name][region]["skipped"])
 
-            emails = await api_datum_query(token=settings.token,
+            emails = await api_datum_query(token=settings.system_token,
                                   endpoint="get_all_newsletters",
                                   filter_type_name = filter_name, district_name = district_name)
             rows = []
 
             for registration_number in registration_numbers:
 
-                purchase = await api_datum_query(token=settings.token,
+                purchase = await api_datum_query(token=settings.system_token,
                                                endpoint="get_purchase",
                                                registration_number = registration_number, filter_type_name = filter_name)
 
@@ -180,7 +177,7 @@ async def run_daily_job() -> Dict[str, Any]:
 
             extra_rows = []
 
-            purchases = await api_datum_query(token=settings.token,
+            purchases = await api_datum_query(token=settings.system_token,
                                               endpoint="get_all_purchases",
                                               filter_type_name = filter_name, region_number = district_name)
 
@@ -236,7 +233,7 @@ async def run_daily_job() -> Dict[str, Any]:
                                          day_result[filter_name][region]["updated"] +
                                          day_result[filter_name][region]["skipped"])
 
-            emails = await api_datum_query(token=settings.token,
+            emails = await api_datum_query(token=settings.system_token,
                                            endpoint="get_all_newsletters",
                                            filter_type_name=filter_name, district_name=district_name)
 
@@ -244,7 +241,7 @@ async def run_daily_job() -> Dict[str, Any]:
 
             for registration_number in registration_numbers:
 
-                purchase = await api_datum_query(token=settings.token,
+                purchase = await api_datum_query(token=settings.system_token,
                                                endpoint="get_purchase",
                                                registration_number = registration_number, filter_type_name = filter_name)
 
@@ -302,7 +299,7 @@ async def run_daily_job() -> Dict[str, Any]:
                                          day_result[filter_name][region]["updated"] +
                                          day_result[filter_name][region]["skipped"])
 
-            emails = await api_datum_query(token=settings.token,
+            emails = await api_datum_query(token=settings.system_token,
                                            endpoint="get_all_newsletters",
                                            filter_type_name=filter_name, district_name=district_name)
 
@@ -310,7 +307,7 @@ async def run_daily_job() -> Dict[str, Any]:
 
             for registration_number in registration_numbers:
 
-                purchase = await api_datum_query(token=settings.token,
+                purchase = await api_datum_query(token=settings.system_token,
                                                  endpoint="get_purchase",
                                                  registration_number=registration_number, filter_type_name=filter_name)
 

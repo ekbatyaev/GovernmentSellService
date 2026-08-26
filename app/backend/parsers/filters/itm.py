@@ -1,5 +1,6 @@
 import re
 from typing import Union, Dict, Any
+from app.backend.parsers.filters.functions import matches, normalize
 
 # Фильтры для ITCLG сектора
 
@@ -71,10 +72,10 @@ def request_filters_itclg(text: str, lots: list, debug: bool = False) -> Union[b
     возвращая при этом номер категории.
     """
 
-    has_component = _matches(COMPONENT_PATTERNS_ITCLG, text)
-    has_brand = _matches(BRAND_PATTERNS_ITCLG, text)
+    has_component = matches(COMPONENT_PATTERNS_ITCLG, text)
+    has_brand = matches(BRAND_PATTERNS_ITCLG, text)
 
-    has_work_patterns = _matches(FILTERS_WORK_PATTERNS_ITCLG, text)
+    has_work_patterns = matches(FILTERS_WORK_PATTERNS_ITCLG, text)
 
     result = False
 
@@ -176,10 +177,10 @@ def request_filters_itraa(text: str, lots: list, debug: bool = False) -> Union[b
     возвращая при этом номер категории.
     """
 
-    has_component = _matches(COMPONENT_PATTERNS_ITRAA, text)
-    has_brand = _matches(BRAND_PATTERNS_ITRAA, text)
+    has_component = matches(COMPONENT_PATTERNS_ITRAA, text)
+    has_brand = matches(BRAND_PATTERNS_ITRAA, text)
 
-    has_work_patterns = _matches(FILTERS_WORK_PATTERNS_ITRAA, text)
+    has_work_patterns = matches(FILTERS_WORK_PATTERNS_ITRAA, text)
 
     result = False
 
@@ -282,10 +283,10 @@ def request_filters_itdig(text: str, lots: list, debug: bool = False) -> Union[b
     возвращая при этом номер категории.
     """
 
-    has_component = _matches(COMPONENT_PATTERNS_ITDIG, text)
-    has_brand = _matches(BRAND_PATTERNS_ITDIG, text)
+    has_component = matches(COMPONENT_PATTERNS_ITDIG, text)
+    has_brand = matches(BRAND_PATTERNS_ITDIG, text)
 
-    has_work_patterns = _matches(FILTERS_WORK_PATTERNS_ITDIG, text)
+    has_work_patterns = matches(FILTERS_WORK_PATTERNS_ITDIG, text)
 
     result = False
 
@@ -384,10 +385,10 @@ def request_filters_it3ph(text: str, lots: list, debug: bool = False) -> Union[b
     возвращая при этом номер категории.
     """
 
-    has_component = _matches(COMPONENT_PATTERNS_IT3PH, text)
-    has_brand = _matches(BRAND_PATTERNS_IT3PH, text)
+    has_component = matches(COMPONENT_PATTERNS_IT3PH, text)
+    has_brand = matches(BRAND_PATTERNS_IT3PH, text)
 
-    has_work_patterns = _matches(FILTERS_WORK_PATTERNS_IT3PH, text)
+    has_work_patterns = matches(FILTERS_WORK_PATTERNS_IT3PH, text)
 
     result = False
 
@@ -437,7 +438,7 @@ def request_filters_itm(work_name: str, lots: list) -> Union[bool, Dict[str, Any
     Возвращает True, если закупка проходит любой из фильтров,
     возвращая при этом номер категории.
     """
-    text = _normalize(work_name)
+    text = normalize(work_name)
 
     itclg_filter = request_filters_itclg(text, lots)
     if itclg_filter["result"]:
@@ -456,21 +457,6 @@ def request_filters_itm(work_name: str, lots: list) -> Union[bool, Dict[str, Any
         return it3ph_filter
 
     return {"result": False}
-
-
-# Вспомогательные функции
-
-def _normalize(text: str) -> str:
-    text = str(text or "")
-    text = text.replace("ё", "е").replace("Ё", "Е")
-    text = re.sub(r"[ \t\r\n]+", " ", text)
-    text = re.sub(r"\s+", " ", text).strip().lower()
-    return text
-
-
-def _matches(patterns, text: str):
-    return [p.pattern for p in patterns if p.search(text)]
-
 
 if __name__ == "__main__":
     lots = [

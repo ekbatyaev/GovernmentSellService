@@ -1,10 +1,13 @@
 from pathlib import Path
+from zoneinfo import ZoneInfo
 import httpx
 from pydantic_settings import BaseSettings, SettingsConfigDict
 import logging
 import sys
 
-async_client = httpx.AsyncClient(timeout=30)
+async_client_fastapi = httpx.AsyncClient(timeout=30)
+
+MOSCOW_TZ = ZoneInfo("Europe/Moscow")
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 ENV_PATH = BASE_DIR / ".env"
@@ -60,6 +63,14 @@ class Settings(BaseSettings):
     smtp_email: str
     smtp_password: str
     smtp_test_email: str
+
+    base_url: str
+    download_url: str
+
+    soap_timeout: int = 30
+    max_concurrent_semaphore: int = 5
+    download_timeout: int = 60
+    tmp_dir: str
 
 settings = Settings()
 

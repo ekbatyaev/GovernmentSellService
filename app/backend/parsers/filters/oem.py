@@ -1,6 +1,6 @@
 import re
-from pprint import pprint
-from typing import Union, Dict, Any
+from typing import Dict, Any
+from app.backend.parsers.filters.functions import matches, normalize
 
 # Фильтры в формате регулярных выражений
 
@@ -260,16 +260,16 @@ def request_filters_oem(work_name: str, debug: bool = False) -> Dict[str, Any]:
     """
     Возвращает словарь с решением и сработавшими группами.
     """
-    text = _normalize(work_name)
+    text = normalize(work_name)
 
-    force_exclude = _matches(EXCLUDE_FORCE_PATTERNS_OEM, text)
-    force_include = _matches(INCLUDE_FORCE_PATTERNS_OEM, text)
-    has_object = _matches(OBJECT_PATTERNS_OEM, text)
-    has_component = _matches(COMPONENT_PATTERNS_OEM, text)
-    has_brand = _matches(BRAND_PATTERNS_OEM, text)
-    has_electricity_indicators = _matches(FILTERS_WORK_PATTERNS_OEM, text)
-    excluded_hard = _matches(EXCLUDE_HARD_PATTERNS_OEM, text)
-    excluded_soft = _matches(EXCLUDE_SOFT_PATTERNS_OEM, text)
+    force_exclude = matches(EXCLUDE_FORCE_PATTERNS_OEM, text)
+    force_include = matches(INCLUDE_FORCE_PATTERNS_OEM, text)
+    has_object = matches(OBJECT_PATTERNS_OEM, text)
+    has_component = matches(COMPONENT_PATTERNS_OEM, text)
+    has_brand = matches(BRAND_PATTERNS_OEM, text)
+    has_electricity_indicators = matches(FILTERS_WORK_PATTERNS_OEM, text)
+    excluded_hard = matches(EXCLUDE_HARD_PATTERNS_OEM, text)
+    excluded_soft = matches(EXCLUDE_SOFT_PATTERNS_OEM, text)
 
     reason = ""
     result = False
@@ -309,15 +309,3 @@ def request_filters_oem(work_name: str, debug: bool = False) -> Dict[str, Any]:
         "exclude_soft": excluded_soft,
     }
 
-# Вспомогательные функции
-
-def _normalize(text: str) -> str:
-    text = str(text or "")
-    text = text.replace("ё", "е").replace("Ё", "Е")
-    text = re.sub(r"[\u00A0\t\r\n]+", " ", text)
-    text = re.sub(r"\s+", " ", text).strip()
-    return text
-
-
-def _matches(patterns, text: str):
-    return [p.pattern for p in patterns if p.search(text)]

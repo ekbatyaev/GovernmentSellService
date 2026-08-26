@@ -26,3 +26,6 @@ openai
 asyncio
 pillow
 pytesseract
+tenacity
+aiofiles
+httpx

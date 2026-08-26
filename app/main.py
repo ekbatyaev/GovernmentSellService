@@ -1,11 +1,12 @@
 import traceback
+import os
 from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.backend.scheduler import create_scheduler, run_backfill
-from app.backend.db.settings import init_db
+from app.backend.db.settings import init_db, dispose_db
 from app.settings import logger, settings
 
 @asynccontextmanager
@@ -25,6 +26,8 @@ async def lifespan(app: FastAPI):
         if settings.backfill_on_startup:
             await run_backfill(settings.backfill_days)
 
+        os.makedirs(settings.tmp_dir, exist_ok=True)
+
         logger.info("Startup complete (db + scheduler)")
 
         yield
@@ -36,6 +39,7 @@ async def lifespan(app: FastAPI):
     finally:
         if scheduler:
             scheduler.shutdown(wait=False)
+        await dispose_db()
 
 
 app = FastAPI(title="Zakupki Database API",
