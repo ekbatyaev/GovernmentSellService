@@ -186,7 +186,7 @@ async def download_archive_from_result(
 
     path = os.path.abspath(os.path.join(settings.tmp_dir, out_file))
 
-    async with settings.max_concurrent_semaphore:
+    async with asyncio.Semaphore(settings.max_concurrent_semaphore):
         try:
             logger.info("Скачивание архива %s", out_file)
             await _stream_download(url, req_params, headers, path)

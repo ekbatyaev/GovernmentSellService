@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timedelta
 
 from app.backend.db.table_models import Purchase, NewsLetter
-from app.backend.functions import delete_expired, load_data, save_data, verify_token
+from app.backend.functions import delete_expired, set_auth_code, pop_auth_code, verify_token
 from app.backend.models import SuccessResponseModel, GetAllPurchasesModel, UpdatePurchaseModel, AdminProcessDay, \
     AdminBackfillModel, AdminProcessPeriodOfTime, DeleteExpiredModel, PutNewsLetterModel, PutPurchaseModel, \
     GetNewsLetterModel, GetAllNewsLettersModel, PurchaseResponseModel, DeletePurchaseModel, GetPurchaseModel, \
@@ -71,7 +71,7 @@ async def put_purchase(purchase_data: PutPurchaseModel, db: AsyncSession = Depen
         return SuccessResponseModel(
             status="success",
             message="Purchase updated",
-            data=PurchaseResponseModel.from_orm(existing_purchase),
+            data=PurchaseResponseModel.model_validate(existing_purchase),
         )
 
     new_purchase = Purchase(
@@ -100,7 +100,7 @@ async def put_purchase(purchase_data: PutPurchaseModel, db: AsyncSession = Depen
         return SuccessResponseModel(
             status="success",
             message="Purchase created",
-            data=PurchaseResponseModel.from_orm(new_purchase),
+            data=PurchaseResponseModel.model_validate(new_purchase)
         )
     except IntegrityError:
         await db.rollback()
@@ -156,7 +156,7 @@ async def get_purchase(purchase_data: GetPurchaseModel, db: AsyncSession = Depen
     return SuccessResponseModel(
         status="success",
         message="Ok",
-        data=PurchaseResponseModel.from_orm(purchase),
+        data=PurchaseResponseModel.model_validate(purchase),
     )
 
 
@@ -259,7 +259,7 @@ async def get_all_purchases(purchase_data: GetAllPurchasesModel, db: AsyncSessio
 
     result = await db.execute(query)
     purchases = result.scalars().all()
-    data = [PurchaseResponseModel.from_orm(p) for p in purchases]
+    data = [PurchaseResponseModel.model_validate(p) for p in purchases]
     return SuccessResponseModel(status="success", message=f"Found {len(data)} purchases", data=data)
 
 
@@ -319,7 +319,7 @@ async def update_purchase(purchase_data: UpdatePurchaseModel, db: AsyncSession =
     return SuccessResponseModel(
         status="success",
         message="Updated",
-        data=PurchaseResponseModel.from_orm(purchase),
+        data=PurchaseResponseModel.model_validate(purchase),
     )
 
 
@@ -351,7 +351,8 @@ async def admin_run_process_day(body: AdminProcessDay):
     date_str = body.date.strftime("%Y-%m-%d")
     last_process_day_at = datetime.now(MOSCOW_TZ).isoformat()
     result = await process_day(date_str, filter_number=body.filter_number)
-    return SuccessResponseModel(status="success", message="Process day finished", data=result)
+    # logger.info(result)
+    return SuccessResponseModel(status="success", message="Process day finished")
 
 
 @app.post(f"{settings.app_base}/admin/run_backfill", response_model=SuccessResponseModel)
@@ -360,7 +361,8 @@ async def admin_run_backfill(body: AdminBackfillModel):
     global last_backfill_at
     last_backfill_at = datetime.now(MOSCOW_TZ).isoformat()
     result = await run_backfill(days=body.days, filter_number=body.filter_number)
-    return SuccessResponseModel(status="success", message="Backfill finished", data=result)
+    # logger.info(result)
+    return SuccessResponseModel(status="success", message="Backfill finished")
 
 
 @app.post(f"{settings.app_base}/admin/run_backfill_period_of_time", response_model=SuccessResponseModel)
@@ -381,7 +383,8 @@ async def admin_run_process_period_of_type(body: AdminProcessPeriodOfTime):
         day_result = await process_day(date_from.strftime("%Y-%m-%d"), filter_number=body.filter_number)
         result.append(day_result)
         date_from += timedelta(days=1)
-    return SuccessResponseModel(status="success", message="Processing period of time successfully completed", data=result)
+    # logger.info(result)
+    return SuccessResponseModel(status="success", message="Processing period of time successfully completed")
 
 
 @app.get(f"{settings.app_base}/admin/job_status", response_model=SuccessResponseModel)
@@ -539,7 +542,7 @@ async def get_all_newsletters(data: GetAllNewsLettersModel, db: AsyncSession = D
 
 
 @app.post(f"{settings.app_base}/send_auth_code", response_model=SuccessResponseModel)
-async def send_auth_code(data: SendAuthCode):
+async def send_auth_code(data: SendAuthCode, db: AsyncSession = Depends(get_db)):
     await verify_token(data.token)
 
     code = randint(100000, 999999)
@@ -571,11 +574,10 @@ async def send_auth_code(data: SendAuthCode):
         raise HTTPException(status_code=500, detail="Email not found")
 
     try:
-        codes_storage = await load_data("auth_codes.json")
-        codes_storage[data.email] = code
-        await save_data("auth_codes.json", codes_storage)
+        await set_auth_code(db, data.email, code)
     except Exception:
         raise HTTPException(status_code=500, detail="Code not saved")
+
     return SuccessResponseModel(
         status="success",
         message="Auth code created",
@@ -584,27 +586,18 @@ async def send_auth_code(data: SendAuthCode):
 
 
 @app.post(f"{settings.app_base}/verify_code", response_model=SuccessResponseModel)
-async def verify_code(data: VerifyCode):
+async def verify_code(data: VerifyCode, db: AsyncSession = Depends(get_db)):
     await verify_token(data.token)
     try:
-        codes_storage = await load_data("auth_codes.json")
+        real_code = await pop_auth_code(db, data.email)
     except Exception:
         raise HTTPException(status_code=500, detail="Code data is not available")
-
-    real_code = codes_storage.get(data.email)
 
     if real_code is None:
         raise HTTPException(status_code=404, detail="Code not found")
 
     if real_code != data.code:
         raise HTTPException(status_code=400, detail="Invalid code")
-
-    del codes_storage[data.email]
-
-    try:
-        await save_data("auth_codes.json", codes_storage)
-    except Exception:
-        raise HTTPException(status_code=404, detail="Codes storage is not saved")
 
     return SuccessResponseModel(
         status="success",

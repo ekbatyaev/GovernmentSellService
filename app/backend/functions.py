@@ -1,24 +1,23 @@
 import asyncio
-import json
 import os
-import httpx
 import pandas as pd
-from datetime import datetime
-
+from datetime import datetime, timedelta
 from fastapi import HTTPException, status
 from openpyxl.reader.excel import load_workbook
 from openpyxl.styles import PatternFill, Font, Alignment, Side, Border
 from openpyxl.utils import get_column_letter
 from sqlalchemy import delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
-
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from app.backend.db.table_models import AuthCode
 from app.backend.db.static_info import REGIONS_OF_THE_FILTERS, ALL_REGION_CODES
 from app.backend.db.table_models import Purchase
 from app.backend.parsers.request_archives import get_docs_by_region, download_archive_from_result
 from app.backend.parsers.xml_parser import parse_zip_archive_purchases, parse_zip_archive_protocols
-from app.settings import settings, logger, async_client_fastapi, MOSCOW_TZ
-from typing import Any, Dict
+from app.settings import settings, logger, MOSCOW_TZ
+from typing import Dict
 from app.backend.email.functions import send_email
+from app.backend.api_client import api_datum_query
 
 # Сколько регионов обрабатывать одновременно.
 REGION_CONCURRENCY = 8
@@ -28,22 +27,31 @@ ARCHIVE_CONCURRENCY = 4
 # писать через api_datum_query.
 RECORD_CONCURRENCY = 10
 
+async def set_auth_code(db: AsyncSession, email: str, code: int) -> None:
+    now = datetime.now(MOSCOW_TZ).replace(tzinfo=None)
+    stmt = pg_insert(AuthCode).values(email=email, code=code, created_at=now)
+    stmt = stmt.on_conflict_do_update(
+        index_elements=[AuthCode.email],
+        set_={"code": stmt.excluded.code, "created_at": stmt.excluded.created_at},
+    )
+    await db.execute(stmt)
+    await db.commit()
+
+async def pop_auth_code(db: AsyncSession, email: str) -> int | None:
+    """Достаёт код и сразу удаляет запись — на уровне БД это атомарно."""
+    stmt = delete(AuthCode).where(AuthCode.email == email).returning(AuthCode.code, AuthCode.created_at)
+    row = (await db.execute(stmt)).first()
+    await db.commit()
+    if row is None:
+        return None
+    code, created_at = row
+    if datetime.now(MOSCOW_TZ).replace(tzinfo=None) - created_at > timedelta(minutes=10):
+        return None
+    return code
+
 async def verify_token(token: str):
     if settings.system_token != token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-
-async def load_data(data_file):
-    try:
-        with open(data_file, 'r', encoding='utf-8') as file:
-            return json.load(file)
-    except:
-        return {}
-
-# Сохранение данных
-async def save_data(data_file, data):
-    with open(data_file, 'w', encoding='utf-8') as file:
-        json.dump(data, file, ensure_ascii=False, indent=4)
-
 
 async def delete_expired(db: AsyncSession) -> int:
     today = datetime.now(MOSCOW_TZ).date()
@@ -54,37 +62,6 @@ async def delete_expired(db: AsyncSession) -> int:
     )
     res = await db.execute(stmt)
     return res.rowcount or 0
-
-async def api_datum_query(token: str, endpoint: str, **filters: Any) -> Dict[str, Any]:
-
-    """
-    Асинхронно получает список рассылок с сервера.
-    :param token: токен авторизации
-    :param endpoint:
-    :param filters: произвольные параметры фильтрации (передаются в JSON)
-    :return: ответ сервера (словарь) или None в случае ошибки
-    """
-
-    url = f"{settings.app_url}{settings.app_base}/{endpoint}"
-    payload = {"token": token, **filters}
-    attempts = 0
-    while attempts < settings.retry_count:
-        try:
-            response = await async_client_fastapi.post(url, json=payload)
-            response.raise_for_status()
-            return response.json()
-        except httpx.HTTPStatusError as e:
-            logger.error(f"HTTP error: {e.response.status_code} - {e.response.text}, attempt: {attempts}")
-        except httpx.TimeoutException as e:
-            logger.error(f"Request timed out: {e}, attempt: {attempts}")
-        except Exception as e:
-            logger.error(f"Unexpected error: {e}, attempt: {attempts}")
-
-        attempts += 1
-    else:
-        logger.error(f"All attempts of posting {endpoint} failed at {str(datetime.now(MOSCOW_TZ).isoformat())}")
-        return {}
-
 
 def _build_analysis_workbook(rows, analysis_path) -> None:
     """Синхронная сборка Excel-файла (была телом create_analysis).
@@ -211,7 +188,7 @@ def _status_from_message(message: str) -> str:
 async def _save_purchase_record(purchase: dict, registration_numbers_dict_per_day: dict, record_semaphore: asyncio.Semaphore) -> None:
     async with record_semaphore:
         try:
-            data = await api_datum_query(token=settings.system_token, endpoint="put_purchase", purchase=purchase)
+            data = await api_datum_query(token=settings.system_token, endpoint="put_purchase", **purchase)
             message = data.get("message")
             status = _status_from_message(message)
 
@@ -265,7 +242,7 @@ async def _save_protocol_record(protocol: dict, registration_numbers_dict_per_da
             if database_answer.get("message") == "Purchase not found" and not database_answer.get("data"):
                 try:
                     data = await api_datum_query(
-                        token=settings.system_token, endpoint="put_purchase", protocol=protocol
+                        token=settings.system_token, endpoint="put_purchase", **protocol
                     )
                     message = data.get("message")
                     status = _status_from_message(message)

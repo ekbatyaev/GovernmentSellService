@@ -83,7 +83,8 @@ async def oem_get_model_extraction(message) -> Dict:
         logger.info(fields)
 
     except Exception as e:
-        raise logger.error(f"Ошибка при обработке запроса", e)
+        logger.error(f"Ошибка при обработке запроса", e)
+        raise
     return fields
 
 

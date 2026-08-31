@@ -7,7 +7,7 @@ import uuid
 import zipfile
 from typing import Any, Dict, List, Optional, Tuple
 import xmltodict
-from app.backend.functions import api_datum_query
+from app.backend.api_client import api_datum_query
 from app.settings import settings, logger
 from app.backend.parsers.filters.rosseti import request_filters_rosseti
 from app.backend.parsers.filters.oem import request_filters_oem

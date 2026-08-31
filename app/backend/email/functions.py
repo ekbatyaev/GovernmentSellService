@@ -1,6 +1,6 @@
 import os
 import asyncio
-from app.settings import settings
+from app.settings import settings, logger
 from exchangelib import (Credentials, Account, FileAttachment,
                          Configuration, Message, DELEGATE, HTMLBody)
 
@@ -37,10 +37,11 @@ async def send_email(to_email, subject, body, attachments = None):
                 msg.attach(attachment)
 
         msg.send()
-        print(f"Письмо успешно отправлено через EWS на {to_email}")
+        logger.info(f"Письмо успешно отправлено через EWS на {to_email}")
 
     except Exception as e:
-        raise f"Ошибка EWS: {e}"
+        logger.error(f"Ошибка EWS: {e}")
+        raise
 
 
 if __name__ == "__main__":

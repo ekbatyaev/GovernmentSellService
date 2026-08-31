@@ -65,3 +65,10 @@ class NewsLetter(Base):
         ),
 
     )
+
+class AuthCode(Base):
+    __tablename__ = "auth_codes"
+
+    email = Column(String(255), primary_key=True)
+    code = Column(Integer, nullable=False)
+    created_at = Column(DateTime, nullable=False)
