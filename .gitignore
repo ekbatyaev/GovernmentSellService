@@ -1,0 +1,7 @@
+.env
+.idea
+tests
+certs
+__pycache__/
+*.pyc
+.DS_Store
