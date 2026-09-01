@@ -1,1 +1,6 @@
-frontend/node_modules
+tests
+LICENSE
+README.md
+app/frontend/node_modules
+app/frontend/dist
+.env.example
