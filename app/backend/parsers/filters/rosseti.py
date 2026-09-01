@@ -1,5 +1,6 @@
 import re
 from typing import Dict, Any
+from app.backend.parsers.filters.functions import normalize
 
 # Фильтры в формате регулярных выражений
 
@@ -131,6 +132,9 @@ TARGET_PATTERNS_ROSSETI = [re.compile(p, re.IGNORECASE) for p in TARGET_OBJECT_P
 # Функция фильтрация
 
 def request_filters_rosseti(customer_name, work_name) -> Dict[str, Any]:
+
+    customer_name = normalize(customer_name)
+    work_name = normalize(work_name)
 
     ok_customer = any(p.search(customer_name) for p in FILTERS_PATTERNS_ROSSETI)
     excluded_hard = any(p.search(work_name) for p in JOB_EXCLUDE_HARD_PATTERNS_ROSSETI)

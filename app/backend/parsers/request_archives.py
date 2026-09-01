@@ -59,8 +59,8 @@ def parse_soap_response(xml_text: str) -> dict:
         "ns2:getDocsByOrgRegionResponse", {}
     )
 
-    data_info = main_info_body.get("dataInfo", {})
-    archive_urls = data_info.get("archiveUrl", [])
+    data_info = main_info_body.get("dataInfo") or {}
+    archive_urls = data_info.get("archiveUrl") or []
 
     if isinstance(archive_urls, str):
         archive_urls = [archive_urls]
@@ -176,10 +176,15 @@ async def download_archive_from_result(
         url = archive_url
         req_params = None
     else:
-        if not doc_request_uid or not compound_uid:
-            raise ValueError("Archive info missing (docRequestUid/compoundUid)")
-        url = settings.download_url
-        req_params = {"docRequestUid": doc_request_uid, "compoundUid": compound_uid}
+        try:
+            if not doc_request_uid or not compound_uid:
+                raise ValueError("Archive info missing (docRequestUid/compoundUid)")
+            url = settings.download_url
+            req_params = {"docRequestUid": doc_request_uid, "compoundUid": compound_uid}
+
+        except Exception:
+            logger.exception("Не удалось скачать архив по ссылке %s", archive_url)
+            return None
 
     if not out_file:
         out_file = f"{compound_uid or str(uuid.uuid4())}.zip"
@@ -224,6 +229,7 @@ async def download_archives(archive_urls: list[str]) -> list[str]:
     Возвращает список путей к успешно скачанным файлам (None-результаты отфильтрованы).
     """
     results = await asyncio.gather(
-        *(download_archive_from_result(url) for url in archive_urls)
+        *(download_archive_from_result(u) for u in archive_urls),
+        return_exceptions=True,
     )
-    return [path for path in results if path]
+    results = [r for r in results if not isinstance(r, Exception)]

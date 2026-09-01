@@ -1,10 +1,17 @@
 import os
+import re
 import asyncio
 from app.settings import settings, logger
 from exchangelib import (Credentials, Account, FileAttachment,
                          Configuration, Message, DELEGATE, HTMLBody)
 
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
 async def send_email(to_email, subject, body, attachments = None):
+    if not to_email or not _EMAIL_RE.match(to_email):
+        logger.error(f"Пропускаю отправку — некорректный email: {to_email!r}")
+        return
+
     try:
         creds = Credentials(settings.smtp_user, settings.smtp_password)
         config = Configuration(server=settings.smtp_server, credentials=creds)

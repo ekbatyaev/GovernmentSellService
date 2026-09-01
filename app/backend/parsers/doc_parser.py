@@ -448,7 +448,12 @@ async def download_file(
             response.raise_for_status()
 
             path = download_dir / safe_filename(filename or guess_filename(response, url))
-            expected_size = response.headers.get("Content-Length")
+            content_encoding = (response.headers.get("Content-Encoding") or "").lower()
+            expected_size = (
+                response.headers.get("Content-Length")
+                if content_encoding in ("", "identity")
+                else None
+            )
             written = 0
 
             async with aiofiles.open(path, "wb") as f:
@@ -705,7 +710,7 @@ def classify_document(filename: str, protocol_mode: bool, filter_type: int) -> s
     if protocol_mode and "протокол" in filename.lower() and filter_type in PROTOCOL_EXTRACTORS:
         return TASK_PROTOCOL
 
-    if filter_type == 1 and not protocol_mode and Path(filename).suffix.lower() == ".pdf":
+    if filter_type == 1 and not protocol_mode and Path(filename).suffix.lower() in (".pdf", ".docx", ".doc"):
         return TASK_DESIGNER
 
     if filter_type == 2 and TZ_FILENAME_RE.search(filename):

@@ -164,12 +164,15 @@ async def send_analysis(rows, emails, created, updated, skipped, extra_rows=None
     try:
 
         for email in emails:
-            await send_email(
-                email,
-                subject,
-                html_content,
-                attachments=attachments if (created or updated) else None,
-            )
+            try:
+                await send_email(
+                    email,
+                    subject,
+                    html_content,
+                    attachments=attachments if (created or updated) else None,
+                )
+            except Exception:
+                logger.exception("Pipeline: не удалось отправить письмо на %s", email)
 
     finally:
         for path in attachments:
@@ -222,13 +225,23 @@ async def _save_purchase_record(purchase: dict, registration_numbers_dict_per_da
                 purchase.get("registration_number"),
                 purchase.get("guid"),
             )
-            registration_numbers_dict_per_day[purchase["filter_type_name"]][purchase["region_number"]][
-                "skipped"
-            ].append(purchase["registration_number"])
+
+            filter_type_name = purchase.get("filter_type_name")
+            region_number = purchase.get("region_number")
+            registration_number = purchase.get("registration_number")
+            if filter_type_name and region_number and registration_number:
+                registration_numbers_dict_per_day[filter_type_name][region_number][
+                    "skipped"
+                ].append(registration_number)
+            else:
+                logger.error(
+                    "Pipeline: не удалось учесть запись как skipped — нет ключей | purchase=%s",
+                    purchase,
+                )
 
 
 async def _save_protocol_record(protocol: dict, registration_numbers_dict_per_day: dict, record_semaphore: asyncio.Semaphore) -> None:
-    async with record_semaphore:
+    async with (record_semaphore):
         try:
             database_answer = await api_datum_query(
                 token=settings.system_token,
@@ -239,7 +252,7 @@ async def _save_protocol_record(protocol: dict, registration_numbers_dict_per_da
                 publication_datetime=protocol["publication_datetime"],
             )
 
-            if database_answer.get("message") == "Purchase not found" and not database_answer.get("data"):
+            if database_answer.get("message") == "Purchase not found" or database_answer == {}:
                 try:
                     data = await api_datum_query(
                         token=settings.system_token, endpoint="put_purchase", **protocol
@@ -282,9 +295,18 @@ async def _save_protocol_record(protocol: dict, registration_numbers_dict_per_da
                         protocol.get("registration_number"),
                         protocol.get("guid"),
                     )
-                    registration_numbers_dict_per_day[protocol["filter_type_name"]][protocol["region_number"]][
-                        "skipped"
-                    ].append(protocol["registration_number"])
+                    filter_type_name = protocol.get("filter_type_name")
+                    region_number = protocol.get("region_number")
+                    registration_number = protocol.get("registration_number")
+                    if filter_type_name and region_number and registration_number:
+                        registration_numbers_dict_per_day[filter_type_name][region_number][
+                            "skipped"
+                        ].append(registration_number)
+                    else:
+                        logger.error(
+                            "Pipeline: не удалось учесть запись как skipped — нет ключей | protocol=%s",
+                            protocol,
+                        )
                 # В оригинале здесь стоял `finally: continue` — обработка
                 # записи на этом заканчивалась, до кода ниже (пометка
                 # "updated") очередь не доходила. return делает то же самое.
@@ -306,9 +328,18 @@ async def _save_protocol_record(protocol: dict, registration_numbers_dict_per_da
                 protocol.get("registration_number"),
                 error,
             )
-            registration_numbers_dict_per_day[protocol["filter_type_name"]][protocol["region_number"]][
-                "skipped"
-            ].append(protocol["registration_number"])
+            filter_type_name = protocol.get("filter_type_name")
+            region_number = protocol.get("region_number")
+            registration_number = protocol.get("registration_number")
+            if filter_type_name and region_number and registration_number:
+                registration_numbers_dict_per_day[filter_type_name][region_number][
+                    "skipped"
+                ].append(registration_number)
+            else:
+                logger.error(
+                    "Pipeline: не удалось учесть запись как skipped — нет ключей | purchase=%s",
+                    protocol,
+                )
 
 
 async def _process_purchases_for_region(
@@ -319,12 +350,18 @@ async def _process_purchases_for_region(
     archive_semaphore: asyncio.Semaphore,
     record_semaphore: asyncio.Semaphore,
 ) -> None:
-    result_purchases = await get_docs_by_region(
-        org_region=region,
-        document_type="purchaseNotice",
-        exact_date=date_str,
-        subsystem_type="RI223",
-    )
+    try:
+        result_purchases = await get_docs_by_region(
+            org_region=region,
+            document_type="purchaseNotice",
+            exact_date=date_str,
+            subsystem_type="RI223",
+        )
+
+    except Exception:
+        logger.exception("Pipeline: не удалось получить список закупок | region=%s", region)
+        return
+
     archive_urls_purchases = result_purchases.get("archive_urls", [])
 
     async def _handle_archive(archive_url: str) -> None:
@@ -364,12 +401,16 @@ async def _process_protocols_for_region(
     archive_semaphore: asyncio.Semaphore,
     record_semaphore: asyncio.Semaphore,
 ) -> None:
-    result_protocols = await get_docs_by_region(
-        org_region=region,
-        document_type="purchaseProtocol",
-        exact_date=date_str,
-        subsystem_type="RI223",
-    )
+    try:
+        result_protocols = await get_docs_by_region(
+            org_region=region,
+            document_type="purchaseProtocol",
+            exact_date=date_str,
+            subsystem_type="RI223",
+        )
+    except Exception:
+        logger.exception("Pipeline: не удалось получить список протоколов | region=%s", region)
+        return
     archive_urls_protocols = result_protocols.get("archive_urls", [])
 
     async def _handle_archive(archive_url: str) -> None:

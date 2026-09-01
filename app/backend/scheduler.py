@@ -3,9 +3,10 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from dateutil.relativedelta import relativedelta
 from datetime import datetime, timedelta
-from typing import Dict, Any
+from typing import Dict, Any, List
 from app.settings import logger, settings, MOSCOW_TZ
-from app.backend.functions import process_day, api_datum_query, send_analysis
+from app.backend.functions import process_day, send_analysis
+from app.backend.api_client import api_datum_query
 from app.backend.db.static_info import REGIONS_OF_THE_FILTERS, REGION_CODES_BY_FEDERAL_DISTRICT
 
 scheduler: AsyncIOScheduler | None = None
@@ -83,25 +84,27 @@ async def run_daily_job() -> Dict[str, Any]:
 
         delete_date_to = now - relativedelta(years=1)
 
-        purchases = await api_datum_query(token=settings.system_token,
+        api_response = await api_datum_query(token=settings.system_token,
                                               endpoint="get_all_purchases",
                                               publication_datetime_to = delete_date_to.replace(microsecond=0).isoformat())
 
+        purchases: List = api_response.get("data") or []
+
         count = 0
         for purchase in purchases:
-            try:
-                await api_datum_query(token=settings.system_token,
-                                              endpoint="delete_purchase",
-                                              guid = purchase["guid"])
-                count += 1
-            except Exception as e:
+            api_response = await api_datum_query(token=settings.system_token,
+                                          endpoint="delete_purchase",
+                                          guid = purchase["guid"])
+
+            if api_response == {}:
                 logger.info(
-                    f"При удалении {purchase["guid"]}, произошла ошибка {e}",
+                    f"При удалении {purchase["guid"]}, произошла ошибка",
                 )
                 continue
 
+            count += 1
         logger.info(
-            f"Daily job: успешно удалено {count} заявок"
+            f"Daily job: успешно удалено {count} заявок из {len(purchases)}"
         )
 
         # Рассылка сообщений адрессантам
@@ -136,16 +139,20 @@ async def run_daily_job() -> Dict[str, Any]:
                                          day_result[filter_name][region]["updated"] +
                                          day_result[filter_name][region]["skipped"])
 
-            emails = await api_datum_query(token=settings.system_token,
+            api_response = await api_datum_query(token=settings.system_token,
                                   endpoint="get_all_newsletters",
                                   filter_type_name = filter_name, district_name = district_name)
+
+            emails: List = api_response.get("data") or []
             rows = []
 
             for registration_number in registration_numbers:
 
-                purchase = await api_datum_query(token=settings.system_token,
+                api_response = await api_datum_query(token=settings.system_token,
                                                endpoint="get_purchase",
                                                registration_number = registration_number, filter_type_name = filter_name)
+
+                purchase: Dict = api_response.get("data") or {}
 
                 customer = purchase.get("customer") or {}
                 result_info = purchase.get("result_info") or {}
@@ -177,9 +184,11 @@ async def run_daily_job() -> Dict[str, Any]:
 
             extra_rows = []
 
-            purchases = await api_datum_query(token=settings.system_token,
+            api_response = await api_datum_query(token=settings.system_token,
                                               endpoint="get_all_purchases",
                                               filter_type_name = filter_name, region_number = district_name)
+
+            purchases = api_response.get("data") or []
 
             for purchase in purchases:
 
@@ -233,17 +242,20 @@ async def run_daily_job() -> Dict[str, Any]:
                                          day_result[filter_name][region]["updated"] +
                                          day_result[filter_name][region]["skipped"])
 
-            emails = await api_datum_query(token=settings.system_token,
+            api_response = await api_datum_query(token=settings.system_token,
                                            endpoint="get_all_newsletters",
                                            filter_type_name=filter_name, district_name=district_name)
+            emails: List = api_response.get("data") or []
 
             rows = []
 
             for registration_number in registration_numbers:
 
-                purchase = await api_datum_query(token=settings.system_token,
+                api_response = await api_datum_query(token=settings.system_token,
                                                endpoint="get_purchase",
                                                registration_number = registration_number, filter_type_name = filter_name)
+
+                purchase: Dict = api_response.get("data") or {}
 
                 customer = purchase.get("customer") or {}
 
@@ -299,17 +311,21 @@ async def run_daily_job() -> Dict[str, Any]:
                                          day_result[filter_name][region]["updated"] +
                                          day_result[filter_name][region]["skipped"])
 
-            emails = await api_datum_query(token=settings.system_token,
+            api_response = await api_datum_query(token=settings.system_token,
                                            endpoint="get_all_newsletters",
                                            filter_type_name=filter_name, district_name=district_name)
+
+            emails: List = api_response.get("data") or []
 
             rows = []
 
             for registration_number in registration_numbers:
 
-                purchase = await api_datum_query(token=settings.system_token,
+                api_response = await api_datum_query(token=settings.system_token,
                                                  endpoint="get_purchase",
                                                  registration_number=registration_number, filter_type_name=filter_name)
+
+                purchase: Dict = api_response.get("data") or {}
 
                 customer = purchase.get("customer") or {}
 

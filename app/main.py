@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.backend.scheduler import create_scheduler, run_backfill
 from app.backend.db.settings import init_db, dispose_db
-from app.settings import logger, settings
+from app.settings import logger, settings, BASE_DIR
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -47,7 +47,7 @@ app = FastAPI(title="Zakupki Database API",
 
 app.mount(
     f"{settings.app_base}/assets",
-    StaticFiles(directory="static/assets"),
+    StaticFiles(directory=str(BASE_DIR / "static" / "assets")),
     name="assets",
 )
 

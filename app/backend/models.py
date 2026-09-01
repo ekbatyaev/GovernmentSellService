@@ -33,8 +33,8 @@ class DeletePurchaseModel(BaseModel):
 
 class GetPurchaseModel(BaseModel):
     token: str
-    registration_number: str
-    filter_type_name: str
+    registration_number: Optional[str] = None
+    filter_type_name: Optional[str] = None
     guid: Optional[str] = None
     region_number: Optional[str] = None
 

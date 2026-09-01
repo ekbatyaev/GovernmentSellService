@@ -47,7 +47,6 @@ async def put_purchase(purchase_data: PutPurchaseModel, db: AsyncSession = Depen
     existing_purchase = await db.scalar(query)
 
     if existing_purchase:
-        existing_purchase.guid = purchase_data.guid
         existing_purchase.registration_number = purchase_data.registration_number
         existing_purchase.name = purchase_data.name
         existing_purchase.source_file = purchase_data.source_file
@@ -65,7 +64,12 @@ async def put_purchase(purchase_data: PutPurchaseModel, db: AsyncSession = Depen
         existing_purchase.filter_type_name = purchase_data.filter_type_name
         existing_purchase.region_number = purchase_data.region_number
 
-        await db.commit()
+        try:
+            await db.commit()
+        except IntegrityError:
+            await db.rollback()
+            raise HTTPException(status_code=400, detail="Failed to update purchase")
+
         await db.refresh(existing_purchase)
 
         return SuccessResponseModel(

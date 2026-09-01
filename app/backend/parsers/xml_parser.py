@@ -90,18 +90,22 @@ def _extract_documents(attachments: dict) -> list:
             document = None
     document = _ensure_list(document)
     return [
-        {"filename": doc["fileName"], "description": doc["description"], "url": doc["url"]}
+        {
+            "filename": doc.get("fileName", ""),
+            "description": doc.get("description", ""),
+            "url": doc.get("url", ""),
+        }
         for doc in document
     ]
 
 
 def _normalize_protocol(data: dict) -> dict:
 
-    body = data.get("purchaseProtocol", {}).get("body", {})
+    body = (data.get("purchaseProtocol") or {}).get("body") or {}
     item = body.get("item", {}) or {}
     protocol = item.get("purchaseProtocolData", {}) or {}
     purchase_info = protocol.get("purchaseInfo", {}) or {}
-    lots_protocol_info = protocol.get("lotApplicationsList", {}).get("protocolLotApplications", {}) or {}
+    lots_protocol_info = (protocol.get("lotApplicationsList") or {}).get("protocolLotApplications") or {}
 
     result = {}
 
@@ -174,7 +178,7 @@ def _normalize_protocol(data: dict) -> dict:
 
 def _normalize_purchase(data: dict) -> dict:
 
-    body = data.get("purchaseNotice", {}).get("body", {})
+    body = (data.get("purchaseNotice", {})).get("body", {})
     item = body.get("item", {}) or {}
     notice = item.get("purchaseNoticeData", {}) or {}
     documentation_delivery = notice.get("documentationDelivery", {}) or {}
@@ -276,7 +280,7 @@ def _read_and_parse_xml(archive: zipfile.ZipFile, file_name: str) -> dict:
 
 async def _query_purchase_with_timeout(*, registration_number, filter_type_name) -> Optional[dict]:
     try:
-        return await asyncio.wait_for(
+        return (await asyncio.wait_for(
             api_datum_query(
                 token=settings.system_token,
                 endpoint="get_purchase",
@@ -284,7 +288,7 @@ async def _query_purchase_with_timeout(*, registration_number, filter_type_name)
                 filter_type_name=filter_type_name,
             ),
             timeout=API_TIMEOUT_SECONDS,
-        )
+        )).get("data") or {}
     except asyncio.TimeoutError:
         logger.warning(
             "Таймаут get_purchase | reg=%s | filter=%s", registration_number, filter_type_name
@@ -433,9 +437,10 @@ async def _process_purchase_entry(
                 documents_list = purchase.get("documents_list") or []
 
                 match = re.search(r"для нужд\s+([^.,()\-–—]+)", entry["name"] or "", re.IGNORECASE)
-                if match:
-                    value = match.group(1).strip()
-                    first_word = value.split()[0]
+                value = match.group(1).strip() if match else ""
+                words = value.split()
+                if words:
+                    first_word = words[0]
                     result_info["Филиал/РЭС"] = value if len(first_word) > 4 else first_word
                 else:
                     result_info["Филиал/РЭС"] = None
