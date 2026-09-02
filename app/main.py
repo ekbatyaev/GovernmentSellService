@@ -1,4 +1,5 @@
 import traceback
+import logging
 import os
 from contextlib import asynccontextmanager
 import uvicorn
@@ -7,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.backend.scheduler import create_scheduler, run_backfill
 from app.backend.db.settings import init_db, dispose_db
-from app.settings import logger, settings, BASE_DIR
+from app.settings import logger, settings, BASE_DIR, file_handler
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -27,6 +28,9 @@ async def lifespan(app: FastAPI):
             await run_backfill(settings.backfill_days)
 
         os.makedirs(settings.tmp_dir, exist_ok=True)
+
+        for uvicorn_logger_name in ("uvicorn.error", "uvicorn.access"):
+            logging.getLogger(uvicorn_logger_name).addHandler(file_handler)
 
         logger.info("Startup complete (db + scheduler)")
 

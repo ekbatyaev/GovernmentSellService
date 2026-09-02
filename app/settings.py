@@ -1,3 +1,4 @@
+from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 from zoneinfo import ZoneInfo
 import httpx
@@ -12,10 +13,30 @@ MOSCOW_TZ = ZoneInfo("Europe/Moscow")
 BASE_DIR = Path(__file__).resolve().parent.parent
 ENV_PATH = BASE_DIR / ".env"
 
+LOG_DIR = BASE_DIR / "logs"
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+_log_formatter = logging.Formatter(
+    "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+)
+
+stream_handler = logging.StreamHandler(sys.stdout)
+stream_handler.setFormatter(_log_formatter)
+
+file_handler = TimedRotatingFileHandler(
+    LOG_DIR / "app.log",
+    when="midnight",
+    interval=1,
+    backupCount=14,
+    encoding="utf-8",
+)
+
+file_handler.setFormatter(_log_formatter)
+
+
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
-    stream=sys.stdout,
+    handlers=[stream_handler, file_handler],
     force=True,
 )
 
