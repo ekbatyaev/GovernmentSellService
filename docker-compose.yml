@@ -29,6 +29,8 @@ services:
       - "8002:8000"
     environment:
       TZ: Europe/Moscow
+    volumes:
+      - ./logs:/app/logs
 
 volumes:
   postgres_data:
