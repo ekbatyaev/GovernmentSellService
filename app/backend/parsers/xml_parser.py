@@ -416,17 +416,6 @@ async def _process_purchase_entry(
         ])
 
         for (filter_type, filter_type_name), purchase in zip(candidates, purchases):
-            if not purchase:
-                # В оригинале этой проверки не было для purchases-версии — при
-                # None это падало с AttributeError на purchase.get(...) и
-                # маскировалось общим except. См. пункт 6 в шапке файла.
-                logger.info(
-                    "Закупка прошла фильтр, но не найдена в БД | reg=%s | filter=%s",
-                    normalized.get("registration_number"),
-                    filter_type_name,
-                )
-                continue
-
             entry = copy.deepcopy(normalized)
             entry["guid"] = str(uuid.uuid4())
             entry["region_number"] = region

@@ -27,6 +27,7 @@ kreuzberg==4.10.2
 # === Планировщик / время ===
 apscheduler==3.11.3
 python-dateutil==2.9.0.post0
+aiolimiter==1.3.0
 # === Почта ===
 exchangelib==5.6.0
 

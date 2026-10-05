@@ -11,6 +11,7 @@ from collections import OrderedDict
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
 from urllib.parse import unquote, urlparse
+from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 import aiofiles
 import httpx
@@ -25,7 +26,7 @@ from kreuzberg import (
     extract_file,
     render_pdf_page,
 )
-
+from aiolimiter import AsyncLimiter
 from app.backend.ai.functions.itm_protocol_extractor import itm_get_model_extraction
 from app.backend.ai.functions.oem_protocol_extractor import oem_get_model_extraction
 from app.backend.ai.functions.rosseti_protocol_extractor import rosseti_get_model_extraction
@@ -34,6 +35,8 @@ from app.settings import logger
 # =========================
 # Конфигурация
 # =========================
+
+filestore_limiter = AsyncLimiter(max_rate=1, time_period = 2)
 
 CONNECT_TIMEOUT = 15
 READ_TIMEOUT = 90
@@ -427,7 +430,46 @@ def guess_filename(response: httpx.Response, url: str, fallback: str = "download
     content_type = (response.headers.get("Content-Type") or "").split(";")[0].strip().lower()
     return safe_filename(fallback + (mimetypes.guess_extension(content_type) or ""))
 
+def _is_retryable_download_error(exc: BaseException) -> bool:
+    """Повторяем 429, 5xx и сетевые сбои. Остальные 4xx повторять бессмысленно."""
+    if isinstance(exc, httpx.HTTPStatusError):
+        status = exc.response.status_code
+        return status == 429 or status >= 500
+    return isinstance(exc, httpx.TransportError)
 
+
+_fallback_wait = wait_exponential(multiplier=2, min=5, max=120)
+
+
+def _wait_retry_after(retry_state) -> float:
+    """При 429 ждём столько, сколько просит сервер в Retry-After, иначе растущая пауза."""
+    exc = retry_state.outcome.exception()
+    if isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code == 429:
+        retry_after = exc.response.headers.get("Retry-After", "")
+        if retry_after.isdigit():
+            return min(int(retry_after), 300)
+    return _fallback_wait(retry_state)
+
+
+def _log_download_retry(retry_state) -> None:
+    logger.warning(
+        "DOWNLOAD RETRY | %s",
+        format_log_kv(
+            task_id=retry_state.kwargs.get("task_id"),
+            url=retry_state.kwargs.get("url"),
+            attempt=retry_state.attempt_number,
+            sleep=f"{retry_state.next_action.sleep:.0f}s",
+            error=str(retry_state.outcome.exception()),
+        ),
+    )
+
+@retry(
+    retry=retry_if_exception(_is_retryable_download_error),
+    stop=stop_after_attempt(5),
+    wait=_wait_retry_after,
+    before_sleep=_log_download_retry,
+    reraise=True,
+)
 async def download_file(
     url: str,
     download_dir: str | Path,
@@ -444,23 +486,24 @@ async def download_file(
     )
 
     async with _download_semaphore:
-        async with client.stream("GET", url) as response:
-            response.raise_for_status()
+        async with filestore_limiter:
+            async with client.stream("GET", url) as response:
+                response.raise_for_status()
 
-            path = download_dir / safe_filename(filename or guess_filename(response, url))
-            content_encoding = (response.headers.get("Content-Encoding") or "").lower()
-            expected_size = (
-                response.headers.get("Content-Length")
-                if content_encoding in ("", "identity")
-                else None
-            )
-            written = 0
+                path = download_dir / safe_filename(filename or guess_filename(response, url))
+                content_encoding = (response.headers.get("Content-Encoding") or "").lower()
+                expected_size = (
+                    response.headers.get("Content-Length")
+                    if content_encoding in ("", "identity")
+                    else None
+                )
+                written = 0
 
-            async with aiofiles.open(path, "wb") as f:
-                async for chunk in response.aiter_bytes(CHUNK_SIZE):
-                    if chunk:
-                        await f.write(chunk)
-                        written += len(chunk)
+                async with aiofiles.open(path, "wb") as f:
+                    async for chunk in response.aiter_bytes(CHUNK_SIZE):
+                        if chunk:
+                            await f.write(chunk)
+                            written += len(chunk)
 
     if expected_size:
         try:

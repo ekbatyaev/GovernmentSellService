@@ -12,17 +12,18 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from app.backend.db.table_models import AuthCode
 from app.backend.db.static_info import REGIONS_OF_THE_FILTERS, ALL_REGION_CODES
 from app.backend.db.table_models import Purchase
-from app.backend.parsers.request_archives import get_docs_by_region, download_archive_from_result
+from app.backend.parsers.request_archives import get_docs_by_region, download_archive_from_result, RateLimitExceeded, ServiceError
 from app.backend.parsers.xml_parser import parse_zip_archive_purchases, parse_zip_archive_protocols
 from app.settings import settings, logger, MOSCOW_TZ
 from typing import Dict
 from app.backend.email.functions import send_email
 from app.backend.api_client import api_datum_query
+from aiolimiter import AsyncLimiter
 
 # Сколько регионов обрабатывать одновременно.
-REGION_CONCURRENCY = 8
+REGION_CONCURRENCY = 4
 # Сколько архивов (суммарно по всем регионам) скачивать и парсить одновременно.
-ARCHIVE_CONCURRENCY = 4
+ARCHIVE_CONCURRENCY = 8
 # Сколько записей (purchase/protocol, суммарно по всем архивам) одновременно
 # писать через api_datum_query.
 RECORD_CONCURRENCY = 10
@@ -54,7 +55,7 @@ async def verify_token(token: str):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
 async def delete_expired(db: AsyncSession) -> int:
-    today = datetime.now(MOSCOW_TZ).date()
+    today = datetime.now(MOSCOW_TZ).replace(tzinfo=None).date()
     stmt = (
         delete(Purchase)
         .where(Purchase.submission_close_datetime.isnot(None))
@@ -157,7 +158,7 @@ async def send_analysis(rows, emails, created, updated, skipped, extra_rows=None
         await create_analysis(extra_rows, analysis_path=path_name_extra)
         attachments.append(path_name_extra)
 
-    now = datetime.now(MOSCOW_TZ)
+    now = datetime.now(MOSCOW_TZ).replace(tzinfo=None)
 
     subject = f"Заявки с госзакупок за {now.strftime('%d.%m.%Y')}"
 
@@ -349,18 +350,22 @@ async def _process_purchases_for_region(
     registration_numbers_dict_per_day: dict,
     archive_semaphore: asyncio.Semaphore,
     record_semaphore: asyncio.Semaphore,
+    attempts: int = 3
 ) -> None:
-    try:
-        result_purchases = await get_docs_by_region(
-            org_region=region,
-            document_type="purchaseNotice",
-            exact_date=date_str,
-            subsystem_type="RI223",
-        )
+    result_purchases = {}
 
-    except Exception:
-        logger.exception("Pipeline: не удалось получить список закупок | region=%s", region)
-        return
+    for attempt in range(1, attempts + 1):
+        try:
+            result_purchases = await get_docs_by_region(
+                org_region=region,
+                document_type="purchaseNotice",
+                exact_date=date_str,
+                subsystem_type="RI223",
+            )
+            break
+        except Exception as e:
+            logger.exception(f"Pipeline: не удалось получить список закупок | region={region}\nОшибка при попытке №{attempt}:\n{e}")
+            return
 
     archive_urls_purchases = result_purchases.get("archive_urls", [])
 
@@ -400,17 +405,23 @@ async def _process_protocols_for_region(
     registration_numbers_dict_per_day: dict,
     archive_semaphore: asyncio.Semaphore,
     record_semaphore: asyncio.Semaphore,
+    attempts: int = 3
 ) -> None:
-    try:
-        result_protocols = await get_docs_by_region(
-            org_region=region,
-            document_type="purchaseProtocol",
-            exact_date=date_str,
-            subsystem_type="RI223",
-        )
-    except Exception:
-        logger.exception("Pipeline: не удалось получить список протоколов | region=%s", region)
-        return
+    result_protocols = {}
+
+    for attempt in range(1, attempts + 1):
+        try:
+            result_protocols = await get_docs_by_region(
+                org_region=region,
+                document_type="purchaseProtocol",
+                exact_date=date_str,
+                subsystem_type="RI223",
+            )
+            break
+        except Exception as e:
+            logger.exception(f"Pipeline: не удалось получить список протоколов | region={region}\nОшибка при попытке №{attempt}:\n{e}")
+            return
+
     archive_urls_protocols = result_protocols.get("archive_urls", [])
 
     async def _handle_archive(archive_url: str) -> None:
