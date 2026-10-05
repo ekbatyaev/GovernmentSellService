@@ -6,6 +6,7 @@ from urllib.parse import urlparse, parse_qs
 import aiofiles
 import httpx
 import xmltodict
+from aiolimiter import AsyncLimiter
 from tenacity import (
     retry,
     retry_if_exception,
@@ -13,7 +14,23 @@ from tenacity import (
     wait_exponential,
 )
 
-from app.settings import settings, logger,MOSCOW_TZ
+from app.settings import settings, logger, MOSCOW_TZ
+from app.backend.parsers.models import ParseSoapResponse
+
+soap_rate_limiter = AsyncLimiter(max_rate=1, time_period=60 / 80)
+
+
+class ServiceError(Exception):
+    """Сервис вернул ошибку в теле ответа."""
+
+    def __init__(self, code, message):
+        self.code = code
+        self.message = message
+        super().__init__(f"Код ошибки: {code}. Текст ошибки: {message}")
+
+
+class RateLimitExceeded(ServiceError):
+    """Превышен лимит запросов к сервису (код 13)."""
 
 async_client = httpx.AsyncClient(timeout=30)
 
@@ -53,7 +70,7 @@ def _log_retry(retry_state) -> None:
         exc,
     )
 
-def parse_soap_response(xml_text: str) -> dict:
+def parse_soap_response(xml_text: str) -> ParseSoapResponse:
     data = xmltodict.parse(xml_text)
     main_info_body = data.get("soap:Envelope", {}).get("soap:Body", {}).get(
         "ns2:getDocsByOrgRegionResponse", {}
@@ -62,10 +79,12 @@ def parse_soap_response(xml_text: str) -> dict:
     data_info = main_info_body.get("dataInfo") or {}
     archive_urls = data_info.get("archiveUrl") or []
 
+    error_info = data_info.get("errorInfo") or {}
+
     if isinstance(archive_urls, str):
         archive_urls = [archive_urls]
 
-    return {"archive_urls": archive_urls}
+    return ParseSoapResponse(archive_urls = archive_urls, **error_info)
 
 
 # ---------------------------------------------------------------------------
@@ -84,17 +103,26 @@ async def soap_post(envelope_xml: str) -> dict:
         "Content-Type": "text/xml; charset=utf-8",
         "individualPerson_token": settings.token,
     }
-
-    response = await async_client.post(
-        settings.base_url,
-        content=envelope_xml,
-        headers=headers,
-        timeout=settings.soap_timeout,
-    )
+    async with soap_rate_limiter:
+        response = await async_client.post(
+            settings.base_url,
+            content=envelope_xml,
+            headers=headers,
+            timeout=settings.soap_timeout,
+        )
     response.raise_for_status()
 
     parsed = parse_soap_response(response.text)
-    return {"httpStatus": response.status_code, **parsed}
+
+    if parsed.message or parsed.code:
+        logger.error(f"Обнаружена ошибка при получении данных с сервиса, ответ сервиса:\nКод ошибки:{parsed.code}\n"
+                     f"Текст ошибки: {parsed.message}\n")
+        if parsed.code == 13:
+            raise RateLimitExceeded(parsed.code, parsed.message)
+        raise ServiceError(parsed.code, parsed.message)
+
+
+    return {"httpStatus": response.status_code, **(parsed.model_dump())}
 
 
 async def get_docs_by_region(
@@ -102,6 +130,7 @@ async def get_docs_by_region(
     document_type: str,
     exact_date: str | None = None,
     subsystem_type: str = "RI223",
+    attempts: int = 3
 ) -> dict:
     exact_date = exact_date or (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
 
@@ -114,7 +143,7 @@ async def get_docs_by_region(
       <ws:getDocsByOrgRegionRequest>
          <index>
             <id>{str(uuid.uuid4())}</id>
-            <createDateTime>{datetime.now(MOSCOW_TZ).strftime("%Y-%m-%dT%H:%M:%S")}</createDateTime>
+            <createDateTime>{datetime.now(MOSCOW_TZ).replace(tzinfo=None).strftime("%Y-%m-%dT%H:%M:%S")}</createDateTime>
             <mode>PROD</mode>
          </index>
          <selectionParams>
@@ -131,7 +160,22 @@ async def get_docs_by_region(
 """.strip()
 
     logger.info("Запрос закупок | region=%s date=%s", org_region, exact_date)
-    return await soap_post(envelope)
+    soap_post_response = {}
+    for attempt in range(1, attempts + 1):
+        try:
+            soap_post_response = await soap_post(envelope)
+            break
+        except RateLimitExceeded as e:
+            logger.warning(
+                f"Превышен лимит запросов, ждём {settings.download_timeout} с, попытка №{attempt}"
+                f"Ошибка: {e}"
+            )
+            await asyncio.sleep(settings.download_timeout)
+        except ServiceError as e:
+            logger.error(
+                f"Ошибка: {e}, попытка №{attempt}"
+            )
+    return soap_post_response
 
 
 # ---------------------------------------------------------------------------

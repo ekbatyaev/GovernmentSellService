@@ -38,12 +38,12 @@ def _parse_dt(value):
     return None
 
 def moscow_datetime() -> datetime:
-    return datetime.now(MOSCOW_TZ)
+    return datetime.now(MOSCOW_TZ).replace(tzinfo=None)
 
 
 async def run_daily_job() -> Dict[str, Any]:
 
-    logger.info(f"Daily job started at{moscow_datetime().isoformat()}")
+    logger.info(f"Daily job started at {moscow_datetime().strftime("%d.%m.%Y %H:%M:%S")}")
     try:
         yesterday = (moscow_datetime() - timedelta(days=1)).date()
         date_string = yesterday.strftime("%Y-%m-%d")

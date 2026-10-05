@@ -30,7 +30,7 @@ services:
     environment:
       TZ: Europe/Moscow
     volumes:
-      - ./logs:/app/logs
+      - ./logs-srv:/app/logs-srv
 
 volumes:
   postgres_data:

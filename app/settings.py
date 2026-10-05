@@ -5,6 +5,8 @@ import httpx
 from pydantic_settings import BaseSettings, SettingsConfigDict
 import logging
 import sys
+from pydantic import Field
+from datetime import datetime
 
 async_client_fastapi = httpx.AsyncClient(timeout=30)
 
@@ -13,7 +15,7 @@ MOSCOW_TZ = ZoneInfo("Europe/Moscow")
 BASE_DIR = Path(__file__).resolve().parent.parent
 ENV_PATH = BASE_DIR / ".env"
 
-LOG_DIR = BASE_DIR / "logs"
+LOG_DIR = BASE_DIR / "logs-srv"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 _log_formatter = logging.Formatter(
@@ -60,7 +62,7 @@ class Settings(BaseSettings):
     daily_job_hour_msk: int = 10
     daily_job_minute_msk: int = 0
 
-    token: str
+    token: str = Field(repr = False)
     postgres_user: str
     postgres_password: str
     postgres_db: str

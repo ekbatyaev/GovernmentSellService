@@ -1,4 +1,6 @@
 from random import randint
+from time import timezone
+
 from fastapi import Depends, status
 from fastapi.exceptions import HTTPException
 from fastapi.responses import FileResponse
@@ -335,7 +337,7 @@ async def get_statistics(db: AsyncSession = Depends(get_db)):
     return SuccessResponseModel(
         status="success",
         message="Statistics",
-        data={"purchases_count": purchases_count, "timestamp": datetime.now(MOSCOW_TZ).isoformat(),
+        data={"purchases_count": purchases_count, "timestamp": datetime.now(MOSCOW_TZ).replace(tzinfo=None).isoformat(),
               "newsletter_count": newsletter_count, "last_backfill_at": last_backfill_at,
               "last_process_day_at": last_process_day_at})
 
@@ -353,7 +355,7 @@ async def admin_run_process_day(body: AdminProcessDay):
     await verify_token(body.token)
     global last_process_day_at
     date_str = body.date.strftime("%Y-%m-%d")
-    last_process_day_at = datetime.now(MOSCOW_TZ).isoformat()
+    last_process_day_at = datetime.now(MOSCOW_TZ).replace(tzinfo=None).isoformat()
     result = await process_day(date_str, filter_number=body.filter_number)
     # logger.info(result)
     return SuccessResponseModel(status="success", message="Process day finished")
@@ -363,7 +365,7 @@ async def admin_run_process_day(body: AdminProcessDay):
 async def admin_run_backfill(body: AdminBackfillModel):
     await verify_token(body.token)
     global last_backfill_at
-    last_backfill_at = datetime.now(MOSCOW_TZ).isoformat()
+    last_backfill_at = datetime.now(MOSCOW_TZ).replace(tzinfo=None).isoformat()
     result = await run_backfill(days=body.days, filter_number=body.filter_number)
     # logger.info(result)
     return SuccessResponseModel(status="success", message="Backfill finished")
@@ -375,7 +377,7 @@ async def admin_run_process_period_of_type(body: AdminProcessPeriodOfTime):
     global last_process_day_at
     date_from, date_to = body.date_from, body.date_to
     result = []
-    last_process_day_at = datetime.now(MOSCOW_TZ).isoformat()
+    last_process_day_at = datetime.now(MOSCOW_TZ).replace(tzinfo=None).isoformat()
     logger.info(
         "Processing period of time from %s to %s have started",
         date_from.strftime("%Y-%m-%d"),
