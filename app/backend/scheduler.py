@@ -82,7 +82,7 @@ async def run_daily_job() -> Dict[str, Any]:
 
         # Получение старых заявок и их удаление
 
-        delete_date_to = now - relativedelta(years=1)
+        delete_date_to = now - relativedelta(months=6)
 
         api_response = await api_datum_query(token=settings.system_token,
                                               endpoint="get_all_purchases",

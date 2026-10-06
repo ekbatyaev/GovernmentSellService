@@ -68,6 +68,13 @@ def _build_analysis_workbook(rows, analysis_path) -> None:
     """Синхронная сборка Excel-файла (была телом create_analysis).
     Вызывается через asyncio.to_thread, чтобы не блокировать event loop."""
 
+    rows.sort(
+        key=lambda r: r["Дата публикации"] or datetime.min,
+        reverse=True,
+    )
+
+    rows = rows[:50000]
+
     df = pd.DataFrame(rows)
     df.to_excel(analysis_path, index=False)
 
