@@ -1,7 +1,7 @@
 import re
 from typing import Dict, Any
 from app.backend.parsers.filters.functions import matches, normalize
-
+from app.backend.parsers.filters.models import OemFilter
 # Фильтры в формате регулярных выражений
 
 # ------------------------------------------------------------
@@ -256,7 +256,7 @@ EXCLUDE_SOFT_PATTERNS_OEM = [re.compile(p, re.IGNORECASE) for p in FILTERS_EXCLU
 
 # Функция фильтрация
 
-def request_filters_oem(work_name: str, debug: bool = False) -> Dict[str, Any]:
+def request_filters_oem(work_name: str) -> OemFilter:
     """
     Возвращает словарь с решением и сработавшими группами.
     """
@@ -296,16 +296,19 @@ def request_filters_oem(work_name: str, debug: bool = False) -> Dict[str, Any]:
         result = False
         reason = "no_match: нет релевантных маркеров"
 
-    return {
-        "result": result,
-        "reason": reason,
-        "force_exclude": force_exclude,
-        "force_include": force_include,
-        "object": has_object,
-        "component": has_component,
-        "brand": has_brand,
-        "controlled_object": has_electricity_indicators,
-        "exclude_hard": excluded_hard,
-        "exclude_soft": excluded_soft,
-    }
+    return OemFilter(
+        result=result,
+        reason=reason,
+        force_exclude=force_exclude,
+        force_include=force_include,
+        object=has_object,
+        component=has_component,
+        brand=has_brand,
+        controlled_object=has_electricity_indicators,
+        exclude_hard=excluded_hard,
+        exclude_soft=excluded_soft
+    )
+
+if __name__ == "__main__":
+    print(request_filters_oem("Работа"))
 

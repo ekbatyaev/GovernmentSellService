@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
 from urllib.parse import unquote, urlparse
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
+from app.backend.parsers.models import Document
 
 import aiofiles
 import httpx
@@ -60,9 +61,9 @@ PDF_TITLE_PAGE_IMAGE_TEXT_ENABLED = True
 PDF_TITLE_PAGE_RENDER_DPI = 180
 PDF_TITLE_PAGE_IMAGE_TEXT_LANG = "rus+eng"
 
-SUPPORTED_EXTENSIONS = {".txt", ".pdf", ".docx", ".doc", ".xlsx", ".xls"}
+SUPPORTED_EXTENSIONS = {".txt", ".pdf", ".docx", ".doc", ".xlsx", ".xls", ".odt", ".ods"}
 ARCHIVE_EXTENSIONS = {".zip", ".rar"}
-OFFICE_ZIP_EXTENSIONS = {".docx", ".xlsx", ".pptx"}
+OFFICE_ZIP_EXTENSIONS = {".docx", ".xlsx", ".pptx", ".odt", ".ods"}
 
 RAR_PART_RE = re.compile(r"^(?P<base>.+)\.part(?P<part>\d+)\.rar$", re.IGNORECASE)
 RAR_OLDSTYLE_MAIN_RE = re.compile(r"^(?P<base>.+)\.rar$", re.IGNORECASE)
@@ -225,9 +226,25 @@ def get_rar_group_info(filename: str) -> Optional[dict]:
 
     return None
 
+def is_temp_or_junk_file(path: Path) -> bool:
+    """Временные файлы офисных пакетов и мусор из архивов."""
+    name = path.name
+    return (
+        name.startswith("~$")          # MS Office: ~$документ.docx
+        or name.startswith(".~lock.")  # LibreOffice: .~lock.документ.odt#
+        or name.startswith("._")       # macOS AppleDouble из zip
+        or "__MACOSX" in path.parts    # служебная папка macOS в архивах
+    )
 
 def is_office_zip(path: Path) -> bool:
     return path.suffix.lower() in OFFICE_ZIP_EXTENSIONS
+
+
+_ODF_MIMETYPES = {
+    b"application/vnd.oasis.opendocument.text": ".odt",
+    b"application/vnd.oasis.opendocument.spreadsheet": ".ods",
+    b"application/vnd.oasis.opendocument.presentation": ".odp",
+}
 
 
 def guess_extension_from_magic(data: bytes, original_name: str = "") -> Optional[str]:
@@ -238,7 +255,11 @@ def guess_extension_from_magic(data: bytes, original_name: str = "") -> Optional
     if data.startswith(b"Rar!\x1a\x07\x00") or data.startswith(b"Rar!\x1a\x07\x01\x00"):
         return ".rar"
     if data.startswith(b"PK\x03\x04"):
-        for ext in (".docx", ".xlsx", ".pptx"):
+        head = data[:128]
+        for mime, ext in _ODF_MIMETYPES.items():
+            if mime in head:
+                return ext
+        for ext in OFFICE_ZIP_EXTENSIONS:
             if name.endswith(ext):
                 return ext
         return ".zip"
@@ -521,7 +542,7 @@ async def download_file(
     if is_probably_html(head):
         raise RuntimeError("Сервер вернул HTML вместо документа")
 
-    magic_ext = guess_extension_from_magic(head[:16], path.name)
+    magic_ext = guess_extension_from_magic(head, path.name)
     if magic_ext and path.suffix.lower() != magic_ext and not is_rar_part_filename(path.name):
         fixed = path.with_suffix(magic_ext)
         path.rename(fixed)
@@ -727,7 +748,9 @@ async def extract_archive(path: Path, extract_to: Path, task_id: str | None = No
 
 def iter_candidate_files(target: Path) -> Iterable[Path]:
     for p in sorted(target.rglob("*")):
-        if p.is_file() and p.suffix.lower() in (SUPPORTED_EXTENSIONS | ARCHIVE_EXTENSIONS):
+        if not p.is_file() or is_temp_or_junk_file(p):
+            continue
+        if p.suffix.lower() in (SUPPORTED_EXTENSIONS | ARCHIVE_EXTENSIONS):
             yield p
 
 
@@ -753,7 +776,7 @@ def classify_document(filename: str, protocol_mode: bool, filter_type: int) -> s
     if protocol_mode and "протокол" in filename.lower() and filter_type in PROTOCOL_EXTRACTORS:
         return TASK_PROTOCOL
 
-    if filter_type == 1 and not protocol_mode and Path(filename).suffix.lower() in (".pdf", ".docx", ".doc"):
+    if filter_type == 1 and not protocol_mode and Path(filename).suffix.lower() in (".pdf", ".docx", ".doc", ".odt"):
         return TASK_DESIGNER
 
     if filter_type == 2 and TZ_FILENAME_RE.search(filename):
@@ -785,7 +808,7 @@ async def process_text_into_accumulator(
     if not text or not text.strip():
         return False
 
-    filename = str(filename).strip()
+    filename = filename.strip()
 
     if filename in documents_accumulator:
         logger.info(
@@ -992,6 +1015,15 @@ async def read_path_and_merge(
                 await walk(archive)
             return
 
+        if is_temp_or_junk_file(target):
+            logger.info(
+                "READ_PATH SKIP | %s",
+                format_log_kv(task_id=task_id, path=target.name, reason="temp_file"),
+            )
+            stats["skipped"] += 1
+            stats["total"] += 1
+            return
+
         ext = target.suffix.lower()
         try:
             if ext in ARCHIVE_EXTENSIONS and not is_office_zip(target):
@@ -1022,14 +1054,14 @@ async def read_path_and_merge(
 # Многотомные RAR
 # =========================
 
-def group_attached_files(attached_files: list) -> list:
+def group_attached_files(attached_files: list[Document]) -> list[dict[str, Document]]:
     single = []
     part_groups: Dict[str, list] = {}
     oldstyle_main: Dict[str, dict] = {}
     oldstyle_subparts: Dict[str, list] = {}
 
     for doc in attached_files:
-        info = get_rar_group_info((doc.get("filename") or "").strip())
+        info = get_rar_group_info((doc.filename).strip())
 
         if not info:
             single.append({"group_type": "single", "doc": doc})
@@ -1116,9 +1148,9 @@ async def process_one_attached_file_and_merge(
         group_type = item["group_type"]
 
         if group_type == "single":
-            doc = item["doc"]
-            source_url = doc["url"]
-            source_name = doc.get("filename") or "file"
+            doc: Document = item["doc"]
+            source_url = doc.url
+            source_name = doc.filename
             task_id = short_id(source_url)
 
             work_dir = ensure_dir(tmp_dir / f"{safe_filename(source_name)}_{stable_id(source_url)}")
@@ -1130,7 +1162,7 @@ async def process_one_attached_file_and_merge(
             target = await download_file(
                 url=source_url,
                 download_dir=work_dir,
-                filename=doc.get("filename"),
+                filename=doc.filename,
                 task_id=task_id,
             )
 

@@ -1,10 +1,11 @@
 import re
-from typing import Union, Dict, Any
 from app.backend.parsers.filters.functions import matches, normalize
+from app.backend.parsers.models import Lot, Item
+from app.backend.parsers.filters.models import ItmFilter
 
 # Фильтры для ITCLG сектора
 
-TARGET_CODES_ITCLG = [
+TARGET_CODES_ITCLG = {
     "28.25.13.110",
     "28.25.13.130",
     "28.25.14.110",
@@ -12,7 +13,7 @@ TARGET_CODES_ITCLG = [
     "26.20.40.110",
     "43.22.12.120",
     "33.12.18.000",
-]
+}
 
 FILTERS_COMPONENTS_ITCLG = [
     # Группа А: Типы кондиционеров
@@ -66,7 +67,7 @@ FILTERS_WORK_PATTERNS_ITCLG = [re.compile(p, re.IGNORECASE) for p in FILTERS_WOR
 
 # Функция фильтрация
 
-def request_filters_itclg(text: str, lots: list, debug: bool = False) -> Union[bool, Dict[str, Any]]:
+def request_filters_itclg(text: str, lots: list[Lot]) -> ItmFilter:
     """
     Возвращает True, если закупка проходит любой из фильтров,
     возвращая при этом номер категории.
@@ -95,30 +96,27 @@ def request_filters_itclg(text: str, lots: list, debug: bool = False) -> Union[b
         result = False
         reason = "no_match: нет релевантных маркеров по ITCLG"
 
-    if debug:
-        return {
-            "result": result,
-            "reason": reason,
-            "filter_name": "ITCLG",
-            "component": has_component,
-            "brand": has_brand,
-            "work_patterns": has_work_patterns,
-            "normalized_text": text,
-        }
-
-    return {"result": result, "filter_name": "ITCLG"}
+    return ItmFilter(
+        result = result,
+        reason = reason,
+        filter_name = "ITCLG",
+        component = has_component,
+        brand = has_brand,
+        work_patterns = has_work_patterns,
+        normalized_text = text
+    )
 
 
 # Фильтры для ITRAA сектора
 
-TARGET_CODES_ITRAA = [
+TARGET_CODES_ITRAA = {
     "26.20.40.110",
     "27.33.13.130",
     "27.12.11.000",
     "26.20.40.190",
     "25.11.23.119",
     "32.99.59.000",
-]
+}
 
 FILTERS_COMPONENTS_ITRAA = [
     # Группа А: Монтажные шкафы, стойки и конструктивы (Линейка Uniprom Rack)
@@ -171,7 +169,7 @@ FILTERS_WORK_PATTERNS_ITRAA = [re.compile(p, re.IGNORECASE) for p in FILTERS_WOR
 
 # Функция фильтрация
 
-def request_filters_itraa(text: str, lots: list, debug: bool = False) -> Union[bool, Dict[str, Any]]:
+def request_filters_itraa(text: str, lots: list) -> ItmFilter:
     """
     Возвращает True, если закупка проходит любой из фильтров,
     возвращая при этом номер категории.
@@ -200,29 +198,26 @@ def request_filters_itraa(text: str, lots: list, debug: bool = False) -> Union[b
         result = False
         reason = "no_match: нет релевантных маркеров по ITRAA"
 
-    if debug:
-        return {
-            "result": result,
-            "reason": reason,
-            "filter_name": "ITRAA",
-            "component": has_component,
-            "brand": has_brand,
-            "work_patterns": has_work_patterns,
-            "normalized_text": text,
-        }
-
-    return {"result": result, "filter_name": "ITRAA"}
+    return ItmFilter(
+        result=result,
+        reason=reason,
+        filter_name="ITRAA",
+        component=has_component,
+        brand=has_brand,
+        work_patterns=has_work_patterns,
+        normalized_text=text
+    )
 
 
 # Фильтры для ITDIG сектора
 
-TARGET_CODES_ITDIG = [
+TARGET_CODES_ITDIG = {
     "26.51.70.190",
     "26.51.51.130",
     "58.29.29.000",
     "26.30.50.000",
-    "26.51.43.120",
-]
+    "26.51.43.120"
+}
 
 FILTERS_COMPONENTS_ITDIG = [
     # Группа А: Мониторинг микроклимата и окружающей среды (Линейка SystemeBotz)
@@ -277,7 +272,7 @@ FILTERS_WORK_PATTERNS_ITDIG = [re.compile(p, re.IGNORECASE) for p in FILTERS_WOR
 
 # Функция фильтрация
 
-def request_filters_itdig(text: str, lots: list, debug: bool = False) -> Union[bool, Dict[str, Any]]:
+def request_filters_itdig(text: str, lots: list) -> ItmFilter:
     """
     Возвращает True, если закупка проходит любой из фильтров,
     возвращая при этом номер категории.
@@ -306,30 +301,27 @@ def request_filters_itdig(text: str, lots: list, debug: bool = False) -> Union[b
         result = False
         reason = "no_match: нет релевантных маркеров по ITDIG"
 
-    if debug:
-        return {
-            "result": result,
-            "reason": reason,
-            "filter_name": "ITDIG",
-            "component": has_component,
-            "brand": has_brand,
-            "work_patterns": has_work_patterns,
-            "normalized_text": text,
-        }
-
-    return {"result": result, "filter_name": "ITDIG"}
+    return ItmFilter(
+        result=result,
+        reason=reason,
+        filter_name="ITDIG",
+        component=has_component,
+        brand=has_brand,
+        work_patterns=has_work_patterns,
+        normalized_text=text
+    )
 
 
 # Фильтры для IT3PH сектора
 
-TARGET_CODES_IT3PH = [
+TARGET_CODES_IT3PH = {
     "26.20.40.110",
     "27.90.40.110",
     "27.20.22.000",
     "27.20.23.000",
     "26.12.30.000",
-    "33.12.18.000",
-]
+    "33.12.18.000"
+}
 
 FILTERS_COMPONENTS_IT3PH = [
     # Группа А: Общетехнические названия ИБП и систем питания
@@ -379,7 +371,7 @@ FILTERS_WORK_PATTERNS_IT3PH = [re.compile(p, re.IGNORECASE) for p in FILTERS_WOR
 
 # Функция фильтрация
 
-def request_filters_it3ph(text: str, lots: list, debug: bool = False) -> Union[bool, Dict[str, Any]]:
+def request_filters_it3ph(text: str, lots: list) -> ItmFilter:
     """
     Возвращает True, если закупка проходит любой из фильтров,
     возвращая при этом номер категории.
@@ -408,32 +400,28 @@ def request_filters_it3ph(text: str, lots: list, debug: bool = False) -> Union[b
         result = False
         reason = "no_match: нет релевантных маркеров по IT3PH"
 
-    if debug:
-        return {
-            "result": result,
-            "reason": reason,
-            "filter_name": "IT3PH",
-            "component": has_component,
-            "brand": has_brand,
-            "work_patterns": has_work_patterns,
-            "normalized_text": text,
-        }
-
-    return {"result": result, "filter_name": "IT3PH"}
+    return ItmFilter(
+        result=result,
+        reason=reason,
+        filter_name="IT3PH",
+        component=has_component,
+        brand=has_brand,
+        work_patterns=has_work_patterns,
+        normalized_text=text
+    )
 
 
 # Функция поиска совпадений okpd2
 
-def has_okpd2_match(lots, target_codes):
-    target_codes = set(target_codes)
+def has_okpd2_match(lots: list[Lot], target_codes: set):
     for lot in lots:
-        for item in lot.get("items", []):
-            if item.get("okpd2_code") in target_codes:
+        for item in lot.items:
+            if item.okpd2_code in target_codes:
                 return True
     return False
 
 
-def request_filters_itm(work_name: str, lots: list) -> Union[bool, Dict[str, Any]]:
+def request_filters_itm(work_name: str, lots: list[Lot]) -> ItmFilter:
     """
     Возвращает True, если закупка проходит любой из фильтров,
     возвращая при этом номер категории.
@@ -441,22 +429,30 @@ def request_filters_itm(work_name: str, lots: list) -> Union[bool, Dict[str, Any
     text = normalize(work_name)
 
     itclg_filter = request_filters_itclg(text, lots)
-    if itclg_filter["result"]:
+    if itclg_filter.result:
         return itclg_filter
 
     itraa_filter = request_filters_itraa(text, lots)
-    if itraa_filter["result"]:
+    if itraa_filter.result:
         return itraa_filter
 
     itdig_filter = request_filters_itdig(text, lots)
-    if itdig_filter["result"]:
+    if itdig_filter.result:
         return itdig_filter
 
     it3ph_filter = request_filters_it3ph(text, lots)
-    if it3ph_filter["result"]:
+    if it3ph_filter.result:
         return it3ph_filter
 
-    return {"result": False}
+    return ItmFilter(
+        result=False,
+        reason="Ни один из фильтров не прошел",
+        filter_name="",
+        component=[],
+        brand=[],
+        work_patterns=[],
+        normalized_text=""
+    )
 
 if __name__ == "__main__":
     lots = [
@@ -491,4 +487,7 @@ if __name__ == "__main__":
             ]
         }
         ]
-    print(request_filters_itm("прецизионый кондиционер", lots=lots))
+    Lots = [Lot(guid = lot.get("guid"), ordinal_number = lot.get("ordinal_number"), subject = lot.get("subject"),
+                initial_sum = lot.get("initial_sum"), currency = lot.get("currency"),
+                items = [Item(**item) for item in lot.get("items")]) for lot in lots]
+    print(request_filters_itm("прецизионый кондиционер", Lots))

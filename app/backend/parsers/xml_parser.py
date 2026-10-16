@@ -5,14 +5,15 @@ import os
 import re
 import uuid
 import zipfile
-from typing import Any, Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 import xmltodict
 from app.backend.api_client import api_datum_query
 from app.settings import settings, logger
-from app.backend.parsers.filters.rosseti import request_filters_rosseti
-from app.backend.parsers.filters.oem import request_filters_oem
-from app.backend.parsers.filters.itm import request_filters_itm
+from app.backend.parsers.filters.departments.rosseti import request_filters_rosseti
+from app.backend.parsers.filters.departments.oem import request_filters_oem
+from app.backend.parsers.filters.departments.itm import request_filters_itm
 from app.backend.parsers.doc_parser import process_attached_files_and_merge
+from app.backend.parsers.models import Notice, Customer, Contact, ApplyRequest, Lot, Item, Document
 
 # Регионы для фильтров
 REGIONS_ROSSETI = {
@@ -79,7 +80,7 @@ def _ensure_list(value):
     return [value]
 
 
-def _extract_documents(attachments: dict) -> list:
+def _extract_documents(attachments: dict) -> list[Document]:
     """Общая логика извлечения списка документов из attachments (раньше была
     продублирована по два раза в каждой из _normalize_* функций)."""
     document = (attachments or {}).get("document")
@@ -88,18 +89,18 @@ def _extract_documents(attachments: dict) -> list:
             document = json.loads(document)
         except Exception:
             document = None
+
     document = _ensure_list(document)
-    return [
-        {
-            "filename": doc.get("fileName", ""),
-            "description": doc.get("description", ""),
-            "url": doc.get("url", ""),
-        }
+    return [Document(
+            filename =  doc.get("fileName", ""),
+            description = doc.get("description", ""),
+            url = doc.get("url", "")
+        )
         for doc in document
     ]
 
 
-def _normalize_protocol(data: dict) -> dict:
+def _normalize_protocol(data: dict, file_name: str) -> Notice:
 
     body = (data.get("purchaseProtocol") or {}).get("body") or {}
     item = body.get("item", {}) or {}
@@ -139,9 +140,9 @@ def _normalize_protocol(data: dict) -> dict:
 
     result["attached_files"] = _extract_documents(protocol.get("attachments") or {})
 
-    result["lots"] = []
-
     protocol_lot_applications = _ensure_list(lots_protocol_info)
+
+    Lots: list[Lot] = []
 
     for protocol_lot_application in protocol_lot_applications:
         protocol_lot_application = (
@@ -161,22 +162,22 @@ def _normalize_protocol(data: dict) -> dict:
             except Exception:
                 initial_sum_val = 0.0
 
-            lot_result = {
-                "guid": lot.get("guid", ""),
-                "ordinal_number": lot.get("ordinalNumber", ""),
-                "subject": lot.get("subject", ""),
-                "initial_sum": initial_sum_val,
-                "currency": (lot.get("currency") or {}).get("code", "")
-            }
+            Lots.append(Lot(
+                guid = lot.get("guid", ""),
+                ordinal_number = lot.get("ordinalNumber", ""),
+                subject = lot.get("subject", ""),
+                initial_sum = initial_sum_val,
+                currency = (lot.get("currency") or {}).get("code", "")
+            ))
 
-            result["lots"].append(lot_result)
+    return Notice(**result, customer = Customer(**result.pop("customer")),
+                    contact = Contact(**result.pop("contact")),
+                    apply_request = ApplyRequest(**result.pop("apply_request")),
+                    source_file = file_name,
+                    lots = Lots)
 
-    result["initial_sum"] = sum(float(l.get("initial_sum") or 0) for l in result.get("lots", []))
 
-    return result
-
-
-def _normalize_purchase(data: dict) -> dict:
+def _normalize_purchase(data: dict, file_name: str) -> Notice:
 
     body = (data.get("purchaseNotice", {})).get("body", {})
     item = body.get("item", {}) or {}
@@ -225,49 +226,46 @@ def _normalize_purchase(data: dict) -> dict:
     }
 
     result["attached_files"] = _extract_documents(notice.get("attachments") or {})
-
-    result["lots"] = []
     lots = _ensure_list((notice.get("lots") or {}).get("lot"))
 
+    Lots: list[Lot] = []
     for lot in lots:
         lot = lot or {}
         lot_data = (lot.get("lotData") or {}) if isinstance(lot, dict) else {}
 
-        initial_sum_raw = lot_data.get("initialSum", 0) or lot_data.get("maxContractPrice", 0)
+        initial_sum_raw = lot_data.get("initialSum", 0.0) or lot_data.get("maxContractPrice", 0.0)
         try:
             initial_sum_val = float(initial_sum_raw)
         except Exception:
             initial_sum_val = 0.0
 
-        lot_result = {
-            "guid": lot.get("guid"),
-            "ordinal_number": lot.get("ordinalNumber"),
-            "subject": lot_data.get("subject"),
-            "initial_sum": initial_sum_val,
-            "currency": (lot_data.get("currency") or {}).get("code"),
-            "application_supply_summ": lot_data.get("applicationSupplySumm"),
-            "application_supply_extra": lot_data.get("applicationSupplyExtra"),
-            "completing_supply_summ": (lot_data.get("completingSupplyInfo") or {}).get("sum"),
-            "items": [],
-        }
+        Items: list[Item] = []
 
         lot_items = _ensure_list((lot_data.get("lotItems") or {}).get("lotItem"))
         for it in lot_items:
             it = it or {}
-            lot_result["items"].append(
-                {
-                    "guid": it.get("guid"),
-                    "okpd2_code": (it.get("okpd2") or {}).get("code"),
-                    "okpd2_name": (it.get("okpd2") or {}).get("name"),
-                    "additional_info": it.get("additionalInfo"),
-                }
-            )
+            Items.append(Item(
+                guid = it.get("guid"),
+                okpd2_name = (it.get("okpd2") or {}).get("code"),
+                okpd2_code = (it.get("okpd2") or {}).get("name"),
+                additional_info = it.get("additionalInfo")
+            ))
 
-        result["lots"].append(lot_result)
+        Lots.append(Lot(guid = lot.get("guid"),
+                        ordinal_number = lot.get("ordinalNumber"),
+                        subject = lot_data.get("subject"),
+                        initial_sum = initial_sum_val,
+                        currency = (lot_data.get("currency") or {}).get("code"),
+                        application_supply_summ = lot_data.get("applicationSupplySumm"),
+                        application_supply_extra = lot_data.get("applicationSupplyExtra"),
+                        completing_supply_summ = (lot_data.get("completingSupplyInfo") or {}).get("sum"),
+                        items = Items))
 
-    result["initial_sum"] = sum(float(l.get("initial_sum") or 0) for l in result.get("lots", []))
-    return result
-
+    return Notice(**result, customer = Customer(**result.pop("customer")),
+                    contact = Contact(**result.pop("contact")),
+                    apply_request = ApplyRequest(**result.pop("apply_request")),
+                    source_file = file_name,
+                    lots = Lots)
 
 def _read_and_parse_xml(archive: zipfile.ZipFile, file_name: str) -> dict:
     """Блокирующая часть (чтение из zip + парсинг XML). Вызывается через
@@ -298,31 +296,31 @@ async def _query_purchase_with_timeout(*, registration_number, filter_type_name)
 
 async def _process_protocol_entry(
     archive: zipfile.ZipFile, file_name: str, region: int, filter_number: int
-) -> List[Dict[str, Any]]:
-    entries: List[Dict[str, Any]] = []
+) -> list[Notice]:
+    entries: list[Notice] = []
     try:
         data = await asyncio.to_thread(_read_and_parse_xml, archive, file_name)
-        normalized = _normalize_protocol(data)
-        normalized["source_file"] = file_name
+        Protocol: Notice = _normalize_protocol(data, file_name)
 
-        customer_name = (normalized.get("customer") or {}).get("full_name")
-        work_name = normalized.get("name", "") or ""
+        customer_name = Protocol.customer.full_name
+
+        work_name = Protocol.name
 
         candidates: List[Tuple[int, str]] = []
         if (
             filter_number in (0, 1)
             and REGIONS_ROSSETI.get(region, False)
-            and request_filters_rosseti(customer_name, work_name)["result"]
+            and request_filters_rosseti(customer_name, work_name).result
         ):
             candidates.append((1, "Тендеры для Россетей"))
 
-        if filter_number in (0, 2) and request_filters_oem(work_name)["result"]:
+        if filter_number in (0, 2) and request_filters_oem(work_name).result:
             candidates.append((2, "Тендеры для OEM"))
 
         itm_check = None
         if filter_number in (0, 3):
-            itm_check = request_filters_itm(work_name, normalized["lots"])
-            if itm_check["result"]:
+            itm_check = request_filters_itm(work_name, Protocol.lots)
+            if itm_check.result:
                 candidates.append((3, "Тендеры для ITM"))
 
         if not candidates:
@@ -331,7 +329,7 @@ async def _process_protocol_entry(
         # Независимые обращения к БД — параллельно.
         purchases = await asyncio.gather(*[
             _query_purchase_with_timeout(
-                registration_number=normalized["registration_number"], filter_type_name=name
+                registration_number=Protocol.registration_number, filter_type_name=name
             )
             for _, name in candidates
         ])
@@ -340,35 +338,35 @@ async def _process_protocol_entry(
             if not purchase:
                 logger.info(
                     "Протокол прошёл фильтр, но закупка не найдена в БД | reg=%s | filter=%s",
-                    normalized.get("registration_number"),
+                    Protocol.registration_number,
                     filter_type_name,
                 )
                 continue
 
-            # Отдельная копия на каждый сработавший фильтр — см. пункт 5 в
-            # шапке файла про баг с общим объектом.
-            entry = copy.deepcopy(normalized)
-            entry["guid"] = str(uuid.uuid4())
-            entry["region_number"] = region
-            entry["filter_type_name"] = filter_type_name
+            # Отдельная копия на каждый сработавший фильтр для того чтобы не изменялась
+            # память общих заявок для разных фильтров
+
+            ProtocolDeepCopy: Notice = copy.deepcopy(Protocol)
+            ProtocolDeepCopy.guid= str(uuid.uuid4())
+            ProtocolDeepCopy.region_number = region
+            ProtocolDeepCopy.filter_type_name = filter_type_name
 
             result_info = purchase.get("result_info") or {}
             documents_list = purchase.get("documents_list") or []
 
-            entry["result_info"], entry["documents_list"] = await process_attached_files_and_merge(
-                attached_files=entry["attached_files"],
+            ProtocolDeepCopy.result_info, ProtocolDeepCopy.documents_list= await process_attached_files_and_merge(
+                attached_files=ProtocolDeepCopy.attached_files,
                 tmp_dir=settings.tmp_dir,
                 result_info_old=result_info,
                 documents_list_old=documents_list,
                 protocol_mode=True,
                 filter_type=filter_type,
             )
-            del entry["attached_files"]
 
             if filter_type == 3 and itm_check:
-                entry["result_info"]["Категория заявки"] = itm_check["filter_name"]
+                ProtocolDeepCopy.result_info["Категория заявки"] = itm_check["filter_name"]
 
-            entries.append(entry)
+            entries.append(ProtocolDeepCopy)
 
     except Exception as e:
         logger.exception("Ошибка в файле %s: %s", file_name, e)
@@ -378,31 +376,30 @@ async def _process_protocol_entry(
 
 async def _process_purchase_entry(
     archive: zipfile.ZipFile, file_name: str, region: int, filter_number: int
-) -> List[Dict[str, Any]]:
-    entries: List[Dict[str, Any]] = []
+) -> list[Notice]:
+    entries: list[Notice] = []
     try:
         data = await asyncio.to_thread(_read_and_parse_xml, archive, file_name)
-        normalized = _normalize_purchase(data)
-        normalized["source_file"] = file_name
+        Purchase: Notice = _normalize_purchase(data, file_name)
 
-        customer_name = (normalized.get("customer") or {}).get("full_name")
-        work_name = normalized.get("name", "") or ""
+        customer_name = Purchase.customer.full_name
+        work_name = Purchase.name
 
         candidates: List[Tuple[int, str]] = []
         if (
             filter_number in (0, 1)
             and REGIONS_ROSSETI.get(region, False)
-            and request_filters_rosseti(customer_name, work_name)["result"]
+            and request_filters_rosseti(customer_name, work_name).result
         ):
             candidates.append((1, "Тендеры для Россетей"))
 
-        if filter_number in (0, 2) and request_filters_oem(work_name)["result"]:
+        if filter_number in (0, 2) and request_filters_oem(work_name).result:
             candidates.append((2, "Тендеры для OEM"))
 
         itm_check = None
         if filter_number in (0, 3) :
-            itm_check = request_filters_itm(work_name, normalized["lots"])
-            if itm_check["result"]:
+            itm_check = request_filters_itm(work_name, Purchase.lots)
+            if itm_check.result:
                 candidates.append((3, "Тендеры для ITM"))
 
         if not candidates:
@@ -410,22 +407,22 @@ async def _process_purchase_entry(
 
         purchases = await asyncio.gather(*[
             _query_purchase_with_timeout(
-                registration_number=normalized["registration_number"], filter_type_name=name
+                registration_number = Purchase.registration_number, filter_type_name=name
             )
             for _, name in candidates
         ])
 
         for (filter_type, filter_type_name), purchase in zip(candidates, purchases):
-            entry = copy.deepcopy(normalized)
-            entry["guid"] = str(uuid.uuid4())
-            entry["region_number"] = region
-            entry["filter_type_name"] = filter_type_name
+            PurchaseDeepCopy: Notice = copy.deepcopy(Purchase)
+            PurchaseDeepCopy.guid = str(uuid.uuid4())
+            PurchaseDeepCopy.region_number = region
+            PurchaseDeepCopy.filter_type_name = filter_type_name
 
             if filter_type == 1:
                 result_info = purchase.get("result_info") or {}
                 documents_list = purchase.get("documents_list") or []
 
-                match = re.search(r"для нужд\s+([^.,()\-–—]+)", entry["name"] or "", re.IGNORECASE)
+                match = re.search(r"для нужд\s+([^.,()\-–—]+)", PurchaseDeepCopy.name or "", re.IGNORECASE)
                 value = match.group(1).strip() if match else ""
                 words = value.split()
                 if words:
@@ -434,8 +431,8 @@ async def _process_purchase_entry(
                 else:
                     result_info["Филиал/РЭС"] = None
 
-                entry["result_info"], entry["documents_list"] = await process_attached_files_and_merge(
-                    attached_files=entry["attached_files"],
+                PurchaseDeepCopy.result_info, PurchaseDeepCopy.documents_list = await process_attached_files_and_merge(
+                    attached_files=PurchaseDeepCopy.attached_files,
                     tmp_dir=settings.tmp_dir,
                     result_info_old=result_info,
                     documents_list_old=documents_list,
@@ -446,29 +443,28 @@ async def _process_purchase_entry(
                 result_info = purchase.get("result_info") or {}
                 documents_list = purchase.get("documents_list") or []
 
-                entry["result_info"], entry["documents_list"] = await process_attached_files_and_merge(
-                    attached_files=entry["attached_files"],
+                PurchaseDeepCopy.result_info, PurchaseDeepCopy.documents_list = await process_attached_files_and_merge(
+                    attached_files=PurchaseDeepCopy.attached_files,
                     tmp_dir=settings.tmp_dir,
                     result_info_old=result_info,
                     documents_list_old=documents_list,
                     filter_type=2,
                 )
 
-                if not entry["result_info"].get("Слова маячки в тз"):
-                    entry["result_info"]["Слова маячки в тз"] = "Нету"
+                if not PurchaseDeepCopy.result_info.get("Слова маячки в тз"):
+                    PurchaseDeepCopy.result_info["Слова маячки в тз"] = "Нету"
 
             elif filter_type == 3:
                 # Как и в оригинале: для ITM в purchases-выгрузке данные
                 # берутся из purchase "как есть", без
                 # process_attached_files_and_merge (эта ветка была
                 # закомментирована в исходном коде — сохраняем как есть).
-                entry["result_info"] = purchase.get("result_info") or {}
-                entry["documents_list"] = purchase.get("documents_list") or []
+                PurchaseDeepCopy.result_info = purchase.get("result_info") or {}
+                PurchaseDeepCopy.documents_list = purchase.get("documents_list") or []
                 if itm_check:
-                    entry["result_info"]["Категория заявки"] = itm_check["filter_name"]
+                    PurchaseDeepCopy.result_info["Категория заявки"] = itm_check["filter_name"]
 
-            del entry["attached_files"]
-            entries.append(entry)
+            entries.append(PurchaseDeepCopy)
 
     except Exception as e:
         logger.exception("Ошибка в файле %s: %s", file_name, e)
@@ -476,9 +472,9 @@ async def _process_purchase_entry(
     return entries
 
 
-async def parse_zip_archive_protocols(zip_path: str, region: int, filter_number: int) -> List[Dict[str, Any]]:
+async def parse_zip_archive_protocols(zip_path: str, region: int, filter_number: int) -> list[Notice]:
     zip_path = os.path.abspath(zip_path)
-    all_data: List[Dict[str, Any]] = []
+    all_data: list[Notice] = []
     logger.info("Открываем архив: %s", zip_path)
 
     try:
@@ -488,7 +484,7 @@ async def parse_zip_archive_protocols(zip_path: str, region: int, filter_number:
 
             semaphore = asyncio.Semaphore(MAX_CONCURRENT_FILES)
 
-            async def _bounded(file_name: str) -> List[Dict[str, Any]]:
+            async def _bounded(file_name: str) -> list[Notice]:
                 async with semaphore:
                     return await _process_protocol_entry(archive, file_name, region, filter_number)
 
@@ -503,9 +499,9 @@ async def parse_zip_archive_protocols(zip_path: str, region: int, filter_number:
     return all_data
 
 
-async def parse_zip_archive_purchases(zip_path: str, region: int, filter_number: int) -> List[Dict[str, Any]]:
+async def parse_zip_archive_purchases(zip_path: str, region: int, filter_number: int) -> list[Notice]:
     zip_path = os.path.abspath(zip_path)
-    all_data: List[Dict[str, Any]] = []
+    all_data: list[Notice] = []
     logger.info("Открываем архив: %s", zip_path)
 
     try:
@@ -515,7 +511,7 @@ async def parse_zip_archive_purchases(zip_path: str, region: int, filter_number:
 
             semaphore = asyncio.Semaphore(MAX_CONCURRENT_FILES)
 
-            async def _bounded(file_name: str) -> List[Dict[str, Any]]:
+            async def _bounded(file_name: str) -> list[Notice]:
                 async with semaphore:
                     return await _process_purchase_entry(archive, file_name, region, filter_number)
 
