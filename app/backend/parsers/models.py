@@ -2,7 +2,7 @@ from dataclasses import field
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, computed_field
+from pydantic import BaseModel, computed_field, Field
 
 
 class ParseSoapResponse(BaseModel):
@@ -68,7 +68,7 @@ class Notice(BaseModel):
 
     apply_request: ApplyRequest
 
-    attached_files: list[Document]
+    attached_files: list[Document] = Field(exclude=True)
     lots: list[Lot]
 
     source_file: str

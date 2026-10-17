@@ -1,13 +1,12 @@
 .env
 .idea
-tests
+tests/
 certs
 __pycache__/
 *.pyc
 .DS_Store
 
 # Logs
-logs-srv
 logs-srv
 *.log
 npm-debug.log*

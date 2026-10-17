@@ -12,13 +12,13 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from app.backend.db.table_models import AuthCode
 from app.backend.db.static_info import REGIONS_OF_THE_FILTERS, ALL_REGION_CODES
 from app.backend.db.table_models import Purchase
-from app.backend.parsers.request_archives import get_docs_by_region, download_archive_from_result, RateLimitExceeded, ServiceError
+from app.backend.parsers.request_archives import get_docs_by_region, download_archive_from_result
 from app.backend.parsers.xml_parser import parse_zip_archive_purchases, parse_zip_archive_protocols
 from app.settings import settings, logger, MOSCOW_TZ
 from typing import Dict
 from app.backend.email.functions import send_email
 from app.backend.api_client import api_datum_query
-from aiolimiter import AsyncLimiter
+from app.backend.parsers.models import Notice
 
 # Сколько регионов обрабатывать одновременно.
 REGION_CONCURRENCY = 4
@@ -137,7 +137,7 @@ async def create_analysis(rows, analysis_path):
     try:
         await asyncio.to_thread(_build_analysis_workbook, rows, analysis_path)
     except Exception:
-        logger.info("Произошла ошибка при создании анализа")
+        logger.exception("Pipeline: ошибка при создании анализа | path=%s", analysis_path)
 
 
 async def send_analysis(rows, emails, created, updated, skipped, extra_rows=None, path_name_extra="all_purchases.xlsx"):
@@ -196,47 +196,47 @@ def _status_from_message(message: str) -> str:
     return "skipped"
 
 
-async def _save_purchase_record(purchase: dict, registration_numbers_dict_per_day: dict, record_semaphore: asyncio.Semaphore) -> None:
+async def _save_purchase_record(purchase: Notice, registration_numbers_dict_per_day: dict, record_semaphore: asyncio.Semaphore) -> None:
     async with record_semaphore:
         try:
-            data = await api_datum_query(token=settings.system_token, endpoint="put_purchase", **purchase)
+            data = await api_datum_query(token=settings.system_token, endpoint="put_purchase", **purchase.model_dump(mode = "json"))
             message = data.get("message")
             status = _status_from_message(message)
 
             if status == "updated":
                 logger.info(
                     "Pipeline: обновлена закупка через API | reg=%s | guid=%s",
-                    purchase.get("registration_number"),
-                    purchase.get("guid"),
+                    purchase.registration_number,
+                    purchase.guid,
                 )
             elif status == "created":
                 logger.info(
                     "Pipeline: создана новая закупка через API | reg=%s | guid=%s",
-                    purchase.get("registration_number"),
-                    purchase.get("guid"),
+                    purchase.registration_number,
+                    purchase.guid,
                 )
             else:
                 logger.warning(
                     "Pipeline: неизвестный ответ API | reg=%s | guid=%s | message=%s",
-                    purchase.get("registration_number"),
-                    purchase.get("guid"),
+                    purchase.registration_number,
+                    purchase.guid,
                     message,
                 )
 
-            registration_numbers_dict_per_day[purchase["filter_type_name"]][purchase["region_number"]][status].append(
-                purchase["registration_number"]
+            registration_numbers_dict_per_day[purchase.filter_type_name][purchase.region_number][status].append(
+                purchase.registration_number
             )
 
         except Exception:
             logger.exception(
                 "Pipeline: ошибка сохранения закупки | reg=%s | guid=%s",
-                purchase.get("registration_number"),
-                purchase.get("guid"),
+                purchase.registration_number,
+                purchase.guid,
             )
 
-            filter_type_name = purchase.get("filter_type_name")
-            region_number = purchase.get("region_number")
-            registration_number = purchase.get("registration_number")
+            filter_type_name = purchase.filter_type_name
+            region_number = purchase.region_number
+            registration_number = purchase.registration_number
             if filter_type_name and region_number and registration_number:
                 registration_numbers_dict_per_day[filter_type_name][region_number][
                     "skipped"
@@ -248,22 +248,22 @@ async def _save_purchase_record(purchase: dict, registration_numbers_dict_per_da
                 )
 
 
-async def _save_protocol_record(protocol: dict, registration_numbers_dict_per_day: dict, record_semaphore: asyncio.Semaphore) -> None:
-    async with (record_semaphore):
+async def _save_protocol_record(protocol: Notice, registration_numbers_dict_per_day: dict, record_semaphore: asyncio.Semaphore) -> None:
+    async with record_semaphore:
         try:
             database_answer = await api_datum_query(
                 token=settings.system_token,
                 endpoint="update_purchase",
-                registration_number=protocol["registration_number"],
-                result_info=protocol["result_info"],
-                documents_list=protocol["documents_list"],
-                publication_datetime=protocol["publication_datetime"],
+                registration_number=protocol.registration_number,
+                result_info=protocol.result_info,
+                documents_list=protocol.documents_list,
+                publication_datetime=protocol.publication_datetime,
             )
 
             if database_answer.get("message") == "Purchase not found" or database_answer == {}:
                 try:
                     data = await api_datum_query(
-                        token=settings.system_token, endpoint="put_purchase", **protocol
+                        token=settings.system_token, endpoint="put_purchase", **protocol.model_dump(mode = "json")
                     )
                     message = data.get("message")
                     status = _status_from_message(message)
@@ -271,41 +271,41 @@ async def _save_protocol_record(protocol: dict, registration_numbers_dict_per_da
                     if status == "updated":
                         logger.info(
                             "Pipeline: обновлена закупка через API | reg=%s | guid=%s",
-                            protocol.get("registration_number"),
-                            protocol.get("guid"),
+                            protocol.registration_number,
+                            protocol.guid,
                         )
                     elif status == "created":
                         logger.info(
                             "Pipeline: создана новая закупка через API | reg=%s | guid=%s",
-                            protocol.get("registration_number"),
-                            protocol.get("guid"),
+                            protocol.registration_number,
+                            protocol.guid,
                         )
                     else:
                         logger.warning(
                             "Pipeline: неизвестный ответ API | reg=%s | guid=%s | message=%s",
-                            protocol.get("registration_number"),
-                            protocol.get("guid"),
+                            protocol.registration_number,
+                            protocol.guid,
                             message,
                         )
 
-                    registration_numbers_dict_per_day[protocol["filter_type_name"]][protocol["region_number"]][
+                    registration_numbers_dict_per_day[protocol.filter_type_name][protocol.region_number][
                         status
-                    ].append(protocol["registration_number"])
+                    ].append(protocol.registration_number)
 
-                    logger.info("Create purchase from protocol response.json | %s", database_answer)
+                    logger.info("Create purchase from protocol response.json | %s", data)
                     logger.info(
                         "Pipeline: протокол создал закупку | reg=%s",
-                        protocol["registration_number"],
+                        protocol.registration_number,
                     )
                 except Exception:
                     logger.exception(
                         "Pipeline: ошибка сохранения закупки | reg=%s | guid=%s",
-                        protocol.get("registration_number"),
-                        protocol.get("guid"),
+                        protocol.registration_number,
+                        protocol.guid,
                     )
-                    filter_type_name = protocol.get("filter_type_name")
-                    region_number = protocol.get("region_number")
-                    registration_number = protocol.get("registration_number")
+                    filter_type_name = protocol.filter_type_name
+                    region_number = protocol.region_number
+                    registration_number = protocol.registration_number
                     if filter_type_name and region_number and registration_number:
                         registration_numbers_dict_per_day[filter_type_name][region_number][
                             "skipped"
@@ -315,30 +315,28 @@ async def _save_protocol_record(protocol: dict, registration_numbers_dict_per_da
                             "Pipeline: не удалось учесть запись как skipped — нет ключей | protocol=%s",
                             protocol,
                         )
-                # В оригинале здесь стоял `finally: continue` — обработка
-                # записи на этом заканчивалась, до кода ниже (пометка
-                # "updated") очередь не доходила. return делает то же самое.
+                # Закупки не было — создали через put_purchase и уже учли статус выше.
+                # Дальше идёт ветка "update_purchase прошёл успешно", сюда она не относится.
                 return
 
-            registration_numbers_dict_per_day[protocol["filter_type_name"]][protocol["region_number"]][
+            registration_numbers_dict_per_day[protocol.filter_type_name][protocol.region_number][
                 "updated"
-            ].append(protocol["registration_number"])
+            ].append(protocol.registration_number)
 
             logger.info("Update response.json | %s", database_answer)
             logger.info(
                 "Pipeline: протокол обновил закупку | reg=%s",
-                protocol["registration_number"],
+                protocol.registration_number,
             )
 
-        except Exception as error:
+        except Exception:
             logger.exception(
-                "У заявки не обновились поля | reg=%s | error=%s",
-                protocol.get("registration_number"),
-                error,
+                "Pipeline: ошибка update_purchase для протокола | reg=%s",
+                protocol.registration_number,
             )
-            filter_type_name = protocol.get("filter_type_name")
-            region_number = protocol.get("region_number")
-            registration_number = protocol.get("registration_number")
+            filter_type_name = protocol.filter_type_name
+            region_number = protocol.region_number
+            registration_number = protocol.registration_number
             if filter_type_name and region_number and registration_number:
                 registration_numbers_dict_per_day[filter_type_name][region_number][
                     "skipped"
@@ -370,9 +368,14 @@ async def _process_purchases_for_region(
                 subsystem_type="RI223",
             )
             break
-        except Exception as e:
-            logger.exception(f"Pipeline: не удалось получить список закупок | region={region}\nОшибка при попытке №{attempt}:\n{e}")
-            return
+        except Exception:
+            logger.exception(
+                "Pipeline: не удалось получить список закупок | region=%s | попытка %s/%s",
+                region, attempt, attempts,
+            )
+            if attempt == attempts:
+                return
+            await asyncio.sleep(attempt * 2)
 
     archive_urls_purchases = result_purchases.get("archive_urls", [])
 
@@ -382,7 +385,7 @@ async def _process_purchases_for_region(
                 zip_path_purchases = await download_archive_from_result(archive_url)
 
                 if zip_path_purchases is None:
-                    logger.info("Pipeline: скачивание архива не удалось")
+                    logger.warning("Pipeline: скачивание архива закупок не удалось | region=%s | archive_url=%s", region, archive_url)
                     return
 
                 logger.info("Pipeline: архив закупок скачан: %s", zip_path_purchases)
@@ -425,9 +428,14 @@ async def _process_protocols_for_region(
                 subsystem_type="RI223",
             )
             break
-        except Exception as e:
-            logger.exception(f"Pipeline: не удалось получить список протоколов | region={region}\nОшибка при попытке №{attempt}:\n{e}")
-            return
+        except Exception:
+            logger.exception(
+                "Pipeline: не удалось получить список закупок | region=%s | попытка %s/%s",
+                region, attempt, attempts,
+            )
+            if attempt == attempts:
+                return
+            await asyncio.sleep(attempt * 2)
 
     archive_urls_protocols = result_protocols.get("archive_urls", [])
 
