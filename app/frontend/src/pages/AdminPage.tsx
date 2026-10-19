@@ -45,6 +45,23 @@ function todayIso() {
   return new Date().toISOString().split("T")[0];
 }
 
+async function waitJob(): Promise<string> {
+  while (true) {
+    await new Promise((r) => setTimeout(r, 5000));
+    let job: { status?: string; message?: string } | undefined;
+    try {
+      const res = await fetch(`${API_BASE}/admin/job_status`);
+      if (!res.ok) continue; // прокси/сервер моргнул — спросим ещё раз
+      job = (await res.json()).data;
+    } catch {
+      continue;
+    }
+    if (job?.status === "done") return job.message || "Готово";
+    if (job?.status === "error") throw new Error(job.message || "Ошибка в задаче");
+    if (job?.status === "idle") throw new Error("Задача прервана — сервер перезапускался");
+  }
+}
+
 // ─── тип лога ────────────────────────────────────────────────────────────────
 
 type LogEntry = {
@@ -125,9 +142,10 @@ export function AdminPage() {
     try {
       setLoadingTask(taskName);
       addLog(`Запуск: ${taskName}...`, true);
-      const result = await adminPost(url, body);
-      const info = result.data ? JSON.stringify(result.data).slice(0, 120) : "";
-      addLog(`✅ ${result.message || "Готово"} ${info}`, true);
+            const result = await adminPost(url, body);
+      addLog(`⏳ ${result.message || "Задача запущена"}`, true);
+      const message = await waitJob();
+      addLog(`✅ ${message}`, true);
     } catch (e) {
       addLog(`❌ ${e instanceof Error ? e.message : "Ошибка"}`, false);
     } finally {

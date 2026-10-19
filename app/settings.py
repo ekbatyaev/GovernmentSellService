@@ -14,7 +14,7 @@ MOSCOW_TZ = ZoneInfo("Europe/Moscow")
 BASE_DIR = Path(__file__).resolve().parent.parent
 ENV_PATH = BASE_DIR / ".env"
 
-LOG_DIR = BASE_DIR / "logs-srv"
+LOG_DIR = BASE_DIR / "logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 _log_formatter = logging.Formatter(

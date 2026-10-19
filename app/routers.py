@@ -1,15 +1,13 @@
 from random import randint
-
-from fastapi import Depends, status
+from fastapi import Depends, status, BackgroundTasks
 from fastapi.exceptions import HTTPException
 from fastapi.responses import FileResponse
 from sqlalchemy import select, func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timedelta
-
 from app.backend.db.table_models import Purchase, NewsLetter
-from app.backend.functions import delete_expired, set_auth_code, pop_auth_code, verify_token
+from app.backend.functions import delete_expired, set_auth_code, pop_auth_code, verify_token, process_period
 from app.backend.models import SuccessResponseModel, GetAllPurchasesModel, UpdatePurchaseModel, AdminProcessDay, \
     AdminBackfillModel, AdminProcessPeriodOfTime, DeleteExpiredModel, PutNewsLetterModel, PutPurchaseModel, \
     GetNewsLetterModel, GetAllNewsLettersModel, PurchaseResponseModel, DeletePurchaseModel, GetPurchaseModel, \
@@ -21,6 +19,26 @@ from app.backend.db.settings import get_db
 from app.backend.scheduler import process_day, run_backfill
 
 last_process_day_at, last_backfill_at = None, None
+
+# Состояние текущей фоновой задачи админки. status: idle | running | done | error
+current_job: dict = {"name": None, "status": "idle", "message": None}
+
+async def _run_job(name: str, func, *args, **kwargs):
+    global current_job
+    try:
+        await func(*args, **kwargs)
+        current_job = {"name": name, "status": "done", "message": f"{name}: завершено"}
+    except Exception as e:
+        logger.exception("Фоновая задача %s упала", name)
+        current_job = {"name": name, "status": "error", "message": f"{name}: {e}"}
+
+
+def _start_job(background: BackgroundTasks, name: str, func, *args, **kwargs):
+    global current_job
+    if current_job["status"] == "running":
+        raise HTTPException(status_code=409, detail=f"Уже выполняется задача {current_job['name']}, пожалуйста, попробуйте позже.")
+    current_job = {"name": name, "status": "running", "message": None}
+    background.add_task(_run_job, name, func, *args, **kwargs)
 
 @app.get(f"{settings.app_base}/config", response_model=SuccessResponseModel)
 async def get_config():
@@ -35,7 +53,6 @@ async def get_config():
 
 @app.get(f"{settings.app_base}/")
 async def root():
-    # Вариант A: файл лежит в /app/static/index.html
     return FileResponse("static/index.html")
 
 @app.post(f"{settings.app_base}/put_purchase", response_model=SuccessResponseModel, status_code=status.HTTP_201_CREATED)
@@ -350,14 +367,13 @@ async def health_check(db: AsyncSession = Depends(get_db)):
 # ---- Admin endpoints ----
 
 @app.post(f"{settings.app_base}/admin/run_process_day", response_model=SuccessResponseModel)
-async def admin_run_process_day(body: AdminProcessDay):
+async def admin_run_process_day(body: AdminProcessDay, background: BackgroundTasks):
     await verify_token(body.token)
     global last_process_day_at
     date_str = body.date.strftime("%Y-%m-%d")
+    _start_job(background, "run_process_day", process_day, date_str, filter_number=body.filter_number)
     last_process_day_at = datetime.now(MOSCOW_TZ).replace(tzinfo=None).isoformat()
-    result = await process_day(date_str, filter_number=body.filter_number)
-    # logger.info(result)
-    return SuccessResponseModel(status="success", message="Process day finished")
+    return SuccessResponseModel(status="success", message="Process day started")
 
 
 @app.post(f"{settings.app_base}/admin/run_backfill", response_model=SuccessResponseModel)
@@ -371,33 +387,18 @@ async def admin_run_backfill(body: AdminBackfillModel):
 
 
 @app.post(f"{settings.app_base}/admin/run_backfill_period_of_time", response_model=SuccessResponseModel)
-async def admin_run_process_period_of_type(body: AdminProcessPeriodOfTime):
+async def admin_run_process_period_of_type(body: AdminProcessPeriodOfTime, background: BackgroundTasks):
     await verify_token(body.token)
     global last_process_day_at
-    date_from, date_to = body.date_from, body.date_to
-    result = []
+    _start_job(background, "run_backfill", process_period, body.date_from, body.date_to, body.filter_number)
     last_process_day_at = datetime.now(MOSCOW_TZ).replace(tzinfo=None).isoformat()
-    logger.info(
-        "Processing period of time from %s to %s have started",
-        date_from.strftime("%Y-%m-%d"),
-        date_to.strftime("%Y-%m-%d"),
-    )
-    # Строго по одному дню — предсказуемая нагрузка на портал закупок и наш
-    # API. process_day и так параллелит регионы/архивы внутри себя.
-    while date_from < date_to:
-        day_result = await process_day(date_from.strftime("%Y-%m-%d"), filter_number=body.filter_number)
-        result.append(day_result)
-        date_from += timedelta(days=1)
-    # logger.info(result)
-    return SuccessResponseModel(status="success", message="Processing period of time successfully completed")
+    return SuccessResponseModel(status="success", message="Processing period of time started")
 
 
 @app.get(f"{settings.app_base}/admin/job_status", response_model=SuccessResponseModel)
-def admin_job_status():
-    # без токена специально: можно закрыть, если хотите
-    # get_last_status() не показана мне — оставляю как есть, ничего не
-    # awaiт'ится внутри, признаков работы с БД/сетью не вижу.
-    return SuccessResponseModel(status="success", message="Ok")
+async def admin_job_status():
+    # без токена специально: отдаёт только имя/статус текущей задачи
+    return SuccessResponseModel(status="success", message="Ok", data=current_job)
 
 
 @app.post(f"{settings.app_base}/admin/delete_expired", response_model=SuccessResponseModel)

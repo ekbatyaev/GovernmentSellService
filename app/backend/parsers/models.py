@@ -44,9 +44,6 @@ class Lot(BaseModel):
     subject: str
     initial_sum: float
     currency: str
-    application_supply_summ: Optional[float] = None
-    application_supply_extra: Optional[float] = None
-    completing_supply_summ: Optional[float] = None
     items: Optional[list[Item]] = None
 
 class Notice(BaseModel):
@@ -56,12 +53,12 @@ class Notice(BaseModel):
     result_info: dict = None
     documents_list: list = None
 
-    registration_number: int
+    registration_number: str
     name: str
     publication_datetime: datetime
 
-    submission_start_datetime: datetime
-    submission_close_datetime: datetime
+    submission_start_datetime: datetime | None
+    submission_close_datetime: datetime | None
 
     customer: Customer
     contact: Contact

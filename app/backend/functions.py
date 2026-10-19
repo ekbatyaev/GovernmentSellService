@@ -158,7 +158,8 @@ async def send_analysis(date_of_processing_notices: date, rows: list, emails: li
                     <p>Новых заявок добавлено: <b style="color:#E74C3C;font-size:18px;">{created}</b></p>
                     <p>Заявок обновлено: <b style="color:#F39C12;font-size:18px;">{updated}</b></p>
                     <p>Пропущено: <b style="color:#7F8C8D;font-size:18px;">{skipped}</b></p>
-                    <hr><p style="color:#888;font-size:12px;">Это письмо сформировано автоматически, отвечать на него не нужно</p>
+                    <hr><p style="color:#888;font-size:12px;">Это письмо сформировано автоматически, отвечать на него не нужно. 
+                    В excel-таблицах отображается максимум 50 000 строк-заявок.</p>
                     </body></html>
                     """
 
@@ -475,6 +476,17 @@ async def _process_protocols_for_region(
 
     await asyncio.gather(*[_handle_archive(url) for url in archive_urls_protocols])
 
+async def process_period(date_from: datetime, date_to: datetime, filter_number: int):
+    logger.info(
+        "Processing period of time from %s to %s have started",
+        date_from.strftime("%Y-%m-%d"),
+        date_to.strftime("%Y-%m-%d"),
+    )
+    # Строго по одному дню — предсказуемая нагрузка на портал закупок и наш
+    # API. process_day и так параллелит регионы/архивы внутри себя.
+    while date_from < date_to:
+        await process_day(date_from.strftime("%Y-%m-%d"), filter_number=filter_number)
+        date_from += timedelta(days=1)
 
 async def process_day(date_str: str, filter_number=0) -> Dict:
     logger.info("Pipeline: обработка даты %s", date_str)

@@ -59,7 +59,6 @@ API_TIMEOUT_SECONDS = 30
 
 MAX_CONCURRENT_FILES = 8
 
-
 def _remove_ns(obj):
     if isinstance(obj, dict):
         new_dict = {}
@@ -79,6 +78,15 @@ def _ensure_list(value):
         return value
     return [value]
 
+def _normalize_contract_sum(text: str | None) -> float:
+    if text is None:
+        return 0.0
+    cleaned = "".join(str(text).split()).replace(",", ".")
+    try:
+        return float(cleaned)
+    except ValueError:
+        logger.warning(f"Строка {text!r} не прошла валидацию на float.")
+        return 0.0
 
 def _extract_documents(attachments: dict) -> list[Document]:
     """Общая логика извлечения списка документов из attachments (раньше была
@@ -101,7 +109,6 @@ def _extract_documents(attachments: dict) -> list[Document]:
 
 
 def _normalize_protocol(data: dict, file_name: str) -> Notice:
-
     body = (data.get("purchaseProtocol") or {}).get("body") or {}
     item = body.get("item", {}) or {}
     protocol = item.get("purchaseProtocolData", {}) or {}
@@ -117,26 +124,26 @@ def _normalize_protocol(data: dict, file_name: str) -> Notice:
     result["submission_close_datetime"] = protocol.get("procedureDate", "")
 
     customer = (protocol.get("customer") or {}).get("mainInfo") or {}
-    result["customer"] = {
-        "full_name": customer.get("fullName"),
-        "inn": customer.get("inn"),
-        "kpp": customer.get("kpp"),
-        "ogrn": customer.get("ogrn"),
-    }
+    result["customer"] = Customer(**{
+        "full_name": customer.get("fullName", ""),
+        "inn": customer.get("inn", ""),
+        "kpp": customer.get("kpp", ""),
+        "ogrn": customer.get("ogrn", ""),
+    })
 
     contact = protocol.get("contact") or {}
-    result["contact"] = {
+    result["contact"] = Contact(**{
         "last_name": contact.get("lastName", ""),
         "first_name": contact.get("firstName", ""),
         "middle_name": contact.get("middleName", ""),
         "phone": contact.get("phone", ""),
         "email": contact.get("email", ""),
-    }
+    })
 
-    result["apply_request"] = {
+    result["apply_request"] = ApplyRequest(**{
         "submission_order": protocol.get("applSubmisionOrder", ""),
         "submission_place": protocol.get("applSubmisionPlace", "")
-    }
+    })
 
     result["attached_files"] = _extract_documents(protocol.get("attachments") or {})
 
@@ -152,29 +159,21 @@ def _normalize_protocol(data: dict, file_name: str) -> Notice:
         )
 
         lots = _ensure_list(protocol_lot_application.get("lot"))
-
         for lot in lots:
             lot = lot if isinstance(lot, dict) else {}
 
-            initial_sum_raw = lot.get("initialSum", 0) or 0
-            try:
-                initial_sum_val = float(initial_sum_raw)
-            except Exception:
-                initial_sum_val = 0.0
+            initial_sum_val = _normalize_contract_sum(lot.get("initialSum") or lot.get("maxContractPrice)"))
 
             Lots.append(Lot(
                 guid = lot.get("guid", ""),
                 ordinal_number = lot.get("ordinalNumber", ""),
                 subject = lot.get("subject", ""),
                 initial_sum = initial_sum_val,
-                currency = (lot.get("currency") or {}).get("code", "")
+                currency = (lot.get("currency") or {}).get("code", ""),
+                items = []
             ))
 
-    return Notice(**result, customer = Customer(**result.pop("customer")),
-                    contact = Contact(**result.pop("contact")),
-                    apply_request = ApplyRequest(**result.pop("apply_request")),
-                    source_file = file_name,
-                    lots = Lots)
+    return Notice(**result, source_file = file_name, lots = Lots)
 
 
 def _normalize_purchase(data: dict, file_name: str) -> Notice:
@@ -204,26 +203,26 @@ def _normalize_purchase(data: dict, file_name: str) -> Notice:
         result["submission_close_datetime"] = f"{delivery_end}T23:59:59" if delivery_end else None
 
     customer = (notice.get("customer") or {}).get("mainInfo") or {}
-    result["customer"] = {
-        "full_name": customer.get("fullName"),
-        "inn": customer.get("inn"),
-        "kpp": customer.get("kpp"),
-        "ogrn": customer.get("ogrn"),
-    }
+    result["customer"] = Customer(**{
+        "full_name": customer.get("fullName", ""),
+        "inn": customer.get("inn", ""),
+        "kpp": customer.get("kpp", ""),
+        "ogrn": customer.get("ogrn", ""),
+    })
 
     contact = notice.get("contact") or {}
-    result["contact"] = {
-        "last_name": contact.get("lastName"),
-        "first_name": contact.get("firstName"),
-        "middle_name": contact.get("middleName"),
-        "phone": contact.get("phone"),
-        "email": contact.get("email"),
-    }
+    result["contact"] = Contact(**{
+        "last_name": contact.get("lastName", ""),
+        "first_name": contact.get("firstName", ""),
+        "middle_name": contact.get("middleName", ""),
+        "phone": contact.get("phone", ""),
+        "email": contact.get("email", ""),
+    })
 
-    result["apply_request"] = {
-        "submission_order": notice.get("applSubmisionOrder"),
-        "submission_place": notice.get("applSubmisionPlace")
-    }
+    result["apply_request"] = ApplyRequest(**{
+        "submission_order": notice.get("applSubmisionOrder", ""),
+        "submission_place": notice.get("applSubmisionPlace", "")
+    })
 
     result["attached_files"] = _extract_documents(notice.get("attachments") or {})
     lots = _ensure_list((notice.get("lots") or {}).get("lot"))
@@ -233,11 +232,7 @@ def _normalize_purchase(data: dict, file_name: str) -> Notice:
         lot = lot or {}
         lot_data = (lot.get("lotData") or {}) if isinstance(lot, dict) else {}
 
-        initial_sum_raw = lot_data.get("initialSum", 0.0) or lot_data.get("maxContractPrice", 0.0)
-        try:
-            initial_sum_val = float(initial_sum_raw)
-        except Exception:
-            initial_sum_val = 0.0
+        initial_sum_val = _normalize_contract_sum(lot_data.get("initialSum") or lot_data.get("maxContractPrice)"))
 
         Items: list[Item] = []
 
@@ -245,10 +240,10 @@ def _normalize_purchase(data: dict, file_name: str) -> Notice:
         for it in lot_items:
             it = it or {}
             Items.append(Item(
-                guid = it.get("guid"),
-                okpd2_name = (it.get("okpd2") or {}).get("code"),
-                okpd2_code = (it.get("okpd2") or {}).get("name"),
-                additional_info = it.get("additionalInfo")
+                guid = it.get("guid", ""),
+                okpd2_name = (it.get("okpd2") or {}).get("code", ""),
+                okpd2_code = (it.get("okpd2") or {}).get("name", ""),
+                additional_info = it.get("additionalInfo", "")
             ))
 
         Lots.append(Lot(guid = lot.get("guid"),
@@ -256,16 +251,9 @@ def _normalize_purchase(data: dict, file_name: str) -> Notice:
                         subject = lot_data.get("subject"),
                         initial_sum = initial_sum_val,
                         currency = (lot_data.get("currency") or {}).get("code"),
-                        application_supply_summ = lot_data.get("applicationSupplySumm"),
-                        application_supply_extra = lot_data.get("applicationSupplyExtra"),
-                        completing_supply_summ = (lot_data.get("completingSupplyInfo") or {}).get("sum"),
                         items = Items))
 
-    return Notice(**result, customer = Customer(**result.pop("customer")),
-                    contact = Contact(**result.pop("contact")),
-                    apply_request = ApplyRequest(**result.pop("apply_request")),
-                    source_file = file_name,
-                    lots = Lots)
+    return Notice(**result, source_file = file_name, lots = Lots)
 
 def _read_and_parse_xml(archive: zipfile.ZipFile, file_name: str) -> dict:
     """Блокирующая часть (чтение из zip + парсинг XML). Вызывается через
