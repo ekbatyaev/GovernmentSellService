@@ -1,7 +1,7 @@
 import asyncio
 import os
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from fastapi import HTTPException, status
 from openpyxl.reader.excel import load_workbook
 from openpyxl.styles import PatternFill, Font, Alignment, Side, Border
@@ -140,7 +140,17 @@ async def create_analysis(rows, analysis_path):
         logger.exception("Pipeline: ошибка при создании анализа | path=%s", analysis_path)
 
 
-async def send_analysis(rows, emails, created, updated, skipped, extra_rows=None, path_name_extra="all_purchases.xlsx"):
+async def send_analysis(date_of_processing_notices: date, rows: list, emails: list, created: int, updated: int, skipped: int, extra_rows: list = None, path_name_extra="all_purchases.xlsx") -> None:
+    date_str = date_of_processing_notices.strftime('%d.%m.%Y')
+
+    logger.info(f"""При обработке закупок за {date_str}\n
+    Новых заявок добавлено: {created}\n
+    Заявок обновлено: {updated}\n
+    Пропущено: {skipped}
+    """)
+
+    if created == 0 and updated == 0 and skipped == 0:
+        return
 
     html_content = f"""
                     <html><body style="font-family:Arial;">
@@ -165,9 +175,7 @@ async def send_analysis(rows, emails, created, updated, skipped, extra_rows=None
         await create_analysis(extra_rows, analysis_path=path_name_extra)
         attachments.append(path_name_extra)
 
-    now = datetime.now(MOSCOW_TZ).replace(tzinfo=None)
-
-    subject = f"Заявки с госзакупок за {now.strftime('%d.%m.%Y')}"
+    subject = f"Заявки с госзакупок за {date_str}"
 
     try:
 

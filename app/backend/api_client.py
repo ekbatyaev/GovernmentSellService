@@ -1,6 +1,5 @@
-from datetime import datetime
-
 import httpx
+from datetime import datetime
 from typing import Any, Dict
 from app.settings import settings, logger, async_client_fastapi, MOSCOW_TZ
 

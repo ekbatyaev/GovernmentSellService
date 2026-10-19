@@ -217,7 +217,7 @@ async def run_daily_job() -> Dict[str, Any]:
                 extra_rows.append(base)
 
 
-            await send_analysis(rows=rows, emails=emails,
+            await send_analysis(date_of_analysis = yesterday, rows=rows, emails=emails,
                             created=created, updated=updated, skipped=skipped, extra_rows = extra_rows)
 
 
@@ -287,7 +287,7 @@ async def run_daily_job() -> Dict[str, Any]:
             result["updated"] += updated
             result["skipped"] += skipped
 
-            await send_analysis(rows=rows, emails=emails,
+            await send_analysis(date_of_analysis = yesterday, rows=rows, emails=emails,
                             created=created, updated=updated, skipped=skipped)
 
         # Высылаем информацию для ITM
@@ -352,7 +352,7 @@ async def run_daily_job() -> Dict[str, Any]:
             result["updated"] += updated
             result["skipped"] += skipped
 
-            await send_analysis(rows=rows, emails=emails,
+            await send_analysis(date_of_analysis = yesterday, rows=rows, emails=emails,
                             created=created, updated=updated, skipped=skipped)
 
         logger.info(f"Scheduler: daily done at {str(moscow_datetime().isoformat())} with result: {result}")

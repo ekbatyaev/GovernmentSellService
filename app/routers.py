@@ -1,5 +1,4 @@
 from random import randint
-from time import timezone
 
 from fastapi import Depends, status
 from fastapi.exceptions import HTTPException
