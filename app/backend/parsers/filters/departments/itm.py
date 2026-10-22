@@ -1,6 +1,6 @@
 import re
 from app.backend.parsers.filters.functions import matches, normalize
-from app.backend.parsers.models import Lot, Item
+from app.backend.parsers.schemas import Lot, Item
 from app.backend.parsers.filters.models import ItmFilter
 
 # Фильтры для ITCLG сектора

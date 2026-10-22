@@ -2,23 +2,23 @@ import asyncio
 import os
 import pandas as pd
 from datetime import datetime, timedelta, date
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, BackgroundTasks
 from openpyxl.reader.excel import load_workbook
 from openpyxl.styles import PatternFill, Font, Alignment, Side, Border
 from openpyxl.utils import get_column_letter
 from sqlalchemy import delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from app.backend.db.table_models import AuthCode
+from app.backend.db.models import AuthCode
 from app.backend.db.static_info import REGIONS_OF_THE_FILTERS, ALL_REGION_CODES
-from app.backend.db.table_models import Purchase
+from app.backend.db.models import Purchase
 from app.backend.parsers.request_archives import get_docs_by_region, download_archive_from_result
 from app.backend.parsers.xml_parser import parse_zip_archive_purchases, parse_zip_archive_protocols
 from app.settings import settings, logger, MOSCOW_TZ
 from typing import Dict
 from app.backend.email.functions import send_email
 from app.backend.api_client import api_datum_query
-from app.backend.parsers.models import Notice
+from app.backend.parsers.schemas import Notice
 
 # Сколько регионов обрабатывать одновременно.
 REGION_CONCURRENCY = 4
@@ -27,6 +27,26 @@ ARCHIVE_CONCURRENCY = 8
 # Сколько записей (purchase/protocol, суммарно по всем архивам) одновременно
 # писать через api_datum_query.
 RECORD_CONCURRENCY = 10
+
+# Состояние текущей фоновой задачи админки. status: idle | running | done | error
+current_job: dict = {"name": None, "status": "idle", "message": None}
+
+async def run_job(name: str, func, *args, **kwargs):
+    global current_job
+    try:
+        await func(*args, **kwargs)
+        current_job = {"name": name, "status": "done", "message": f"{name}: завершено"}
+    except Exception as e:
+        logger.exception("Фоновая задача %s упала", name)
+        current_job = {"name": name, "status": "error", "message": f"{name}: {e}"}
+
+
+def start_job(background: BackgroundTasks, name: str, func, *args, **kwargs):
+    global current_job
+    if current_job["status"] == "running":
+        raise HTTPException(status_code=409, detail=f"Уже выполняется задача {current_job['name']}, пожалуйста, попробуйте позже.")
+    current_job = {"name": name, "status": "running", "message": None}
+    background.add_task(run_job, name, func, *args, **kwargs)
 
 async def set_auth_code(db: AsyncSession, email: str, code: int) -> None:
     now = datetime.now(MOSCOW_TZ).replace(tzinfo=None)
@@ -50,9 +70,9 @@ async def pop_auth_code(db: AsyncSession, email: str) -> int | None:
         return None
     return code
 
-async def verify_token(token: str):
-    if settings.system_token != token:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+# async def verify_token(token: str):
+#     if settings.system_token != token:
+#         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
 async def delete_expired(db: AsyncSession) -> int:
     today = datetime.now(MOSCOW_TZ).replace(tzinfo=None).date()

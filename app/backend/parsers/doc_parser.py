@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
 from urllib.parse import unquote, urlparse
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
-from app.backend.parsers.models import Document
+from app.backend.parsers.schemas import Document
 
 import aiofiles
 import httpx

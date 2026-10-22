@@ -15,7 +15,7 @@ from tenacity import (
 )
 
 from app.settings import settings, logger, MOSCOW_TZ
-from app.backend.parsers.models import ParseSoapResponse
+from app.backend.parsers.schemas import ParseSoapResponse
 
 soap_rate_limiter = AsyncLimiter(max_rate=1, time_period=60 / 80)
 

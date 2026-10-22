@@ -57,7 +57,7 @@ FILTERS_JOB_EXCLUDE_HARD_ROSSETI = [
     r"воздушн[а-я]*\s+участк[а-я]*"
 ]
 
-FILTERS_LINE_ONLY_ACTION_ROSSETI= [
+FILTERS_LINE_ONLY_ACTION_ROSSETI = [
     r"\b(?:строительств[а-я]*|реконструкци[а-я]*|модернизаци[а-я]*)\s+"
     r"(?:\d+\s*)?(?:КЛ|РКЛ|ВЛ|ВЛЗ|КВЛ|ЛЭП)\s*-?\s*\d+(?:\s*[,/]\s*\d+)?\s*кВ\b"
 ]

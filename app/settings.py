@@ -78,7 +78,6 @@ class Settings(BaseSettings):
     backfill_on_startup: bool = False
 
     app_url: str
-    app_base: str = ""
 
     smtp_server: str
     smtp_port: str

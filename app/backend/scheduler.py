@@ -272,7 +272,7 @@ async def run_daily_job() -> Dict[str, Any]:
                     "Дата окончания подачи заявок": purchase.get("submission_close_datetime"),
                     "Дата публикации": purchase.get("publication_datetime"),
                     "Заказчик название": customer.get("full_name"),
-                    "Контактное лицо": (contact.get("last_name") or "")+ " " + (contact.get("first_name") or "") + " " + (contact.get("middle_name") or ""),
+                    "Контактное лицо": (contact.get("last_name") or "") + " " + (contact.get("first_name") or "") + " " + (contact.get("middle_name") or ""),
                     "Телефон": (contact.get("phone") or ""),
                     "Email": (contact.get("email") or ""),
                     "Победитель": result_info.get("Победитель"),

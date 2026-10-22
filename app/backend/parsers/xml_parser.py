@@ -13,7 +13,8 @@ from app.backend.parsers.filters.departments.rosseti import request_filters_ross
 from app.backend.parsers.filters.departments.oem import request_filters_oem
 from app.backend.parsers.filters.departments.itm import request_filters_itm
 from app.backend.parsers.doc_parser import process_attached_files_and_merge
-from app.backend.parsers.models import Notice, Customer, Contact, ApplyRequest, Lot, Item, Document
+from app.schemas.purchase import Customer, Contact, ApplyRequest, Lot, Item, Document
+from app.backend.parsers.schemas import Notice
 
 # Регионы для фильтров
 REGIONS_ROSSETI = {
@@ -335,14 +336,14 @@ async def _process_protocol_entry(
             # память общих заявок для разных фильтров
 
             ProtocolDeepCopy: Notice = copy.deepcopy(Protocol)
-            ProtocolDeepCopy.guid= str(uuid.uuid4())
+            ProtocolDeepCopy.guid = str(uuid.uuid4())
             ProtocolDeepCopy.region_number = region
             ProtocolDeepCopy.filter_type_name = filter_type_name
 
             result_info = purchase.get("result_info") or {}
             documents_list = purchase.get("documents_list") or []
 
-            ProtocolDeepCopy.result_info, ProtocolDeepCopy.documents_list= await process_attached_files_and_merge(
+            ProtocolDeepCopy.result_info, ProtocolDeepCopy.documents_list = await process_attached_files_and_merge(
                 attached_files=ProtocolDeepCopy.attached_files,
                 tmp_dir=settings.tmp_dir,
                 result_info_old=result_info,
