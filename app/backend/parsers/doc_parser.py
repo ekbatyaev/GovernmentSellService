@@ -372,7 +372,7 @@ _DESIGNER_PATTERNS = [
 
 _DESIGNER_STOP_WORDS = (
     "генеральный директор", "главный инженер", "инн", "кпп", "огрн",
-    "e-mail", "email", "лист", "стадия", "раздел", "объект",
+    "e-mail", "newsletters", "лист", "стадия", "раздел", "объект",
 )
 
 _DESIGNER_LEGAL_FORM_RE = re.compile(

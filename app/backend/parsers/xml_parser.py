@@ -138,7 +138,7 @@ def _normalize_protocol(data: dict, file_name: str) -> Notice:
         "first_name": contact.get("firstName", ""),
         "middle_name": contact.get("middleName", ""),
         "phone": contact.get("phone", ""),
-        "email": contact.get("email", ""),
+        "newsletters": contact.get("newsletters", ""),
     })
 
     result["apply_request"] = ApplyRequest(**{
@@ -217,7 +217,7 @@ def _normalize_purchase(data: dict, file_name: str) -> Notice:
         "first_name": contact.get("firstName", ""),
         "middle_name": contact.get("middleName", ""),
         "phone": contact.get("phone", ""),
-        "email": contact.get("email", ""),
+        "newsletters": contact.get("newsletters", ""),
     })
 
     result["apply_request"] = ApplyRequest(**{

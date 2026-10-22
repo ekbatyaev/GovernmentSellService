@@ -38,7 +38,7 @@ class NoticeDatabase(Base):
 class NewsLetterDatabase(Base):
     __tablename__ = "newsletter"
 
-    guid: Mapped[int] = mapped_column(String(64), primary_key=True)
+    guid: Mapped[str] = mapped_column(String(64), primary_key=True)
     email: Mapped[str] = mapped_column(String(64), index=True)
 
     filter_type_name: Mapped[str] = mapped_column(String(1000))
@@ -46,16 +46,20 @@ class NewsLetterDatabase(Base):
 
     __table_args__ = (
         UniqueConstraint(
-            "email", "filter_type_name", "district_name",
+            "newsletters", "filter_type_name", "district_name",
             name="uq_newsletter_email_filter_type_district",
         ),
         Index("ix_newsletter_filter_district", "filter_type_name", "district_name"),
     )
 
 
-class AuthCode(Base):
+class AuthCodeDatabase(Base):
     __tablename__ = "auth_codes"
 
-    email: Mapped[str] = mapped_column(String(255), primary_key=True)
+    guid: Mapped[int] = mapped_column(String(64), primary_key=True)
+    email: Mapped[str] = mapped_column(String(255))
+
     code: Mapped[int]
+
     created_at: Mapped[datetime]
+    last_checked_at: Mapped[datetime]

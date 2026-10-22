@@ -107,6 +107,33 @@ async def run_daily_job() -> Dict[str, Any]:
             f"Daily job: успешно удалено {count} заявок из {len(purchases)}"
         )
 
+        # Удаление истекших кодов подтверждения
+
+        delete_date_to = now - relativedelta(months=6)
+
+        api_response = await api_datum_query(token=settings.system_token,
+                                             endpoint="get_all_purchases",
+                                             publication_datetime_to=delete_date_to.replace(microsecond=0).isoformat())
+
+        purchases: List = api_response.get("data") or []
+
+        count = 0
+        for purchase in purchases:
+            api_response = await api_datum_query(token=settings.system_token,
+                                                 endpoint="delete_purchase",
+                                                 guid=purchase["guid"])
+
+            if api_response == {}:
+                logger.info(
+                    f"При удалении {purchase["guid"]}, произошла ошибка",
+                )
+                continue
+
+            count += 1
+        logger.info(
+            f"Daily job: успешно удалено {count} заявок из {len(purchases)}"
+        )
+
         # Рассылка сообщений адрессантам
 
         # Высылаем информацию по Россетям
@@ -274,7 +301,7 @@ async def run_daily_job() -> Dict[str, Any]:
                     "Заказчик название": customer.get("full_name"),
                     "Контактное лицо": (contact.get("last_name") or "") + " " + (contact.get("first_name") or "") + " " + (contact.get("middle_name") or ""),
                     "Телефон": (contact.get("phone") or ""),
-                    "Email": (contact.get("email") or ""),
+                    "Email": (contact.get("newsletters") or ""),
                     "Победитель": result_info.get("Победитель"),
                     "Итоговая цена контракта": result_info.get("Итоговая цена контракта"),
                     "Слова маячки в тз": result_info.get("Слова маячки в тз"),

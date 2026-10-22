@@ -1,6 +1,5 @@
-from typing import Optional
+from typing import Optional, Literal
 from app.schemas.email import NewsLetter
-from pydantic import BaseModel
 
 class FilterNewsLetters(NewsLetter):
     list_filter_type_names: Optional[str] = None
@@ -12,5 +11,7 @@ class UpdateNewsLetter(NewsLetter):
     filter_type_name: Optional[str] = None
     district_name: Optional[str] = None
 
-class VerifyCodeNewsLetter(BaseModel):
+class ConfirmOptionNewsLetter(NewsLetter):
+    guid: str
+    option: Literal["subscribe", "unsubscribe"]
     code: int

@@ -17,7 +17,7 @@ purchase_router = APIRouter(prefix = "/purchases", tags=["purchases"], dependenc
 @purchase_router.post("", response_model = ResponseModel, status_code=status.HTTP_201_CREATED)
 async def put_purchase(notice: Notice, db: AsyncSession = Depends(get_db)):
 
-    new_purchase = Notice(**notice.model_dump())
+    new_purchase = NoticeDatabase(**notice.model_dump())
 
     try:
         db.add(new_purchase)

@@ -70,10 +70,6 @@ async def pop_auth_code(db: AsyncSession, email: str) -> int | None:
         return None
     return code
 
-# async def verify_token(token: str):
-#     if settings.system_token != token:
-#         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-
 async def delete_expired(db: AsyncSession) -> int:
     today = datetime.now(MOSCOW_TZ).replace(tzinfo=None).date()
     stmt = (
