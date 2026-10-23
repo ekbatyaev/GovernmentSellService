@@ -1,11 +1,11 @@
 from datetime import datetime
 from decimal import Decimal
-
-from sqlalchemy import String, DateTime, Numeric, UniqueConstraint, Index
+from sqlalchemy import Enum, String, DateTime, Numeric, UniqueConstraint, Index
 from sqlalchemy.dialects.postgresql import JSONB, ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
-
 from app.backend.db.settings import Base
+from typing import Literal
+
 
 
 class NoticeDatabase(Base):
@@ -56,10 +56,28 @@ class NewsLetterDatabase(Base):
 class AuthCodeDatabase(Base):
     __tablename__ = "auth_codes"
 
-    guid: Mapped[int] = mapped_column(String(64), primary_key=True)
+    guid: Mapped[str] = mapped_column(String(64), primary_key=True)
     email: Mapped[str] = mapped_column(String(255))
 
     code: Mapped[int]
 
     created_at: Mapped[datetime]
     last_checked_at: Mapped[datetime]
+
+
+class UserDatabase(Base):
+    __tablename__ = "users"
+
+    guid: Mapped[str] = mapped_column(String(64), primary_key=True)
+
+    email: Mapped[str] = mapped_column(String(255),
+                                       unique=True)
+    password: Mapped[str] = mapped_column(String(255))
+
+    role: Mapped[Literal["admin", "user", "guest"]] = mapped_column(
+        Enum("admin", "user", "guest", name="user_role", native_enum=False, create_constraint=True),
+        default="guest",
+        server_default="guest",
+    )
+
+    created_at: Mapped[datetime]

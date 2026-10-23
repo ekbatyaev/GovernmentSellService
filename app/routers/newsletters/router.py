@@ -8,7 +8,7 @@ from app.routers.schemas import ResponseModel
 from fastapi import Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.backend.db.settings import get_db
-from app.schemas.email import NewsLetter
+from app.schemas.newsletter import NewsLetter
 from app.routers.newsletters.schemas import FilterNewsLetters
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -130,7 +130,7 @@ async def confirm_newsletter(option_newsletter_data: ConfirmOptionNewsLetter, db
     auth_code.last_checked_at = time_now
     await db.commit()
 
-    if secrets.compare_digest(str(option_newsletter_data.code).encode(), str(auth_code.code).encode()):
+    if not secrets.compare_digest(str(option_newsletter_data.code).encode(), str(auth_code.code).encode()):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid code")
 
     if option_newsletter_data.option == "subscribe":

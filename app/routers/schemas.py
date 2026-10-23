@@ -3,5 +3,5 @@ from pydantic import BaseModel
 
 class ResponseModel(BaseModel):
     status_message: Literal["success", "created", "deleted",
-                                "updated", "found", "not found"]
+                                "updated", "found", "not found", "approved"]
     data: Any

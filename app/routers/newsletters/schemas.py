@@ -1,5 +1,5 @@
 from typing import Optional, Literal
-from app.schemas.email import NewsLetter
+from app.schemas.newsletter import NewsLetter
 
 class FilterNewsLetters(NewsLetter):
     list_filter_type_names: Optional[str] = None

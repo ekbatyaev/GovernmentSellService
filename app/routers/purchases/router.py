@@ -134,7 +134,7 @@ async def update_purchase(guid: str, updated_notice: UpdateNotice, db: AsyncSess
             data={"guid": guid}
         )
 
-    update_data = updated_notice.model_dump(exclude_unset=True, exclude={"guid"})
+    update_data = updated_notice.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         if value is not None:
             setattr(notice, field, value)

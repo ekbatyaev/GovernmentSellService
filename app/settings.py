@@ -78,6 +78,7 @@ class Settings(BaseSettings):
     backfill_on_startup: bool = False
 
     app_url: str
+    app_web_open_url: str
 
     smtp_server: str
     smtp_port: str
@@ -85,6 +86,7 @@ class Settings(BaseSettings):
     smtp_email: str
     smtp_password: str
     smtp_test_email: str
+    smtp_supervisor_system_email: str
 
     base_url: str
     download_url: str
@@ -93,6 +95,9 @@ class Settings(BaseSettings):
     max_concurrent_semaphore: int = 5
     download_timeout: int = 60
     tmp_dir: str
+
+    jwt_secret: str
+    jwt_expire_minutes: int = 60
 
 settings = Settings()
 
