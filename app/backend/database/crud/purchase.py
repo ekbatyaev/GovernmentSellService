@@ -23,6 +23,9 @@ async def search_purchases(db: AsyncSession, filters: FilterNotice) -> list[Noti
     if filters.name:
         query = query.where(NoticeDatabase.name.ilike(f"%{filters.name}%"))
 
+    if filters.registration_number:
+        query = query.where(NoticeDatabase.registration_number == filters.registration_number)
+
     if filters.list_filter_type_name:
         query = query.where(NoticeDatabase.filter_type_name.in_(filters.list_filter_type_name))
 

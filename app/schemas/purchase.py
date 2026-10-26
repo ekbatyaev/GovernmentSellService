@@ -79,6 +79,7 @@ class FilterNotice(Notice):
     source_file: Optional[str] = None
     oem_flag: Optional[str] = None
     itm_option: Optional[str] = None
+    registration_number: Optional[str] = None
 
     list_filter_type_name: Optional[list] = None
 

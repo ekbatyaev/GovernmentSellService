@@ -1,14 +1,16 @@
 import secrets
-
 from sqlalchemy.exc import IntegrityError
 from app.schemas.newsletter import NewsLetter, UpdateNewsLetter
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.backend.database.models import NewsLetterDatabase, AuthCodeDatabase
+from app.backend.database.models import NewsLetterDatabase
 from sqlalchemy import select
 from datetime import datetime, timedelta
 from typing import Literal
 from app.schemas.newsletter import NewsLetter, FilterNewsLetters, ConfirmOptionNewsLetter
+from app.schemas.service import UpdateAuthCode
 from app.settings import MOSCOW_TZ
+from app.backend.database.crud.service import get_auth_code, delete_auth_code, update_auth_code
+from app.settings import logger
 
 async def put_newsletter(db: AsyncSession, newsletter: NewsLetter) -> NewsLetterDatabase:
     new_newsletter = NewsLetterDatabase(**newsletter.model_dump())
@@ -76,11 +78,11 @@ async def update_newsletter(db: AsyncSession, guid: str, updated_newsletter: Upd
 
 async def confirm_newsletter(db: AsyncSession, option_newsletter_data:
 ConfirmOptionNewsLetter) -> Literal["not found", "expired", "too many attempts", "invalid", "failed", "deleted", "created"]:
-    query = select(AuthCodeDatabase)
-    query = query.where(AuthCodeDatabase.guid == option_newsletter_data.guid)
-
-    search_request = await db.execute(query)
-    auth_code = search_request.scalar_one_or_none()
+    try:
+        auth_code = await get_auth_code(db, option_newsletter_data.guid)
+    except IntegrityError as e:
+        logger.exception(f"Произошла ошибка при получении кода: {e}")
+        raise
 
     if not auth_code:
         return "not found"
@@ -88,41 +90,47 @@ ConfirmOptionNewsLetter) -> Literal["not found", "expired", "too many attempts",
     time_now = datetime.now(MOSCOW_TZ).replace(tzinfo=None)
 
     if time_now - auth_code.created_at <= timedelta(minutes=5):
-        await db.delete(auth_code)
-        await db.commit()
-
+        try:
+            await delete_auth_code(db, auth_code.guid)
+        except IntegrityError as e:
+            logger.exception(f"Произошла ошибка при удалении кода: {e}")
         return "expired"
 
     if time_now - auth_code.last_checked_at <= timedelta(seconds=20):
         return "too many attempts"
 
-    auth_code.last_checked_at = time_now
-    await db.commit()
+    try:
+        await update_auth_code(db, auth_code.guid, UpdateAuthCode(last_checked_at=time_now))
+    except IntegrityError as e:
+        logger.exception(f"Произошла ошибка при обновлении кода: {e}")
+        raise
 
     if not secrets.compare_digest(str(option_newsletter_data.code).encode(), str(auth_code.code).encode()):
         return "invalid"
 
     if option_newsletter_data.option == "subscribe":
-        new_newsletter = NewsLetterDatabase(guid=option_newsletter_data.guid,
+
+
+        new_newsletter = NewsLetter(guid=option_newsletter_data.guid,
                                             email=option_newsletter_data.email,
                                             filter_type_name=option_newsletter_data.filter_type_name,
                                             district_name=option_newsletter_data.district_name)
 
         try:
-            db.add(new_newsletter)
-            await db.commit()
-            await db.refresh(new_newsletter)
+            await put_newsletter(db, new_newsletter)
             return "created"
-        except IntegrityError:
-            await db.rollback()
+        except IntegrityError as e:
+            logger.exception(f"Произошла ошибка при создании подписки на рассылку: {e}")
             return "failed"
 
     elif option_newsletter_data.option == "unsubscribe":
-        newsletter = await db.get(NewsLetterDatabase, option_newsletter_data.guid)
-        if not newsletter:
-            return "not found"
-        await db.delete(newsletter)
-        await db.commit()
-        return "deleted"
+        try:
+            delete_newsletter_status = await delete_newsletter(db, option_newsletter_data.guid)
+            if not delete_newsletter_status:
+                return "not found"
+            return "deleted"
+        except IntegrityError as e:
+            logger.exception(f"Произошла ошибка при отписки от рассылки: {e}")
+            return "failed"
     else:
         return "invalid"

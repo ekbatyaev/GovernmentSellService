@@ -9,9 +9,9 @@ from app.backend.database.settings import get_db
 from app.routers.services.schemas import ProcessDayService, ProcessPeriodService
 from sqlalchemy import select, func
 from sqlalchemy.exc import IntegrityError
-from app.backend.functions import start_job, process_day, process_period, current_job, send_email
+from app.backend.functions.functions import start_job, process_day, process_period, current_job
 from app.settings import MOSCOW_TZ
-from app.backend.database.models import NoticeDatabase, NewsLetterDatabase, AuthCodeDatabase
+from app.backend.database.models import NoticeDatabase, NewsLetterDatabase
 from app.backend.database.crud.service import send_auth_code
 from app.schemas.service import StatusAuthCode
 

@@ -2,19 +2,14 @@ import asyncio
 import os
 import pandas as pd
 from datetime import datetime, timedelta, date
-from fastapi import HTTPException, status, BackgroundTasks
+from fastapi import HTTPException, BackgroundTasks
 from openpyxl.reader.excel import load_workbook
 from openpyxl.styles import PatternFill, Font, Alignment, Side, Border
 from openpyxl.utils import get_column_letter
-from sqlalchemy import delete, func
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.dialects.postgresql import insert as pg_insert
-from app.backend.database.models import AuthCode
 from app.backend.database.static_info import REGIONS_OF_THE_FILTERS, ALL_REGION_CODES
-from app.backend.database.models import Purchase
 from app.backend.parsers.request_archives import get_docs_by_region, download_archive_from_result
 from app.backend.parsers.xml_parser import parse_zip_archive_purchases, parse_zip_archive_protocols
-from app.settings import settings, logger, MOSCOW_TZ
+from app.settings import settings, logger
 from typing import Dict
 from app.backend.email.functions import send_email
 from app.backend.api_client import api_datum_query
@@ -47,38 +42,6 @@ def start_job(background: BackgroundTasks, name: str, func, *args, **kwargs):
         raise HTTPException(status_code=409, detail=f"Уже выполняется задача {current_job['name']}, пожалуйста, попробуйте позже.")
     current_job = {"name": name, "status": "running", "message": None}
     background.add_task(run_job, name, func, *args, **kwargs)
-
-async def set_auth_code(db: AsyncSession, email: str, code: int) -> None:
-    now = datetime.now(MOSCOW_TZ).replace(tzinfo=None)
-    stmt = pg_insert(AuthCode).values(email=email, code=code, created_at=now)
-    stmt = stmt.on_conflict_do_update(
-        index_elements=[AuthCode.email],
-        set_={"code": stmt.excluded.code, "created_at": stmt.excluded.created_at},
-    )
-    await db.execute(stmt)
-    await db.commit()
-
-async def pop_auth_code(db: AsyncSession, email: str) -> int | None:
-    """Достаёт код и сразу удаляет запись — на уровне БД это атомарно."""
-    stmt = delete(AuthCode).where(AuthCode.email == email).returning(AuthCode.code, AuthCode.created_at)
-    row = (await db.execute(stmt)).first()
-    await db.commit()
-    if row is None:
-        return None
-    code, created_at = row
-    if datetime.now(MOSCOW_TZ).replace(tzinfo=None) - created_at > timedelta(minutes=10):
-        return None
-    return code
-
-async def delete_expired(db: AsyncSession) -> int:
-    today = datetime.now(MOSCOW_TZ).replace(tzinfo=None).date()
-    stmt = (
-        delete(Purchase)
-        .where(Purchase.submission_close_datetime.isnot(None))
-        .where(func.date(Purchase.submission_close_datetime) < today)
-    )
-    res = await db.execute(stmt)
-    return res.rowcount or 0
 
 def _build_analysis_workbook(rows, analysis_path) -> None:
     """Синхронная сборка Excel-файла (была телом create_analysis).
@@ -224,6 +187,14 @@ def _status_from_message(message: str) -> str:
 async def _save_purchase_record(purchase: Notice, registration_numbers_dict_per_day: dict, record_semaphore: asyncio.Semaphore) -> None:
     async with record_semaphore:
         try:
+            # Ищем заявку
+
+            # Если не находим создаем
+
+            # Если находим обновляем
+
+            # Если при создании произошла ошибка пропускаем и пишем в лог
+
             data = await api_datum_query(token=settings.system_token, endpoint="put_purchase", **purchase.model_dump(mode = "json"))
             message = data.get("message")
             status = _status_from_message(message)

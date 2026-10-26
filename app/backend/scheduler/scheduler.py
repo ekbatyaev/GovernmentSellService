@@ -5,25 +5,9 @@ from dateutil.relativedelta import relativedelta
 from datetime import datetime, timedelta
 from typing import Dict, Any, List
 from app.settings import logger, settings, MOSCOW_TZ
-from app.backend.functions import process_day, send_analysis
+from app.backend.functions.functions import process_day, send_analysis
 from app.backend.api_client import api_datum_query
 from app.backend.database.static_info import REGIONS_OF_THE_FILTERS, REGION_CODES_BY_FEDERAL_DISTRICT
-
-scheduler: AsyncIOScheduler | None = None
-
-async def create_scheduler() -> AsyncIOScheduler:
-    s = AsyncIOScheduler(timezone = MOSCOW_TZ)
-    s.add_job(
-        run_daily_job,
-        trigger=CronTrigger(hour=settings.daily_job_hour_msk,
-                            minute=settings.daily_job_minute_msk, timezone=MOSCOW_TZ),
-        id="daily_pipeline",
-        replace_existing=True,
-        max_instances=1,
-        coalesce=True,
-        misfire_grace_time=3600,
-    )
-    return s
 
 def _parse_dt(value):
     if value is None:

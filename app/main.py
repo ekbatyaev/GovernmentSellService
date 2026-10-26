@@ -6,7 +6,7 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from app.backend.scheduler import create_scheduler, run_backfill
+from app.backend.scheduler.scheduler import create_scheduler, run_backfill
 from app.backend.database.settings import init_db, dispose_db
 from app.settings import logger, settings, BASE_DIR, file_handler
 
@@ -62,8 +62,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-from app import routers  # noqa: E402  — импорт регистрирует роуты через декораторы
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
