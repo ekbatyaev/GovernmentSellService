@@ -3,7 +3,7 @@ from decimal import Decimal
 from sqlalchemy import Enum, String, DateTime, Numeric, UniqueConstraint, Index
 from sqlalchemy.dialects.postgresql import JSONB, ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
-from app.backend.db.settings import Base
+from app.backend.database.settings import Base
 from typing import Literal
 
 

@@ -1,19 +1,19 @@
-import uuid
-from datetime import datetime, timedelta
-from random import randint
+from datetime import datetime
 from fastapi import BackgroundTasks
 from fastapi import APIRouter
 from app.routers.dependencies import require_token
 from app.routers.schemas import ResponseModel
 from fastapi import Depends, status, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.backend.db.settings import get_db
+from app.backend.database.settings import get_db
 from app.routers.services.schemas import ProcessDayService, ProcessPeriodService
 from sqlalchemy import select, func
 from sqlalchemy.exc import IntegrityError
-from app.backend.functions import start_job, process_day, process_period, current_job, send_email, set_auth_code
+from app.backend.functions import start_job, process_day, process_period, current_job, send_email
 from app.settings import MOSCOW_TZ
-from app.backend.db.models import NoticeDatabase, NewsLetterDatabase, AuthCodeDatabase
+from app.backend.database.models import NoticeDatabase, NewsLetterDatabase, AuthCodeDatabase
+from app.backend.database.crud.service import send_auth_code
+from app.schemas.service import StatusAuthCode
 
 service_router = APIRouter(prefix = "/services", tags=["services"], dependencies=[Depends(require_token)])
 
@@ -40,63 +40,23 @@ async def get_job_status():
     return ResponseModel(status_message="success", data = current_job)
 
 @service_router.post("/send_auth_code/{email}", response_model=ResponseModel, status_code=status.HTTP_200_OK)
-async def send_auth_code(email: str, db: AsyncSession = Depends(get_db)):
-
-    query = select(AuthCodeDatabase)
-    query = query.where(AuthCodeDatabase.email == email)
-
-    query = query.where(AuthCodeDatabase.created_at <= datetime.now(MOSCOW_TZ).replace(tzinfo=None) - timedelta(minutes=5))
-
-    search_request = await db.execute(query)
-    earlier_auth_code = search_request.scalar_one_or_none()
-
-    if earlier_auth_code:
-        raise HTTPException(status_code=500, detail="Подождите 5 минут перед тем как отправить другой проверочный код.")
-
-    code = randint(100000, 999999)
-
+async def call_send_auth_code(email: str, db: AsyncSession = Depends(get_db)):
     try:
-        subject = "Проверочный код"
-        html_content = f"""
-            <html>
-              <body style="font-family: Arial, sans-serif; line-height: 1.5; color: #333;">
-                <h2 style="color:#2E86C1;">Проверочный код для рассылки Госзакупок</h2>
-                <p>Здравствуйте!</p>
-                <p>Ваш проверочный код для вашего newsletters:</p>
-                <p style="font-size: 1.5em; font-weight: bold; color:#E74C3C;">{code}</p>
-                <p>Введите этот код в приложении, чтобы подтвердить или отменить рассылку.</p>
-                <hr>
-                <p style="font-size: 0.9em; color:#888;">
-                  Это письмо сформировано автоматически, отвечать на него не нужно.
-                </p>
-              </body>
-            </html>
-            """
-
-        await send_email(
-            email,
-            subject,
-            html_content
-        )
-    except Exception:
-        raise HTTPException(status_code=500, detail="Email not found")
-
-    auth_code_guid = str(uuid.uuid4())
-    new_auth_code = AuthCodeDatabase(guid = auth_code_guid, email = email,
-                                     code = code, created_at = datetime.now(MOSCOW_TZ).replace(tzinfo=None),
-                                     last_checked_at = datetime.now(MOSCOW_TZ).replace(tzinfo=None))
-
-    try:
-        db.add(new_auth_code)
-        await db.commit()
-        await db.refresh(new_auth_code)
-        return ResponseModel(
-            status_message="created",
-            data={"guid": auth_code_guid}
-        )
+        send_auth_code_status: StatusAuthCode = await send_auth_code(db, email)
+        if send_auth_code_status.status_message == "created":
+            return ResponseModel(
+                status_message="created",
+                data={"guid": send_auth_code_status.guid}
+            )
+        elif send_auth_code_status.status_message == "not saved":
+            raise HTTPException(status_code=500, detail="Code not saved")
+        elif send_auth_code_status.status_message == "not found":
+            raise HTTPException(status_code=500, detail="Not found")
+        elif send_auth_code_status.status_message == "try later":
+            raise HTTPException(status_code=500,
+                                detail="Подождите 5 минут перед тем как отправить другой проверочный код.")
     except IntegrityError:
-        await db.rollback()
-        raise HTTPException(status_code=500, detail="Code not saved")
+        raise HTTPException(status_code=400, detail="Failed to send auth code")
 
 @service_router.post("/run/process_day", response_model = ResponseModel, status_code = status.HTTP_200_OK)
 async def run_process_day(process_day_info: ProcessDayService, background: BackgroundTasks):

@@ -6,8 +6,8 @@ from fastapi.security import OAuth2PasswordBearer
 from pwdlib import PasswordHash
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.settings import settings, MOSCOW_TZ
-from app.backend.db.models import UserDatabase
-from app.backend.db.settings import get_db
+from app.backend.database.models import UserDatabase
+from app.backend.database.settings import get_db
 from app.schemas.user import User
 
 password_hash = PasswordHash.recommended()

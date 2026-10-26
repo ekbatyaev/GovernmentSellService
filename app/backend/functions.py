@@ -9,9 +9,9 @@ from openpyxl.utils import get_column_letter
 from sqlalchemy import delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from app.backend.db.models import AuthCode
-from app.backend.db.static_info import REGIONS_OF_THE_FILTERS, ALL_REGION_CODES
-from app.backend.db.models import Purchase
+from app.backend.database.models import AuthCode
+from app.backend.database.static_info import REGIONS_OF_THE_FILTERS, ALL_REGION_CODES
+from app.backend.database.models import Purchase
 from app.backend.parsers.request_archives import get_docs_by_region, download_archive_from_result
 from app.backend.parsers.xml_parser import parse_zip_archive_purchases, parse_zip_archive_protocols
 from app.settings import settings, logger, MOSCOW_TZ

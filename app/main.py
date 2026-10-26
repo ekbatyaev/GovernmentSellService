@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.backend.scheduler import create_scheduler, run_backfill
-from app.backend.db.settings import init_db, dispose_db
+from app.backend.database.settings import init_db, dispose_db
 from app.settings import logger, settings, BASE_DIR, file_handler
 
 @asynccontextmanager
@@ -32,7 +32,7 @@ async def lifespan(app: FastAPI):
         for uvicorn_logger_name in ("uvicorn.error", "uvicorn.access"):
             logging.getLogger(uvicorn_logger_name).addHandler(file_handler)
 
-        logger.info("Startup complete (db + scheduler)")
+        logger.info("Startup complete (database + scheduler)")
 
         yield
 

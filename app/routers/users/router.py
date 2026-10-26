@@ -9,8 +9,8 @@ from app.routers.dependencies import (require_admin, get_current_user,
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.routers.schemas import ResponseModel
 from app.routers.users.schemas import UpdateUser, RegisterUser, ApproveUser
-from app.backend.db.settings import get_db
-from app.backend.db.models import UserDatabase
+from app.backend.database.settings import get_db
+from app.backend.database.models import UserDatabase
 from app.schemas.user import User
 from app.backend.email.functions import send_email
 from app.settings import settings, MOSCOW_TZ
@@ -157,6 +157,17 @@ async def approve_user(guid: str, approve_data: ApproveUser, db: AsyncSession = 
         await db.rollback()
         raise
 
+    body = f"""\
+        <div style="font-family:Segoe UI,Arial,sans-serif;font-size:15px;color:#111827;max-width:480px;">
+          <p>Ваша учетная запись подтверждена - Добро пожаловать в систему!</p>
+        </div>"""
+
+    try:
+        await send_email(user.email, "Подтверждение регистрации пользователя",
+                         body)
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                            detail="The mail server is not available right now. Please, try later.")
     return ResponseModel(
         status_message="approved",
         data={}

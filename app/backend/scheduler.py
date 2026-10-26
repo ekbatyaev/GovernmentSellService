@@ -7,7 +7,7 @@ from typing import Dict, Any, List
 from app.settings import logger, settings, MOSCOW_TZ
 from app.backend.functions import process_day, send_analysis
 from app.backend.api_client import api_datum_query
-from app.backend.db.static_info import REGIONS_OF_THE_FILTERS, REGION_CODES_BY_FEDERAL_DISTRICT
+from app.backend.database.static_info import REGIONS_OF_THE_FILTERS, REGION_CODES_BY_FEDERAL_DISTRICT
 
 scheduler: AsyncIOScheduler | None = None
 
