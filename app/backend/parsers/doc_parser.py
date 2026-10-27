@@ -372,7 +372,7 @@ _DESIGNER_PATTERNS = [
 
 _DESIGNER_STOP_WORDS = (
     "генеральный директор", "главный инженер", "инн", "кпп", "огрн",
-    "e-mail", "newsletters", "лист", "стадия", "раздел", "объект",
+    "e-mail", "email", "лист", "стадия", "раздел", "объект",
 )
 
 _DESIGNER_LEGAL_FORM_RE = re.compile(
@@ -1105,9 +1105,9 @@ async def download_multipart_rar(parts: list, work_dir: Path, task_id: str | Non
 
     paths = await asyncio.gather(*(
         download_file(
-            url=item["doc"]["url"],
+            url=item["doc"].url,
             download_dir=work_dir,
-            filename=item["doc"].get("filename"),
+            filename=item["doc"].filename,
             task_id=task_id,
         )
         for item in parts
@@ -1169,7 +1169,7 @@ async def process_one_attached_file_and_merge(
         elif group_type == "multipart_rar":
             base = item["base"]
             parts = item["parts"]
-            source_url = " | ".join(p["doc"]["url"] for p in parts)
+            source_url = " | ".join(p["doc"].url for p in parts)
             task_id = short_id(source_url)
 
             work_dir = ensure_dir(tmp_dir / f"{safe_filename(base)}_{stable_id(source_url)}")

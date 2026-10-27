@@ -20,10 +20,10 @@ export type Purchase = {
   region_number?: string | null;
 };
 
+// Совпадает с FilterNotice на бэке (app/schemas/purchase.py)
 export type PurchaseFilters = {
-  token: string;
-
   name?: string;
+  registration_number?: string;
   initial_sum_from?: number;
   initial_sum_to?: number;
 
@@ -38,7 +38,9 @@ export type PurchaseFilters = {
 
   source_file?: string;
 
-  filter_type_name?: string;
-  region_number?: string;
+  list_filter_type_name?: string[];
   region_numbers?: string[];
+
+  oem_flag?: string; // "Есть" | "Нету" — только для «Тендеры для OEM»
+  itm_option?: string; // "ITCLG" | "ITRAA" | ... — только для «Тендеры для ITM»
 };

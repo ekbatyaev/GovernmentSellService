@@ -209,36 +209,6 @@ export function getRegionNumbersByDistrict(districtName: string) {
   return REGION_CODES_BY_FEDERAL_DISTRICT[districtName] || [];
 }
 
-export function buildPurchaseRequestMeta(filters: {
-  filterTypeName: string;
-  districtName: string;
-  regionNumber: string;
-}) {
-  const shouldUseDistrict = isOemOrItm(filters.filterTypeName);
-
-  if (filters.regionNumber) {
-    return {
-      filter_type_name: filters.filterTypeName || undefined,
-      region_number: filters.regionNumber,
-      region_numbers: [filters.regionNumber],
-    };
-  }
-
-  if (shouldUseDistrict && filters.districtName) {
-    const regionNumbers = getRegionNumbersByDistrict(filters.districtName);
-
-    return {
-      filter_type_name: filters.filterTypeName || undefined,
-      region_numbers: regionNumbers.length ? regionNumbers : undefined,
-    };
-  }
-
-  return {
-    filter_type_name: filters.filterTypeName || undefined,
-    region_numbers: undefined,
-  };
-}
-
 export function getDocumentDisplayName(document: unknown, index: number): string {
   const item = document as Record<string, unknown>;
 

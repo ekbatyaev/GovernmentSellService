@@ -7,11 +7,12 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     port: 5173,
-    proxy: {
-      "/api": {
-        target: "http://localhost:8002",
-        changeOrigin: true,
-      },
-    },
+    // В dev проксируем роутеры бэка (в Docker фронт и API отдаёт один FastAPI)
+    proxy: Object.fromEntries(
+      ["/users", "/purchases", "/newsletters", "/services"].map((path) => [
+        path,
+        { target: "http://localhost:8002", changeOrigin: true },
+      ]),
+    ),
   },
 });

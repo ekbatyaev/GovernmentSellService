@@ -14,7 +14,7 @@ from app.backend.parsers.filters.departments.oem import request_filters_oem
 from app.backend.parsers.filters.departments.itm import request_filters_itm
 from app.backend.parsers.doc_parser import process_attached_files_and_merge
 from app.schemas.purchase import Customer, Contact, ApplyRequest, Lot, Item, Document, FilterNotice
-from app.backend.parsers.schemas import Notice
+from app.backend.parsers.schemas import Notice, NoticeParser
 from app.backend.database.crud.purchase import search_purchases
 from sqlalchemy.exc import IntegrityError
 from app.backend.constraints import REGIONS_ROSSETI
@@ -66,20 +66,30 @@ def _normalize_contract_sum(text: str | None) -> float:
 
 async def _query_search_purchases(**kwargs) -> Notice | None:
     async with db_session() as db:
-        purchase = None
         try:
             purchases: list[Notice] = await search_purchases(db, FilterNotice(**kwargs))
-            if not purchases:
-                logger.warning(
-                    f"Заявка под регистрационным номером: {kwargs.get("registration_number")} и фильтрами: {kwargs} не найдена.")
-
-            if len(purchases) > 1:
-                logger.exception(
-                    f"Найдены несколько заявок под одним регистрационным номером: {kwargs.get("registration_number")}")
-            return purchases[0]
         except IntegrityError as e:
             logger.exception(f"Произошла ошибка получения данных поиска заявок: {e}, ")
-            return purchase
+            return None
+
+    # Для новых закупок пустой результат — нормальная ситуация
+    if not purchases:
+        logger.info(
+            f"Заявка под регистрационным номером: {kwargs.get("registration_number")} и фильтрами: {kwargs} не найдена.")
+        return None
+
+    if len(purchases) > 1:
+        logger.warning(
+            f"Найдены несколько заявок под одним регистрационным номером: {kwargs.get("registration_number")}")
+    return purchases[0]
+
+def _existing_info(purchase: Notice | None) -> tuple[dict, list]:
+    """Копии result_info / documents_list уже сохранённой закупки (пустые, если её нет).
+    Копируем, чтобы правки одной ветки фильтра не меняли общий объект."""
+    if purchase is None:
+        return {}, []
+    return dict(purchase.result_info or {}), list(purchase.documents_list or [])
+
 
 def _extract_documents(attachments: dict) -> list[Document]:
     """Общая логика извлечения списка документов из attachments (раньше была
@@ -101,7 +111,7 @@ def _extract_documents(attachments: dict) -> list[Document]:
     ]
 
 
-def _normalize_protocol(data: dict, file_name: str) -> Notice:
+def _normalize_protocol(data: dict, file_name: str) -> NoticeParser:
     body = (data.get("purchaseProtocol") or {}).get("body") or {}
     item = body.get("item", {}) or {}
     protocol = item.get("purchaseProtocolData", {}) or {}
@@ -130,7 +140,7 @@ def _normalize_protocol(data: dict, file_name: str) -> Notice:
         "first_name": contact.get("firstName", ""),
         "middle_name": contact.get("middleName", ""),
         "phone": contact.get("phone", ""),
-        "newsletters": contact.get("newsletters", ""),
+        "email": contact.get("email", ""),
     })
 
     result["apply_request"] = ApplyRequest(**{
@@ -166,10 +176,10 @@ def _normalize_protocol(data: dict, file_name: str) -> Notice:
                 items = []
             ))
 
-    return Notice(**result, source_file = file_name, lots = Lots)
+    return NoticeParser(**result, source_file = file_name, lots = Lots)
 
 
-def _normalize_purchase(data: dict, file_name: str) -> Notice:
+def _normalize_purchase(data: dict, file_name: str) -> NoticeParser:
 
     body = (data.get("purchaseNotice", {})).get("body", {})
     item = body.get("item", {}) or {}
@@ -209,7 +219,7 @@ def _normalize_purchase(data: dict, file_name: str) -> Notice:
         "first_name": contact.get("firstName", ""),
         "middle_name": contact.get("middleName", ""),
         "phone": contact.get("phone", ""),
-        "newsletters": contact.get("newsletters", ""),
+        "email": contact.get("email", ""),
     })
 
     result["apply_request"] = ApplyRequest(**{
@@ -246,7 +256,7 @@ def _normalize_purchase(data: dict, file_name: str) -> Notice:
                         currency = (lot_data.get("currency") or {}).get("code"),
                         items = Items))
 
-    return Notice(**result, source_file = file_name, lots = Lots)
+    return NoticeParser(**result, source_file = file_name, lots = Lots)
 
 def _read_and_parse_xml(archive: zipfile.ZipFile, file_name: str) -> dict:
     """Блокирующая часть (чтение из zip + парсинг XML). Вызывается через
@@ -313,8 +323,7 @@ async def _process_protocol_entry(
             ProtocolDeepCopy.region_number = str(region)
             ProtocolDeepCopy.filter_type_name = filter_type_name
 
-            result_info = purchase.get("result_info") or {}
-            documents_list = purchase.get("documents_list") or []
+            result_info, documents_list = _existing_info(purchase)
 
             ProtocolDeepCopy.result_info, ProtocolDeepCopy.documents_list = await process_attached_files_and_merge(
                 attached_files=ProtocolDeepCopy.attached_files,
@@ -326,7 +335,7 @@ async def _process_protocol_entry(
             )
 
             if filter_type == 3 and itm_check:
-                ProtocolDeepCopy.result_info["Категория заявки"] = itm_check["filter_name"]
+                ProtocolDeepCopy.result_info["Категория заявки"] = itm_check.filter_name
 
             entries.append(ProtocolDeepCopy)
 
@@ -369,7 +378,7 @@ async def _process_purchase_entry(
 
         purchases = await asyncio.gather(*[
             _query_search_purchases(
-                registration_number = Purchase.registration_number, list_filter_type_names=[name]
+                registration_number = Purchase.registration_number, list_filter_type_name=[name]
             )
             for _, name in candidates
         ])
@@ -380,10 +389,10 @@ async def _process_purchase_entry(
             PurchaseDeepCopy.region_number = str(region)
             PurchaseDeepCopy.filter_type_name = filter_type_name
 
-            if filter_type == 1:
-                result_info = purchase.get("result_info") or {}
-                documents_list = purchase.get("documents_list") or []
+            # purchase is None — закупки ещё нет в БД (новая), берём пустые данные
+            result_info, documents_list = _existing_info(purchase)
 
+            if filter_type == 1:
                 match = re.search(r"для нужд\s+([^.,()\-–—]+)", PurchaseDeepCopy.name or "", re.IGNORECASE)
                 value = match.group(1).strip() if match else ""
                 words = value.split()
@@ -402,9 +411,6 @@ async def _process_purchase_entry(
                 )
 
             elif filter_type == 2:
-                result_info = purchase.get("result_info") or {}
-                documents_list = purchase.get("documents_list") or []
-
                 PurchaseDeepCopy.result_info, PurchaseDeepCopy.documents_list = await process_attached_files_and_merge(
                     attached_files=PurchaseDeepCopy.attached_files,
                     tmp_dir=settings.tmp_dir,
@@ -421,10 +427,10 @@ async def _process_purchase_entry(
                 # берутся из purchase "как есть", без
                 # process_attached_files_and_merge (эта ветка была
                 # закомментирована в исходном коде — сохраняем как есть).
-                PurchaseDeepCopy.result_info = purchase.get("result_info") or {}
-                PurchaseDeepCopy.documents_list = purchase.get("documents_list") or []
+                PurchaseDeepCopy.result_info = result_info
+                PurchaseDeepCopy.documents_list = documents_list
                 if itm_check:
-                    PurchaseDeepCopy.result_info["Категория заявки"] = itm_check["filter_name"]
+                    PurchaseDeepCopy.result_info["Категория заявки"] = itm_check.filter_name
 
             entries.append(PurchaseDeepCopy)
 

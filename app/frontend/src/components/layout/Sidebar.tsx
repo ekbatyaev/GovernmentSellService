@@ -1,5 +1,6 @@
-import { Bell, Database, LayoutDashboard, Settings } from "lucide-react";
+import { Bell, Database, LayoutDashboard, LogOut, Settings } from "lucide-react";
 import eSymbolUrl from "../../assets/e-symbol.svg";
+import { useAuth } from "../../auth/AuthContext";
 
 type SidebarProps = {
   activePage: string;
@@ -14,6 +15,8 @@ const items = [
 ];
 
 export function Sidebar({ activePage, onChangePage }: SidebarProps) {
+  const { logout } = useAuth();
+
   return (
     <aside className="hidden w-72 border-r border-[color:var(--se-border)] bg-white/90 px-4 py-6 backdrop-blur lg:block">
       <div className="mb-8 px-2">
@@ -58,6 +61,15 @@ export function Sidebar({ activePage, onChangePage }: SidebarProps) {
           );
         })}
       </nav>
+
+      <button
+        type="button"
+        onClick={logout}
+        className="mt-6 flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold text-[color:var(--se-muted)] transition hover:bg-rose-50 hover:text-rose-600"
+      >
+        <LogOut size={18} />
+        Выйти
+      </button>
     </aside>
   );
 }

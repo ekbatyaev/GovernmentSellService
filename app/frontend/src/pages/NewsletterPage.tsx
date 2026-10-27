@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, ChevronDown, Loader2, Mail, MailMinus, MailPlus } from "lucide-react";
-import { getConfig } from "../api/config";
+import { confirmNewsletter, sendNewsletterCode } from "../api/newsletters";
+import { errorMessage } from "../lib/errors";
 import { Header } from "../components/layout/Header";
 import { Card } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
@@ -8,8 +9,6 @@ import { Input } from "../components/ui/Input";
 import { Select } from "../components/ui/Select";
 
 // ─── константы ───────────────────────────────────────────────────────────────
-
-const API_BASE = "";
 
 const FILTER_TYPE_OPTIONS = [
   { label: "Тендеры для Россетей", value: "Тендеры для Россетей" },
@@ -63,7 +62,7 @@ const REGIONS_OPTIONS = [
   { label: "68 - Тамбовская область", value: "68" },
 ];
 
-const RESEND_COOLDOWN = 60; // секунд
+const RESEND_COOLDOWN = 300; // секунд — бэк выдаёт новый код не чаще раза в 5 минут
 
 function needsDistrict(filterType: string) {
   return filterType === "Тендеры для OEM" || filterType === "Тендеры для ITM";
@@ -71,24 +70,6 @@ function needsDistrict(filterType: string) {
 
 function needsRegion(filterType: string) {
   return filterType === "Тендеры для Россетей";
-}
-
-// ─── утилиты ─────────────────────────────────────────────────────────────────
-
-async function apiPost<T>(url: string, body: unknown): Promise<T> {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  let data: Record<string, unknown> = {};
-  try {
-    data = await res.json();
-  } catch {}
-  if (!res.ok) {
-    throw new Error(String(data.detail || data.message || `HTTP ${res.status}`));
-  }
-  return data as T;
 }
 
 // ─── шаги формы ──────────────────────────────────────────────────────────────
@@ -100,15 +81,14 @@ type Mode = "subscribe" | "unsubscribe";
 
 function NewsletterForm({
   mode,
-  token,
   onDone,
 }: {
   mode: Mode;
-  token: string;
   onDone: (email: string) => void;
 }) {
   const [step, setStep] = useState<Step>("form");
   const [email, setEmail] = useState("");
+  const [codeGuid, setCodeGuid] = useState<string | null>(null);
   const [filterType, setFilterType] = useState("Тендеры для Россетей");
   const [districtName, setDistrictName] = useState("");
   const [code, setCode] = useState("");
@@ -134,7 +114,6 @@ function NewsletterForm({
 
   async function handleSendCode() {
     if (!email) { setStatus({ text: "Введите email", error: true }); return; }
-    if (!token) { setStatus({ text: "Токен не загружен, попробуйте позже", error: true }); return; }
     if (needsDistrict(filterType) && !districtName) {
       setStatus({ text: "Выберите федеральный округ", error: true });
       return;
@@ -148,12 +127,13 @@ function NewsletterForm({
     try {
       setLoading(true);
       setStatus(null);
-      await apiPost(`${API_BASE}/send_auth_code`, { email, token });
+      const { data } = await sendNewsletterCode(email);
+      setCodeGuid(data.guid);
       setStatus({ text: "Код отправлен на указанный email", error: false });
       setStep("code");
       startCooldown();
     } catch (e) {
-      setStatus({ text: e instanceof Error ? e.message : "Ошибка", error: true });
+      setStatus({ text: errorMessage(e), error: true });
     } finally {
       setLoading(false);
     }
@@ -164,42 +144,40 @@ function NewsletterForm({
     try {
       setLoading(true);
       setStatus(null);
-      await apiPost(`${API_BASE}/send_auth_code`, { email, token });
+      const { data } = await sendNewsletterCode(email);
+      setCodeGuid(data.guid);
+      setCode("");
       setStatus({ text: "Код отправлен повторно", error: false });
       startCooldown();
     } catch (e) {
-      setStatus({ text: e instanceof Error ? e.message : "Ошибка", error: true });
+      setStatus({ text: errorMessage(e), error: true });
     } finally {
       setLoading(false);
     }
   }
 
   async function handleVerify() {
-    if (!code) { setStatus({ text: "Введите код", error: true }); return; }
+    if (!/^\d{6}$/.test(code.trim())) { setStatus({ text: "Код состоит из 6 цифр", error: true }); return; }
+    if (!codeGuid) { setStatus({ text: "Сначала запросите код", error: true }); return; }
 
     try {
       setLoading(true);
       setStatus(null);
 
-      await apiPost(`${API_BASE}/verify_code`, { email, code: String(code), token });
-
-      const newsletterPayload = {
+      // Бэк проверяет код и сразу подписывает / отписывает одним запросом
+      await confirmNewsletter({
+        guid: codeGuid,
         email,
-        token,
+        code: Number(code.trim()),
+        option: mode,
         filter_type_name: filterType,
         district_name: (needsDistrict(filterType) || needsRegion(filterType)) ? districtName : "",
-      };
-
-      if (mode === "subscribe") {
-        await apiPost(`${API_BASE}/put_newsletter`, newsletterPayload);
-      } else {
-        await apiPost(`${API_BASE}/delete_newsletter`, newsletterPayload);
-      }
+      });
 
       setStep("done");
       onDone(email);
     } catch (e) {
-      setStatus({ text: e instanceof Error ? e.message : "Ошибка", error: true });
+      setStatus({ text: errorMessage(e), error: true });
     } finally {
       setLoading(false);
     }
@@ -358,8 +336,6 @@ function NewsletterForm({
 // ─── главная страница ─────────────────────────────────────────────────────────
 
 export function NewsletterPage() {
-  const [token, setToken] = useState("");
-  const [tokenError, setTokenError] = useState<string | null>(null);
   // ИСПРАВЛЕНО: заменил тип с Mode | null на Mode | null, но изменил логику handleOpen.
   // Проблема была: при клике на "Подписаться" когда уже открыта "Отписаться",
   // оба раскрывались одновременно. Это происходило потому что клик на одну карточку
@@ -368,14 +344,6 @@ export function NewsletterPage() {
   // если нажали на другой — закрывает старый и открывает новый (один setState).
   const [activeMode, setActiveMode] = useState<Mode | null>(null);
   const [lastDoneEmail, setLastDoneEmail] = useState<string | null>(null);
-
-  useEffect(() => {
-    getConfig()
-      .then((r) => setToken(r.data.system_token || ""))
-      .catch((e: unknown) =>
-        setTokenError(e instanceof Error ? e.message : "Не удалось загрузить конфиг")
-      );
-  }, []);
 
   function handleDone(email: string) {
     setLastDoneEmail(email);
@@ -396,12 +364,6 @@ export function NewsletterPage() {
       />
 
       <div className="space-y-6 p-6">
-        {tokenError && (
-          <Card className="border-rose-200 bg-rose-50 text-rose-700 text-sm">
-            {tokenError}
-          </Card>
-        )}
-
         {/* Пояснение */}
         <Card className="bg-emerald-50/60 border-emerald-200">
           <div className="flex items-start gap-4">
@@ -458,7 +420,6 @@ export function NewsletterPage() {
                 <NewsletterForm
                   key="subscribe"
                   mode="subscribe"
-                  token={token}
                   onDone={handleDone}
                 />
               </div>
@@ -500,7 +461,6 @@ export function NewsletterPage() {
                 <NewsletterForm
                   key="unsubscribe"
                   mode="unsubscribe"
-                  token={token}
                   onDone={handleDone}
                 />
               </div>

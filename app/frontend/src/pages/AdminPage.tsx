@@ -1,13 +1,13 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import {
   CalendarDays,
   CalendarRange,
   Loader2,
-  ServerCrash,
   Settings2,
   Trash2
 } from "lucide-react";
-import { getConfig } from "../api/config";
+import { api, ApiError } from "../api/client";
+import { errorMessage } from "../lib/errors";
 import { Header } from "../components/layout/Header";
 import { Card } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
@@ -15,8 +15,6 @@ import { Input } from "../components/ui/Input";
 import { Select } from "../components/ui/Select";
 
 // ─── константы ───────────────────────────────────────────────────────────────
-
-const API_BASE = "";
 
 const FILTER_TYPE_OPTIONS = [
   { label: "Все типы", value: "0" },
@@ -27,19 +25,11 @@ const FILTER_TYPE_OPTIONS = [
 
 // ─── утилиты ─────────────────────────────────────────────────────────────────
 
-async function adminPost(url: string, body: unknown): Promise<{ message?: string; data?: unknown }> {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  let data: Record<string, unknown> = {};
-  try { data = await res.json(); } catch {}
-  if (!res.ok) {
-    throw new Error(String(data.detail || data.message || `HTTP ${res.status}`));
-  }
-  return data;
-}
+type JobStatus = {
+  name: string | null;
+  status: "idle" | "running" | "done" | "error";
+  message: string | null;
+};
 
 function todayIso() {
   return new Date().toISOString().split("T")[0];
@@ -48,13 +38,13 @@ function todayIso() {
 async function waitJob(): Promise<string> {
   while (true) {
     await new Promise((r) => setTimeout(r, 5000));
-    let job: { status?: string; message?: string } | undefined;
+    let job: JobStatus | undefined;
     try {
-      const res = await fetch(`${API_BASE}/admin/job_status`);
-      if (!res.ok) continue; // прокси/сервер моргнул — спросим ещё раз
-      job = (await res.json()).data;
-    } catch {
-      continue;
+      job = (await api.get<JobStatus>("/services/stats/job_status")).data;
+    } catch (e) {
+      // Сессия истекла — клиент уже вывел на экран входа, опрос прекращаем
+      if (e instanceof ApiError && e.status === 401) throw e;
+      continue; // прокси/сервер моргнул — спросим ещё раз
     }
     if (job?.status === "done") return job.message || "Готово";
     if (job?.status === "error") throw new Error(job.message || "Ошибка в задаче");
@@ -103,9 +93,6 @@ function TaskBlock({
 // ─── главная страница ─────────────────────────────────────────────────────────
 
 export function AdminPage() {
-  const [token, setToken] = useState("");
-  const [tokenError, setTokenError] = useState<string | null>(null);
-
   // Backfill по диапазону дат
   const [backfillFrom, setBackfillFrom] = useState("");
   const [backfillTo, setBackfillTo] = useState(todayIso());
@@ -119,14 +106,6 @@ export function AdminPage() {
   const [log, setLog] = useState<LogEntry[]>([]);
   const logIdRef = useRef(0);
 
-  useEffect(() => {
-    getConfig()
-      .then((r) => setToken(r.data.system_token || ""))
-      .catch((e: unknown) =>
-        setTokenError(e instanceof Error ? e.message : "Не удалось загрузить конфиг")
-      );
-  }, []);
-
   function addLog(text: string, ok: boolean) {
     const entry: LogEntry = {
       id: ++logIdRef.current,
@@ -138,16 +117,15 @@ export function AdminPage() {
   }
 
   async function runTask(taskName: string, url: string, body: unknown) {
-    if (!token) { addLog("Нет токена — обновите страницу", false); return; }
     try {
       setLoadingTask(taskName);
       addLog(`Запуск: ${taskName}...`, true);
-            const result = await adminPost(url, body);
-      addLog(`⏳ ${result.message || "Задача запущена"}`, true);
+      await api.post(url, body); // 409, если уже идёт другая задача — текст покажем в логе
+      addLog("⏳ Задача запущена", true);
       const message = await waitJob();
       addLog(`✅ ${message}`, true);
     } catch (e) {
-      addLog(`❌ ${e instanceof Error ? e.message : "Ошибка"}`, false);
+      addLog(`❌ ${errorMessage(e)}`, false);
     } finally {
       setLoadingTask(null);
     }
@@ -161,10 +139,9 @@ export function AdminPage() {
     if (backfillFrom > backfillTo) { addLog("Дата начала не может быть позже даты конца", false); return; }
 
     runTask(
-      "run_backfill",
-      `${API_BASE}/admin/run_backfill_period_of_time`,
+      "run_process_period",
+      "/services/run/process_period",
       {
-        token,
         date_from: `${backfillFrom}T00:00:00`,
         date_to: `${backfillTo}T23:59:59`,
         filter_number: backfillFilterType,
@@ -180,9 +157,8 @@ export function AdminPage() {
 
     runTask(
       "run_process_day",
-      `${API_BASE}/admin/run_process_day`,
+      "/services/run/process_day",
       {
-        token,
         date: `${processDay}T00:00:00`,
         filter_number: processDayFilterType,
       },
@@ -196,13 +172,6 @@ export function AdminPage() {
       <Header title="Админ-панель" subtitle="Ручной запуск парсинга закупок" />
 
       <div className="space-y-6 p-6">
-        {tokenError && (
-          <Card className="border-rose-200 bg-rose-50 text-rose-700 flex items-center gap-3 text-sm">
-            <ServerCrash size={18} className="shrink-0" />
-            {tokenError}
-          </Card>
-        )}
-
         {/* Задачи */}
         <div className="grid gap-4 lg:grid-cols-2">
 

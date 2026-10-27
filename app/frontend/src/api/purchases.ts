@@ -1,15 +1,12 @@
-import { apiPost } from "./client";
+import { api } from "./client";
 import type { Purchase, PurchaseFilters } from "../types/purchase";
 
-export function getAllPurchases(filters: PurchaseFilters) {
-  return apiPost<Purchase[], PurchaseFilters>("/get_all_purchases", filters);
+export function searchPurchases(filters: PurchaseFilters) {
+  return api.post<Purchase[]>("/purchases/search", filters);
 }
 
-export function getPurchaseByGuid(token: string, guid: string) {
-  return apiPost<Purchase, { token: string; guid: string }>("/get_purchase", {
-    token,
-    guid,
-  });
+export function getPurchase(guid: string) {
+  return api.get<Purchase>(`/purchases/${encodeURIComponent(guid)}`);
 }
 
 export type UpdatePurchasePayload = Partial<
@@ -31,18 +28,15 @@ export type UpdatePurchasePayload = Partial<
     | "filter_type_name"
     | "region_number"
   >
-> & {
-  token: string;
-  guid: string;
-};
+>;
 
-export function updatePurchase(payload: UpdatePurchasePayload) {
-  return apiPost<Purchase, UpdatePurchasePayload>("/update_purchase", payload);
+/** PATCH возвращает только guid — поэтому сразу перечитываем закупку целиком. */
+export async function updatePurchase(guid: string, patch: UpdatePurchasePayload): Promise<Purchase> {
+  await api.patch<{ guid: string }>(`/purchases/${encodeURIComponent(guid)}`, patch);
+  const response = await getPurchase(guid);
+  return response.data;
 }
 
-export function deletePurchase(token: string, guid: string) {
-  return apiPost<{ guid: string }, { token: string; guid: string }>("/delete_purchase", {
-    token,
-    guid,
-  });
+export function deletePurchase(guid: string) {
+  return api.del<{ guid: string }>(`/purchases/${encodeURIComponent(guid)}`);
 }

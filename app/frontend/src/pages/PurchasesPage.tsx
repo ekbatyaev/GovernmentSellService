@@ -17,8 +17,8 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { getConfig } from "../api/config";
-import { deletePurchase, getAllPurchases, updatePurchase } from "../api/purchases";
+import { deletePurchase, searchPurchases, updatePurchase } from "../api/purchases";
+import { errorMessage } from "../lib/errors";
 import { Header } from "../components/layout/Header";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
@@ -27,7 +27,6 @@ import { Input } from "../components/ui/Input";
 import { Select } from "../components/ui/Select";
 import { formatDate, formatMoney } from "../lib/format";
 import {
-  buildPurchaseRequestMeta,
   FEDERAL_DISTRICT_OPTIONS,
   isOemOrItm,
   REGION_OPTIONS,
@@ -38,13 +37,6 @@ import type { Purchase, PurchaseFilters } from "../types/purchase";
 import ExcelJS from "exceljs";
 
 // ─── типы ─────────────────────────────────────────────────────────────────────
-
-type RequestPurchaseFilters = PurchaseFilters & {
-  filter_type_name?: string;
-  region_numbers?: string[];
-  oem_flag?: string;
-  itm_option?: string;
-};
 
 const REGION_CODES_BY_FEDERAL_DISTRICT: Record<string, string[]> = {
   "Центральный федеральный округ": [
@@ -202,16 +194,11 @@ function toNumber(value: string): number | undefined {
   return Number.isFinite(number) ? number : undefined;
 }
 
-function buildFilters(token: string, filters: UiFilters): RequestPurchaseFilters {
-  const requestMeta = buildPurchaseRequestMeta({
-    filterTypeName: filters.filterTypeName,
-    districtName: filters.districtName,
-    regionNumber: filters.regionNumber,
-  });
+// Поля совпадают с FilterNotice на бэке
+function buildFilters(filters: UiFilters): PurchaseFilters {
   const regionNumbers = getRegionNumbers(filters);
 
   return {
-    token,
     name: filters.name.trim() || undefined,
     initial_sum_from: toNumber(filters.initialSumFrom),
     initial_sum_to: toNumber(filters.initialSumTo),
@@ -221,8 +208,7 @@ function buildFilters(token: string, filters: UiFilters): RequestPurchaseFilters
     submission_start_datetime_to: dateToIsoEnd(filters.submissionStartTo),
     submission_close_datetime_from: dateToIsoStart(filters.submissionCloseFrom),
     submission_close_datetime_to: dateToIsoEnd(filters.submissionCloseTo),
-    ...requestMeta,
-    filter_type_name: filters.filterTypeName || undefined,
+    list_filter_type_name: filters.filterTypeName ? [filters.filterTypeName] : undefined,
     region_numbers: regionNumbers,
     oem_flag: filters.oem_flag || undefined,
     itm_option: filters.itm_option || undefined
@@ -1154,13 +1140,11 @@ function PurchaseDetails({ purchase }: { purchase: Purchase }) {
 
 function PurchaseFullScreenModal({
   purchase,
-  token,
   onClose,
   onSaved,
   onDeleted,
 }: {
   purchase: Purchase;
-  token: string;
   onClose: () => void;
   onSaved: (purchase: Purchase) => void;
   onDeleted: (guid: string) => void;
@@ -1173,36 +1157,35 @@ function PurchaseFullScreenModal({
   useEffect(() => { setDraft(buildPurchaseDraft(purchase)); }, [purchase]);
 
   async function handleSave() {
-    if (!token || !purchase.guid) { setError("Нет токена или GUID заявки"); return; }
+    if (!purchase.guid) { setError("Нет GUID заявки"); return; }
 
     try {
       setIsSaving(true);
       setError(null);
 
-      const response = await updatePurchase({
-        token,
-        guid: purchase.guid,
+      const saved = await updatePurchase(purchase.guid, {
         name: draft.name,
         registration_number: draft.registrationNumber,
         initial_sum: toNumber(draft.initialSum) ?? null,
         region_number: draft.regionNumber || null,
-        customer: { ...(purchase.customer || {}), full_name: draft.customerName || undefined },
+        // full_name всегда строкой: схема Customer на бэке требует это поле
+        customer: { ...(purchase.customer || {}), full_name: draft.customerName },
         publication_datetime: dateToIso(draft.publicationDate),
         submission_start_datetime: dateToIso(draft.submissionStart),
         submission_close_datetime: dateToIso(draft.submissionClose),
       });
 
-      onSaved(response.data);
+      onSaved(saved);
       setIsEditing(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось сохранить заявку");
+      setError(errorMessage(err, "Не удалось сохранить заявку"));
     } finally {
       setIsSaving(false);
     }
   }
 
   async function handleDelete() {
-    if (!token || !purchase.guid) { setError("Нет токена или GUID заявки"); return; }
+    if (!purchase.guid) { setError("Нет GUID заявки"); return; }
 
     const ok = window.confirm(`Удалить заявку ${purchase.registration_number || purchase.name}?`);
     if (!ok) return;
@@ -1210,11 +1193,11 @@ function PurchaseFullScreenModal({
     try {
       setIsSaving(true);
       setError(null);
-      await deletePurchase(token, purchase.guid);
+      await deletePurchase(purchase.guid);
       onDeleted(purchase.guid);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось удалить заявку");
+      setError(errorMessage(err, "Не удалось удалить заявку"));
     } finally {
       setIsSaving(false);
     }
@@ -1286,12 +1269,11 @@ function PurchaseFullScreenModal({
 
 type PurchaseCardProps = {
   purchase: Purchase;
-  token: string;
   onSaved: (purchase: Purchase) => void;
   onDeleted: (guid: string) => void;
 };
 
-function PurchaseCard({ purchase, token, onSaved, onDeleted }: PurchaseCardProps) {
+function PurchaseCard({ purchase, onSaved, onDeleted }: PurchaseCardProps) {
   const [isOpen, setIsOpen] = useState(false);
   const status = getDeadlineStatus(purchase);
   const documentsCount = Array.isArray(purchase.documents_list) ? purchase.documents_list.length : 0;
@@ -1359,7 +1341,6 @@ function PurchaseCard({ purchase, token, onSaved, onDeleted }: PurchaseCardProps
       {isOpen && (
         <PurchaseFullScreenModal
           purchase={purchase}
-          token={token}
           onClose={() => setIsOpen(false)}
           onSaved={onSaved}
           onDeleted={onDeleted}
@@ -1370,7 +1351,6 @@ function PurchaseCard({ purchase, token, onSaved, onDeleted }: PurchaseCardProps
 }
 
 export function PurchasesPage() {
-  const [token, setToken] = useState("");
   const [filters, setFilters] = useState<UiFilters>(defaultFilters);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -1383,7 +1363,7 @@ export function PurchasesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 25;
 
-  const requestFilters = useMemo(() => buildFilters(token, filters), [filters, token]);
+  const requestFilters = useMemo(() => buildFilters(filters), [filters]);
 
   const totalAmount = useMemo(
     () => purchases.reduce((sum, p) => sum + (p.initial_sum || 0), 0),
@@ -1443,22 +1423,12 @@ export function PurchasesPage() {
     ];
 
   useEffect(() => {
-    let ignore = false;
-    getConfig()
-      .then((response) => { if (!ignore) setToken(response.data.system_token || ""); })
-      .catch((err: unknown) => { if (!ignore) setError(err instanceof Error ? err.message : "Не удалось получить токен"); });
-    return () => { ignore = true; };
-  }, []);
-
-  useEffect(() => {
-    if (!token) return undefined;
-
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => {
       setIsLoading(true);
       setError(null);
 
-      getAllPurchases(requestFilters)
+      searchPurchases(requestFilters)
         .then((response) => {
           if (!controller.signal.aborted) {
             setPurchases(Array.isArray(response.data) ? response.data : []);
@@ -1467,7 +1437,7 @@ export function PurchasesPage() {
         })
         .catch((err: unknown) => {
           if (!controller.signal.aborted) {
-            setError(err instanceof Error ? err.message : "Не удалось загрузить закупки");
+            setError(errorMessage(err, "Не удалось загрузить закупки"));
           }
         })
         .finally(() => {
@@ -1479,7 +1449,7 @@ export function PurchasesPage() {
       controller.abort();
       window.clearTimeout(timeoutId);
     };
-  }, [requestFilters, token, refreshKey]);
+  }, [requestFilters, refreshKey]);
 
   function updateFilters(patch: Partial<UiFilters>) {
     setFilters((current) => ({ ...current, ...patch }));
@@ -1654,7 +1624,6 @@ export function PurchasesPage() {
               <PurchaseCard
                 key={purchase.guid || purchase.registration_number || purchase.name}
                 purchase={purchase}
-                token={token}
                 onSaved={handlePurchaseSaved}
                 onDeleted={handlePurchaseDeleted}
               />

@@ -81,14 +81,16 @@ STATIC_DIR = BASE_DIR / "static"
 if STATIC_DIR.is_dir():
     app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="assets")
 
-@app.get("/", include_in_schema=False)
-@app.get("/approve/{guid}", include_in_schema=False)
-async def spa_index(guid: str | None = None):
-    return FileResponse(STATIC_DIR / "index.html")
 
-@app.get("/{name}.svg", include_in_schema=False)
-async def root_svg(name: str):
-    return FileResponse(STATIC_DIR / f"{name}.svg")
+    @app.get("/", include_in_schema=False)
+    @app.get("/approve/{guid}", include_in_schema=False)
+    async def spa_index(guid: str | None = None):
+        return FileResponse(STATIC_DIR / "index.html")
+
+
+    @app.get("/{name}.svg", include_in_schema=False)
+    async def root_svg(name: str):
+        return FileResponse(STATIC_DIR / f"{name}.svg")
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
