@@ -31,3 +31,6 @@ dist-ssr
 *.sw?
 .tests
 /tests/
+.DS_Store
+__pycache__/
+*.pyc
