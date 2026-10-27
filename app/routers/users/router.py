@@ -20,8 +20,8 @@ from app.settings import logger, settings, MOSCOW_TZ
 users_router = APIRouter(prefix="/users", tags=["users"])
 
 @users_router.get("/{guid}", response_model=ResponseModel,
-                  status_code=status.HTTP_302_FOUND, dependencies=[Depends(require_admin)])
-async def get_user(guid: str, db: AsyncSession = Depends(get_db)):
+                  status_code=status.HTTP_200_OK, dependencies=[Depends(require_admin)])
+async def call_get_user(guid: str, db: AsyncSession = Depends(get_db)):
     user = await db.get(UserDatabase, guid)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -29,8 +29,8 @@ async def get_user(guid: str, db: AsyncSession = Depends(get_db)):
                                 data=User.model_validate(user))
 
 @users_router.delete("/{guid}", response_model = ResponseModel,
-                     status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_admin)])
-async def delete_user(guid: str, db: AsyncSession = Depends(get_db)):
+                     status_code=status.HTTP_200_OK, dependencies=[Depends(require_admin)])
+async def call_delete_user(guid: str, db: AsyncSession = Depends(get_db)):
 
     user = await db.get(UserDatabase, guid)
     if not user:
@@ -41,10 +41,10 @@ async def delete_user(guid: str, db: AsyncSession = Depends(get_db)):
     return ResponseModel(status_message="deleted", data={"guid": guid})
 
 @users_router.patch("/{guid}", response_model=ResponseModel, status_code=status.HTTP_200_OK)
-async def update_user(guid: str, updated_user: UpdateUser,
-                      db: AsyncSession = Depends(get_db), user: UserDatabase = Depends(get_current_user)):
+async def call_update_user(guid: str, updated_user: UpdateUser,
+                      db: AsyncSession = Depends(get_db), current_user: UserDatabase = Depends(get_current_user)):
 
-    if guid != user.guid and user.role != "admin":
+    if guid != current_user.guid and current_user.role != "admin":
         raise HTTPException(status_code=403, detail="You are not allowed to change user info")
 
     query = select(UserDatabase).where(UserDatabase.guid == guid)
@@ -57,10 +57,14 @@ async def update_user(guid: str, updated_user: UpdateUser,
             data={"guid": guid}
         )
 
-    update_data = updated_user.model_dump(exclude_unset=True)
+    update_data = updated_user.model_dump(exclude_unset=True, exclude_none=True)
+    if current_user.role != "admin":
+        update_data.pop("role", None)
+        update_data.pop("email", None)
+    if "password" in update_data:
+        update_data["password"] = hash_password(update_data["password"])
     for field, value in update_data.items():
-        if value is not None:
-            setattr(user, field, value)
+        setattr(user, field, value)
 
     try:
         await db.commit()
@@ -75,7 +79,7 @@ async def update_user(guid: str, updated_user: UpdateUser,
     )
 
 @users_router.post("/login", response_model=ResponseModel, status_code=status.HTTP_200_OK)
-async def login_user(form: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
+async def call_login_user(form: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(UserDatabase).where(UserDatabase.email == form.username))
     user = result.scalar_one_or_none()
 
@@ -88,7 +92,7 @@ async def login_user(form: OAuth2PasswordRequestForm = Depends(), db: AsyncSessi
     )
 
 @users_router.post("/confirm", response_model=ResponseModel, status_code=status.HTTP_201_CREATED)
-async def register_user(confirm_email_user: ConfirmEmailUser, db: AsyncSession = Depends(get_db)):
+async def call_confirm_user(confirm_email_user: ConfirmEmailUser, db: AsyncSession = Depends(get_db)):
 
     result = await db.execute(select(UserDatabase).where(UserDatabase.email == confirm_email_user.email))
 
@@ -98,7 +102,7 @@ async def register_user(confirm_email_user: ConfirmEmailUser, db: AsyncSession =
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User already exists")
 
     try:
-        send_auth_code_status: StatusAuthCode = await send_auth_code(db, str(register_user.email))
+        send_auth_code_status: StatusAuthCode = await send_auth_code(db, str(confirm_email_user.email))
         if send_auth_code_status.status_message == "created":
             return ResponseModel(
                 status_message="created",
@@ -114,11 +118,11 @@ async def register_user(confirm_email_user: ConfirmEmailUser, db: AsyncSession =
     except IntegrityError:
         raise HTTPException(status_code=400, detail="Failed to send auth code")
 
-@users_router.post("/register/{guid}", response_model=ResponseModel, status_code=status.HTTP_201_CREATED)
-async def confirm_user(auth_code_guid: str, register_user: RegisterUser, db: AsyncSession = Depends(get_db)):
+@users_router.post("/register/{auth_code_guid}", response_model=ResponseModel, status_code=status.HTTP_201_CREATED)
+async def call_register_user(auth_code_guid: str, register_user: RegisterUser, db: AsyncSession = Depends(get_db)):
 
     try:
-        auth_code_confirm_status = await check_auth_code(db, auth_code_guid)
+        auth_code_confirm_status = await check_auth_code(db, auth_code_guid, register_user.code, register_user.email)
         if auth_code_confirm_status == "not found":
             raise HTTPException(status_code=500, detail="Not found auth code")
         elif auth_code_confirm_status == "expired":
@@ -165,16 +169,18 @@ async def confirm_user(auth_code_guid: str, register_user: RegisterUser, db: Asy
         </div>"""
 
     try:
-        await send_email(settings.smtp_supervisor_system_email, "Подтверждение регистрации пользователя",
+        await send_email(settings.supervisor_system_email, "Подтверждение регистрации пользователя",
                          body)
     except Exception as e:
         logger.exception(f"Ошибка: {e}")
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                             detail="The mail server is not available right now. Please, try later.")
 
+    return ResponseModel(status_message="created", data={"guid": new_user_guid})
+
 
 @users_router.post("/approve/{guid}", status_code=status.HTTP_200_OK, dependencies=[Depends(require_admin)])
-async def approve_user(guid: str, approve_data: ApproveUser, db: AsyncSession = Depends(get_db)):
+async def call_approve_user(guid: str, approve_data: ApproveUser, db: AsyncSession = Depends(get_db)):
 
     result = await db.execute(select(UserDatabase).where(UserDatabase.guid == guid))
 

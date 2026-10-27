@@ -47,7 +47,6 @@ RUN cat /etc/ssl/certs/ca-certificates.crt >> /usr/local/lib/python3.12/site-pac
 COPY app ./app
 
 # Заменяем старую статику результатом сборки React/Vite
-RUN rm -rf static
 COPY --from=frontend-build /frontend/dist ./static
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

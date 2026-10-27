@@ -29,7 +29,9 @@ async def search_purchases(db: AsyncSession, filters: FilterNotice) -> list[Noti
     if filters.list_filter_type_name:
         query = query.where(NoticeDatabase.filter_type_name.in_(filters.list_filter_type_name))
 
-    if "Тендеры для OEM" in filters.list_filter_type_name and filters.oem_flag:
+    types = filters.list_filter_type_name or []
+
+    if "Тендеры для OEM" in types and filters.oem_flag:
         query = query.where(
             or_(
                 NoticeDatabase.filter_type_name != "Тендеры для OEM",
@@ -37,7 +39,7 @@ async def search_purchases(db: AsyncSession, filters: FilterNotice) -> list[Noti
             )
         )
 
-    if "Тендеры для ITM" in filters.list_filter_type_name and filters.itm_option:
+    if "Тендеры для ITM" in types and filters.itm_option:
         query = query.where(
             or_(
                 NoticeDatabase.filter_type_name != "Тендеры для ITM",

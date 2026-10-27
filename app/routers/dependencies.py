@@ -1,7 +1,7 @@
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Header
 from fastapi.security import OAuth2PasswordBearer
 from pwdlib import PasswordHash
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,7 +11,7 @@ from app.backend.database.settings import get_db
 from app.schemas.user import User
 
 password_hash = PasswordHash.recommended()
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/login")
 
 
 def hash_password(password: str) -> str:
@@ -25,7 +25,7 @@ def verify_password(password: str, hashed: str) -> bool:
 def create_access_token(user: UserDatabase) -> str:
     payload = {
         "sub": user.guid,
-        "exp": datetime.now(MOSCOW_TZ).replace(tzinfo=None) + timedelta(minutes=settings.jwt_expire_minutes),
+        "exp": datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=settings.jwt_expire_minutes),
     }
     return jwt.encode(payload, settings.jwt_secret, algorithm="HS256")
 
@@ -57,6 +57,6 @@ async def require_admin(user: UserDatabase = Depends(get_current_user)) -> UserD
     return user
 
 
-async def require_token(token: str):
-    if secrets.compare_digest(settings.system_token, token):
+async def require_token(token: str = Header()):
+    if not secrets.compare_digest(settings.system_token, token):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")

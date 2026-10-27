@@ -47,7 +47,7 @@ async def complete_row_tender(filter_name: str, purchase: Notice) -> dict[str, A
                "Победитель": purchase.result_info.get("Победитель"),
                "Итоговая цена контракта": purchase.result_info.get("Итоговая цена контракта"),
                "Слова маячки в тз": purchase.result_info.get("Слова маячки в тз"),
-               "Ссылка на тендер": f"https://zakupki.gov.ru/epz/order/notice/notice223/common-info.html?regNumber={purchase.get("registration_number")}"
+               "Ссылка на тендер": f"https://zakupki.gov.ru/epz/order/notice/notice223/common-info.html?regNumber={purchase.registration_number}"
                }
 
     elif filter_name == "Тендеры для ITM":
@@ -56,7 +56,7 @@ async def complete_row_tender(filter_name: str, purchase: Notice) -> dict[str, A
                "ИНН": purchase.result_info.get("ИНН"),
                "Итоговая цена контракта": purchase.result_info.get("Итоговая цена контракта"),
                "Другие участники": purchase.result_info.get("Другие участники"),
-               "Ссылка на тендер": f"https://zakupki.gov.ru/epz/order/notice/notice223/common-info.html?regNumber={purchase.get("registration_number")}"
+               "Ссылка на тендер": f"https://zakupki.gov.ru/epz/order/notice/notice223/common-info.html?regNumber={purchase.registration_number}"
                }
 
     return row

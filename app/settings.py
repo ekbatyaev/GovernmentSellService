@@ -5,7 +5,7 @@ import httpx
 from pydantic_settings import BaseSettings, SettingsConfigDict
 import logging
 import sys
-from pydantic import Field
+from pydantic import Field, EmailStr
 
 async_client_fastapi = httpx.AsyncClient(timeout=30)
 
@@ -57,7 +57,7 @@ class Settings(BaseSettings):
     llm_folder_id: str
 
     system_token: str
-    kontur_api_key: str
+    kontur_api_key: str | None = None
 
     daily_job_hour_msk: int = 10
     daily_job_minute_msk: int = 0
@@ -83,7 +83,8 @@ class Settings(BaseSettings):
     smtp_email: str
     smtp_password: str
     smtp_test_email: str
-    smtp_supervisor_system_email: str
+    supervisor_system_email: EmailStr
+    supervisor_system_password: str = Field(min_length=12, repr=False)
 
     base_url: str
     download_url: str

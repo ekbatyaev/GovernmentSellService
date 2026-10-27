@@ -6,6 +6,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    restart: unless-stopped
     ports:
       - "5434:5432"
     volumes:
@@ -25,6 +26,7 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    restart: unless-stopped
     ports:
       - "8002:8000"
     environment:

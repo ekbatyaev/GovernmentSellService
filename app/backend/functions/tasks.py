@@ -8,15 +8,15 @@ async def run_job(name: str, func, *args, **kwargs):
     global current_job
     try:
         await func(*args, **kwargs)
-        current_job = {"name": name, "status": "done", "message": f"{name}: завершено"}
+        current_job.update(name=name, status="done", message= f"{name}: завершено")
     except Exception as e:
         logger.exception("Фоновая задача %s упала", name)
-        current_job = {"name": name, "status": "error", "message": f"{name}: {e}"}
+        current_job.update(name=name, status="error", message=f"{name}: {e}")
 
 
 def start_job(background: BackgroundTasks, name: str, func, *args, **kwargs):
     global current_job
     if current_job["status"] == "running":
         raise HTTPException(status_code=409, detail=f"Уже выполняется задача {current_job['name']}, пожалуйста, попробуйте позже.")
-    current_job = {"name": name, "status": "running", "message": None}
+    current_job.update(name=name, status="running", message=None)
     background.add_task(run_job, name, func, *args, **kwargs)

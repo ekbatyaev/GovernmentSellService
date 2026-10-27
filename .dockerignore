@@ -1,6 +1,13 @@
 tests
 LICENSE
 README.md
+.git
+.idea
+.env
+logs
+logs-srv
+certs/*
+!certs/russian_ca
 app/frontend/node_modules
 app/frontend/dist
 .env.example

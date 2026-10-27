@@ -117,7 +117,7 @@ async def save_protocol_record(protocol: Notice, registration_numbers_dict_per_d
                 if len(purchases) > 1:
                     logger.exception(
                         "Pipeline: ошибка сохранения закупки | reg=%s | guid=%s",
-                        protocol.registration_number,
+                        protocol.registration_number, protocol.guid
                     )
                     registration_numbers_dict_per_day[protocol.filter_type_name][protocol.region_number].skipped.append(
                         protocol.registration_number
@@ -180,9 +180,7 @@ async def save_protocol_record(protocol: Notice, registration_numbers_dict_per_d
             region_number = protocol.region_number
             registration_number = protocol.registration_number
             if filter_type_name and region_number and registration_number:
-                registration_numbers_dict_per_day[filter_type_name][region_number][
-                    "skipped"
-                ].append(registration_number)
+                registration_numbers_dict_per_day[filter_type_name][region_number].skipped.append(registration_number)
             else:
                 logger.error(
                     "Pipeline: не удалось учесть запись как skipped — нет ключей | purchase=%s",

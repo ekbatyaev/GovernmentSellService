@@ -1,4 +1,5 @@
 import secrets
+import uuid
 from sqlalchemy.exc import IntegrityError
 from app.schemas.newsletter import NewsLetter, UpdateNewsLetter
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -87,9 +88,12 @@ ConfirmOptionNewsLetter) -> Literal["not found", "expired", "too many attempts",
     if not auth_code:
         return "not found"
 
+    if auth_code.email != option_newsletter_data.email:
+        return "invalid"
+
     time_now = datetime.now(MOSCOW_TZ).replace(tzinfo=None)
 
-    if time_now - auth_code.created_at <= timedelta(minutes=5):
+    if time_now - auth_code.created_at > timedelta(minutes=5):
         try:
             await delete_auth_code(db, auth_code.guid)
         except IntegrityError as e:
@@ -108,10 +112,11 @@ ConfirmOptionNewsLetter) -> Literal["not found", "expired", "too many attempts",
     if not secrets.compare_digest(str(option_newsletter_data.code).encode(), str(auth_code.code).encode()):
         return "invalid"
 
+    await delete_auth_code(db, auth_code.guid)
+
     if option_newsletter_data.option == "subscribe":
 
-
-        new_newsletter = NewsLetter(guid=option_newsletter_data.guid,
+        new_newsletter = NewsLetter(guid=str(uuid.uuid4()),
                                             email=option_newsletter_data.email,
                                             filter_type_name=option_newsletter_data.filter_type_name,
                                             district_name=option_newsletter_data.district_name)
@@ -125,9 +130,14 @@ ConfirmOptionNewsLetter) -> Literal["not found", "expired", "too many attempts",
 
     elif option_newsletter_data.option == "unsubscribe":
         try:
-            delete_newsletter_status = await delete_newsletter(db, option_newsletter_data.guid)
-            if not delete_newsletter_status:
+            row = await db.scalar(select(NewsLetterDatabase).where(
+                NewsLetterDatabase.email == option_newsletter_data.email,
+                NewsLetterDatabase.filter_type_name == option_newsletter_data.filter_type_name,
+                NewsLetterDatabase.district_name == option_newsletter_data.district_name))
+            if not row:
                 return "not found"
+            await db.delete(row)
+            await db.commit()
             return "deleted"
         except IntegrityError as e:
             logger.exception(f"Произошла ошибка при отписки от рассылки: {e}")

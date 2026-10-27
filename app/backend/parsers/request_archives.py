@@ -19,6 +19,7 @@ from app.backend.parsers.schemas import ParseSoapResponse
 
 soap_rate_limiter = AsyncLimiter(max_rate=1, time_period=60 / 80)
 
+_download_semaphore = asyncio.Semaphore(settings.max_concurrent_semaphore)
 
 class ServiceError(Exception):
     """Сервис вернул ошибку в теле ответа."""
@@ -235,7 +236,7 @@ async def download_archive_from_result(
 
     path = os.path.abspath(os.path.join(settings.tmp_dir, out_file))
 
-    async with asyncio.Semaphore(settings.max_concurrent_semaphore):
+    async with _download_semaphore:
         try:
             logger.info("Скачивание архива %s", out_file)
             await _stream_download(url, req_params, headers, path)

@@ -1,8 +1,9 @@
 from typing import Literal, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 
 class AuthCode(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     guid: str
     email: str
 

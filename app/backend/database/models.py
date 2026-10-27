@@ -46,7 +46,7 @@ class NewsLetterDatabase(Base):
 
     __table_args__ = (
         UniqueConstraint(
-            "newsletters", "filter_type_name", "district_name",
+            "email", "filter_type_name", "district_name",
             name="uq_newsletter_email_filter_type_district",
         ),
         Index("ix_newsletter_filter_district", "filter_type_name", "district_name"),

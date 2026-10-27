@@ -68,7 +68,7 @@ async def search_auth_codes(db: AsyncSession, filters: FilterAuthCode) -> list[A
         query = query.where(AuthCodeDatabase.created_at >= filters.created_at_from)
 
     if filters.created_at_to:
-        query = query.where(AuthCodeDatabase.created_at <= filters.created_at_to.date())
+        query = query.where(AuthCodeDatabase.created_at <= filters.created_at_to)
 
     if filters.last_checked_at_from:
         query = query.where(AuthCodeDatabase.last_checked_at >= filters.last_checked_at_from)
@@ -83,7 +83,7 @@ async def search_auth_codes(db: AsyncSession, filters: FilterAuthCode) -> list[A
     data = [AuthCode.model_validate(a) for a in auth_codes]
     return data
 
-async def check_auth_code(db: AsyncSession, guid: str) -> Literal["not found", "expired",
+async def check_auth_code(db: AsyncSession, guid: str, code: int, email: str) -> Literal["not found", "expired",
 "too many attempts", "invalid", "approved"]:
     try:
         auth_code = await get_auth_code(db, guid)
@@ -94,9 +94,12 @@ async def check_auth_code(db: AsyncSession, guid: str) -> Literal["not found", "
     if not auth_code:
         return "not found"
 
+    if auth_code.email != email:
+        return "invalid"
+
     time_now = datetime.now(MOSCOW_TZ).replace(tzinfo=None)
 
-    if time_now - auth_code.created_at <= timedelta(minutes=5):
+    if time_now - auth_code.created_at > timedelta(minutes=5):
         try:
             await delete_auth_code(db, auth_code.guid)
         except IntegrityError as e:
@@ -112,14 +115,14 @@ async def check_auth_code(db: AsyncSession, guid: str) -> Literal["not found", "
         logger.exception(f"Произошла ошибка при обновлении кода: {e}")
         raise
 
-    if not secrets.compare_digest(str(auth_code.code).encode(), str(auth_code.code).encode()):
+    if not secrets.compare_digest(str(code).encode(), str(auth_code.code).encode()):
         return "invalid"
     return "approved"
 
 async def send_auth_code(db: AsyncSession, email: str) -> StatusAuthCode:
-    created_at_to = datetime.now(MOSCOW_TZ).replace(tzinfo=None) - timedelta(minutes=5)
+    created_at_from = datetime.now(MOSCOW_TZ).replace(tzinfo=None) - timedelta(minutes=5)
     try:
-        auth_codes = await search_auth_codes(db, FilterAuthCode(email=email, created_at_to=created_at_to))
+        auth_codes = await search_auth_codes(db, FilterAuthCode(email=email, created_at_from=created_at_from))
     except IntegrityError as e:
         logger.exception(f"Произошла ошибка получения данных кодов: {e}")
         raise
@@ -156,9 +159,11 @@ async def send_auth_code(db: AsyncSession, email: str) -> StatusAuthCode:
         return StatusAuthCode(status_message="not found")
 
     auth_code_guid = str(uuid.uuid4())
+    created_at = datetime.now(MOSCOW_TZ).replace(tzinfo=None)
+
     auth_code = AuthCode(guid=auth_code_guid, email=email,
-                                     code=code, created_at=datetime.now(MOSCOW_TZ).replace(tzinfo=None),
-                                     last_checked_at=datetime.now(MOSCOW_TZ).replace(tzinfo=None))
+                                     code=code, created_at=created_at,
+                                     last_checked_at=created_at - timedelta(seconds=21))
     try:
         await put_auth_code(db, auth_code)
         return StatusAuthCode(status_message="created", guid=auth_code_guid)

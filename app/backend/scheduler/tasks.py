@@ -82,25 +82,14 @@ async def daily_task() -> ResultDailyTask:
 
         for district_name in REGIONS_OF_THE_FILTERS[filter_name]:
 
-            created = 0
-            updated = 0
-            skipped = 0
-
-            registration_numbers = []
-
-
-            for region in day_result[filter_name].keys():
-                created += len(day_result[filter_name][region]["created"])
-                updated += len(day_result[filter_name][region]["updated"])
-                skipped += len(day_result[filter_name][region]["skipped"])
-
-                registration_numbers += (day_result[filter_name][region]["created"] +
-                                         day_result[filter_name][region]["updated"] +
-                                         day_result[filter_name][region]["skipped"])
+            group = day_result[filter_name][district_name]
+            created, updated, skipped = len(group.created), len(group.updated), len(group.skipped)
+            registration_numbers = group.created + group.updated + group.skipped
             async with db_session() as db:
                 try:
-                    emails = await search_newsletters(db, FilterNewsLetters(list_filter_type_names=[filter_name],
+                    newsletters = await search_newsletters(db, FilterNewsLetters(list_filter_type_names=[filter_name],
                                                                             list_district_names=[district_name]))
+                    emails = [n.email for n in newsletters]
                 except IntegrityError as e:
                     logger.exception(f"Произошла ошибка получения данных подписантов: {e}")
                     raise
@@ -126,7 +115,7 @@ async def daily_task() -> ResultDailyTask:
                     continue
 
                 purchase: Notice = purchases[0]
-                rows.append(complete_row_tender(filter_name, purchase))
+                rows.append(await complete_row_tender(filter_name, purchase))
 
             result.created += created
             result.updated += updated
@@ -149,7 +138,7 @@ async def daily_task() -> ResultDailyTask:
                     f"Заявки с фильтрами: {filter_name}, {district_name} не найдены.")
 
             for purchase in extra_purchases:
-                extra_rows.append(complete_row_tender(filter_name, purchase))
+                extra_rows.append(await complete_row_tender(filter_name, purchase))
 
             await send_analysis(date_of_processing_notices=yesterday, rows=rows, emails=emails,
                             created=created, updated=updated, skipped=skipped, extra_rows=extra_rows)
@@ -168,18 +157,19 @@ async def daily_task() -> ResultDailyTask:
             registration_numbers = []
 
             for region in REGION_CODES_BY_FEDERAL_DISTRICT[district_name]:
-                created += len(day_result[filter_name][region]["created"])
-                updated += len(day_result[filter_name][region]["updated"])
-                skipped += len(day_result[filter_name][region]["skipped"])
+                created += len(day_result[filter_name][region].created)
+                updated += len(day_result[filter_name][region].updated)
+                skipped += len(day_result[filter_name][region].skipped)
 
-                registration_numbers += (day_result[filter_name][region]["created"] +
-                                         day_result[filter_name][region]["updated"] +
-                                         day_result[filter_name][region]["skipped"])
+                registration_numbers += (day_result[filter_name][region].created +
+                                         day_result[filter_name][region].updated +
+                                         day_result[filter_name][region].skipped)
 
             async with db_session() as db:
                 try:
-                    emails = await search_newsletters(db, FilterNewsLetters(list_filter_type_names=[filter_name],
+                    newsletters = await search_newsletters(db, FilterNewsLetters(list_filter_type_names=[filter_name],
                                                                             list_district_names=[district_name]))
+                    emails = [n.email for n in newsletters]
                 except IntegrityError as e:
                     logger.exception(f"Произошла ошибка получения данных подписантов: {e}")
                     raise
@@ -206,7 +196,7 @@ async def daily_task() -> ResultDailyTask:
 
                 purchase: Notice = purchases[0]
 
-                rows.append(complete_row_tender(filter_name, purchase))
+                rows.append(await complete_row_tender(filter_name, purchase))
 
             result.created += created
             result.updated += updated
@@ -228,18 +218,19 @@ async def daily_task() -> ResultDailyTask:
             registration_numbers = []
 
             for region in REGION_CODES_BY_FEDERAL_DISTRICT[district_name]:
-                created += len(day_result[filter_name][region]["created"])
-                updated += len(day_result[filter_name][region]["updated"])
-                skipped += len(day_result[filter_name][region]["skipped"])
+                created += len(day_result[filter_name][region].created)
+                updated += len(day_result[filter_name][region].updated)
+                skipped += len(day_result[filter_name][region].skipped)
 
-                registration_numbers += (day_result[filter_name][region]["created"] +
-                                         day_result[filter_name][region]["updated"] +
-                                         day_result[filter_name][region]["skipped"])
+                registration_numbers += (day_result[filter_name][region].created +
+                                         day_result[filter_name][region].updated +
+                                         day_result[filter_name][region].skipped)
 
             async with db_session() as db:
                 try:
-                    emails = await search_newsletters(db, FilterNewsLetters(list_filter_type_names=[filter_name],
+                    newsletters = await search_newsletters(db, FilterNewsLetters(list_filter_type_names=[filter_name],
                                                                             list_district_names=[district_name]))
+                    emails = [n.email for n in newsletters]
                 except IntegrityError as e:
                     logger.exception(f"Произошла ошибка получения данных подписантов: {e}")
                     raise
@@ -266,7 +257,7 @@ async def daily_task() -> ResultDailyTask:
 
                 purchase: Notice = purchases[0]
 
-                rows.append(complete_row_tender(filter_name, purchase))
+                rows.append(await complete_row_tender(filter_name, purchase))
 
             result.created += created
             result.updated += updated

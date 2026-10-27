@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from app.settings import MOSCOW_TZ
 
 class Customer(BaseModel):
@@ -40,6 +40,7 @@ class Lot(BaseModel):
     items: Optional[list[Item]] = None
 
 class Notice(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     guid: str
     registration_number: str
     name: str
@@ -74,7 +75,7 @@ class Notice(BaseModel):
         )
     )
 
-class FilterNotice(Notice):
+class FilterNotice(BaseModel):
     name: Optional[str] = None
     source_file: Optional[str] = None
     oem_flag: Optional[str] = None
@@ -97,7 +98,7 @@ class FilterNotice(Notice):
 
     region_numbers: Optional[list[str]] = None
 
-class UpdateNotice(Notice):
+class UpdateNotice(BaseModel):
     name: Optional[str] = None
     filter_type_name: Optional[str] = None
     source_file: Optional[str] = None
