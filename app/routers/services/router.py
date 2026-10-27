@@ -1,7 +1,7 @@
 from datetime import datetime
 from fastapi import BackgroundTasks
 from fastapi import APIRouter
-from app.routers.dependencies import require_token
+from app.routers.dependencies import get_current_user
 from app.routers.schemas import ResponseModel
 from fastapi import Depends, status, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,13 +9,14 @@ from app.backend.database.settings import get_db
 from app.routers.services.schemas import ProcessDayService, ProcessPeriodService
 from sqlalchemy import select, func
 from sqlalchemy.exc import IntegrityError
-from app.backend.functions.functions import start_job, process_day, process_period, current_job
+from app.backend.functions.tasks import start_job, current_job
+from app.backend.functions.notices.process import process_period, process_day
 from app.settings import MOSCOW_TZ
 from app.backend.database.models import NoticeDatabase, NewsLetterDatabase
 from app.backend.database.crud.service import send_auth_code
 from app.schemas.service import StatusAuthCode
 
-service_router = APIRouter(prefix = "/services", tags=["services"], dependencies=[Depends(require_token)])
+service_router = APIRouter(prefix = "/services", tags=["services"], dependencies=[Depends(get_current_user)])
 
 last_process_day_at, last_backfill_at = None, None
 

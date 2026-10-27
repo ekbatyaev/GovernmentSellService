@@ -1,3 +1,4 @@
+import secrets
 import uuid
 from random import randint
 from sqlalchemy.exc import IntegrityError
@@ -6,7 +7,7 @@ from app.backend.database.models import AuthCodeDatabase
 from sqlalchemy import select
 from datetime import datetime, timedelta
 from app.settings import logger, MOSCOW_TZ
-from app.backend.functions.functions import send_email
+from app.backend.functions.analysis import send_email
 from app.schemas.service import AuthCode, StatusAuthCode, FilterAuthCode, UpdateAuthCode
 from typing import Literal
 
@@ -81,6 +82,39 @@ async def search_auth_codes(db: AsyncSession, filters: FilterAuthCode) -> list[A
     auth_codes = result.scalars().all()
     data = [AuthCode.model_validate(a) for a in auth_codes]
     return data
+
+async def check_auth_code(db: AsyncSession, guid: str) -> Literal["not found", "expired",
+"too many attempts", "invalid", "approved"]:
+    try:
+        auth_code = await get_auth_code(db, guid)
+    except IntegrityError as e:
+        logger.exception(f"Произошла ошибка при получении кода: {e}")
+        raise
+
+    if not auth_code:
+        return "not found"
+
+    time_now = datetime.now(MOSCOW_TZ).replace(tzinfo=None)
+
+    if time_now - auth_code.created_at <= timedelta(minutes=5):
+        try:
+            await delete_auth_code(db, auth_code.guid)
+        except IntegrityError as e:
+            logger.exception(f"Произошла ошибка при удалении кода: {e}")
+        return "expired"
+
+    if time_now - auth_code.last_checked_at <= timedelta(seconds=20):
+        return "too many attempts"
+
+    try:
+        await update_auth_code(db, auth_code.guid, UpdateAuthCode(last_checked_at=time_now))
+    except IntegrityError as e:
+        logger.exception(f"Произошла ошибка при обновлении кода: {e}")
+        raise
+
+    if not secrets.compare_digest(str(auth_code.code).encode(), str(auth_code.code).encode()):
+        return "invalid"
+    return "approved"
 
 async def send_auth_code(db: AsyncSession, email: str) -> StatusAuthCode:
     created_at_to = datetime.now(MOSCOW_TZ).replace(tzinfo=None) - timedelta(minutes=5)

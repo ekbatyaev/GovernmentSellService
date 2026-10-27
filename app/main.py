@@ -6,7 +6,7 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from app.backend.scheduler.scheduler import create_scheduler, run_backfill
+from app.backend.scheduler.config import create_scheduler
 from app.backend.database.settings import init_db, dispose_db
 from app.settings import logger, settings, BASE_DIR, file_handler
 
@@ -23,9 +23,6 @@ async def lifespan(app: FastAPI):
         scheduler = await create_scheduler()
 
         scheduler.start()
-
-        if settings.backfill_on_startup:
-            await run_backfill(settings.backfill_days)
 
         os.makedirs(settings.tmp_dir, exist_ok=True)
 

@@ -8,9 +8,9 @@ class NewsLetter(BaseModel):
     district_name: Optional[str] = ""
 
 class FilterNewsLetters(NewsLetter):
-    list_filter_type_names: Optional[str] = None
-    list_district_names: Optional[str] = None
-    list_emails: Optional[str] = None
+    list_filter_type_names: Optional[list] = None
+    list_district_names: Optional[list] = None
+    list_emails: Optional[list] = None
 
 class UpdateNewsLetter(NewsLetter):
     email: Optional[str] = None

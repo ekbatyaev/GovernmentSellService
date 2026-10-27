@@ -74,9 +74,6 @@ class Settings(BaseSettings):
 
     scheduler_lock_key: int = 424242
 
-    backfill_days: int = 10
-    backfill_on_startup: bool = False
-
     app_url: str
     app_web_open_url: str
 
@@ -98,6 +95,14 @@ class Settings(BaseSettings):
 
     jwt_secret: str
     jwt_expire_minutes: int = 60
+
+    # Сколько регионов обрабатывать одновременно.
+    region_process_concurrency: int = 4
+    # Сколько архивов (суммарно по всем регионам) скачивать и парсить одновременно.
+    archive_process_concurrency: int = 8
+    # Сколько записей (purchase/protocol, суммарно по всем архивам) одновременно
+    # писать через api_datum_query.
+    record_concurrency: int = 16
 
 settings = Settings()
 

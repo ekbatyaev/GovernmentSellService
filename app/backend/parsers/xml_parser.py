@@ -5,44 +5,19 @@ import os
 import re
 import uuid
 import zipfile
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 import xmltodict
-from app.backend.api_client import api_datum_query
+from app.backend.database.settings import db_session
 from app.settings import settings, logger
 from app.backend.parsers.filters.departments.rosseti import request_filters_rosseti
 from app.backend.parsers.filters.departments.oem import request_filters_oem
 from app.backend.parsers.filters.departments.itm import request_filters_itm
 from app.backend.parsers.doc_parser import process_attached_files_and_merge
-from app.schemas.purchase import Customer, Contact, ApplyRequest, Lot, Item, Document
+from app.schemas.purchase import Customer, Contact, ApplyRequest, Lot, Item, Document, FilterNotice
 from app.backend.parsers.schemas import Notice
-
-# Регионы для фильтров
-REGIONS_ROSSETI = {
-    "77": True,  # Москва
-    "12": True,  # Республика Марий Эл (Мариэнерго)
-    "52": True,  # Нижегородская область (Нижновэнерго)
-    "43": True,  # Кировская область (Кировэнерго)
-    "56": True,  # Оренбургская область (Оренбургэнерго)
-    "18": True,  # Удмуртская Республика (Удмуртэнерго)
-    "36": True,  # Воронежская область (Воронежэнерго)
-    "63": True,  # Самарская область (Самарские РС)
-    "31": True,  # Белгородская область (Белгородэнерго)
-    "57": True,  # Орловская область (Орелэнерго)
-    "64": True,  # Саратовская область (Саратовские РС)
-    "33": True,  # Владимирская область (Владимирэнерго)
-    "37": True,  # Ивановская область (Ивэнерго)
-    "62": True,  # Рязанская область (Рязаньэнерго)
-    "71": True,  # Тульская область (Тулаэнерго)
-    "44": True,  # Костромская область (Костромаэнерго)
-    "76": True,  # Ярославская область (Ярэнерго)
-    "69": True,  # Тверская область (Тверьэнерго)
-    "67": True,  # Смоленская область (Смоленскэнерго)
-    "32": True,  # Брянская область (Брянскэнерго)
-    "46": True,  # Курская область (Курскэнерго)
-    "48": True,  # Липецкая область (Липецкэнерго)
-    "68": True,  # Тамбовская область (Тамбовэнерго)
-    "40": True,  # Калужская область (Калугаэнерго)
-}
+from app.backend.database.crud.purchase import search_purchases
+from sqlalchemy.exc import IntegrityError
+from app.backend.constraints import REGIONS_ROSSETI
 
 FIELDS = [
     "Победитель",
@@ -88,6 +63,23 @@ def _normalize_contract_sum(text: str | None) -> float:
     except ValueError:
         logger.warning(f"Строка {text!r} не прошла валидацию на float.")
         return 0.0
+
+async def _query_search_purchases(**kwargs) -> Notice | None:
+    async with db_session() as db:
+        purchase = None
+        try:
+            purchases: list[Notice] = await search_purchases(db, FilterNotice(**kwargs))
+            if not purchases:
+                logger.warning(
+                    f"Заявка под регистрационным номером: {kwargs.get("registration_number")} и фильтрами: {kwargs} не найдена.")
+
+            if len(purchases) > 1:
+                logger.exception(
+                    f"Найдены несколько заявок под одним регистрационным номером: {kwargs.get("registration_number")}")
+            return purchases[0]
+        except IntegrityError as e:
+            logger.exception(f"Произошла ошибка получения данных поиска заявок: {e}, ")
+            return purchase
 
 def _extract_documents(attachments: dict) -> list[Document]:
     """Общая логика извлечения списка документов из attachments (раньше была
@@ -264,25 +256,6 @@ def _read_and_parse_xml(archive: zipfile.ZipFile, file_name: str) -> dict:
     data = xmltodict.parse(xml_content)
     return _remove_ns(data)
 
-
-async def _query_purchase_with_timeout(*, registration_number, filter_type_name) -> Optional[dict]:
-    try:
-        return (await asyncio.wait_for(
-            api_datum_query(
-                token=settings.system_token,
-                endpoint="get_purchase",
-                registration_number=registration_number,
-                filter_type_name=filter_type_name,
-            ),
-            timeout=API_TIMEOUT_SECONDS,
-        )).get("data") or {}
-    except asyncio.TimeoutError:
-        logger.warning(
-            "Таймаут get_purchase | reg=%s | filter=%s", registration_number, filter_type_name
-        )
-        return None
-
-
 async def _process_protocol_entry(
     archive: zipfile.ZipFile, file_name: str, region: int, filter_number: int
 ) -> list[Notice]:
@@ -317,8 +290,8 @@ async def _process_protocol_entry(
 
         # Независимые обращения к БД — параллельно.
         purchases = await asyncio.gather(*[
-            _query_purchase_with_timeout(
-                registration_number=Protocol.registration_number, filter_type_name=name
+            _query_search_purchases(
+                registration_number=Protocol.registration_number, list_filter_type_name=[name]
             )
             for _, name in candidates
         ])
@@ -337,7 +310,7 @@ async def _process_protocol_entry(
 
             ProtocolDeepCopy: Notice = copy.deepcopy(Protocol)
             ProtocolDeepCopy.guid = str(uuid.uuid4())
-            ProtocolDeepCopy.region_number = region
+            ProtocolDeepCopy.region_number = str(region)
             ProtocolDeepCopy.filter_type_name = filter_type_name
 
             result_info = purchase.get("result_info") or {}
@@ -395,8 +368,8 @@ async def _process_purchase_entry(
             return entries
 
         purchases = await asyncio.gather(*[
-            _query_purchase_with_timeout(
-                registration_number = Purchase.registration_number, filter_type_name=name
+            _query_search_purchases(
+                registration_number = Purchase.registration_number, list_filter_type_names=[name]
             )
             for _, name in candidates
         ])
@@ -404,7 +377,7 @@ async def _process_purchase_entry(
         for (filter_type, filter_type_name), purchase in zip(candidates, purchases):
             PurchaseDeepCopy: Notice = copy.deepcopy(Purchase)
             PurchaseDeepCopy.guid = str(uuid.uuid4())
-            PurchaseDeepCopy.region_number = region
+            PurchaseDeepCopy.region_number = str(region)
             PurchaseDeepCopy.filter_type_name = filter_type_name
 
             if filter_type == 1:
@@ -461,7 +434,7 @@ async def _process_purchase_entry(
     return entries
 
 
-async def parse_zip_archive_protocols(zip_path: str, region: int, filter_number: int) -> list[Notice]:
+async def parse_zip_archive_protocols(zip_path: str, region: int, filter_number: int) -> list[Notice] | None:
     zip_path = os.path.abspath(zip_path)
     all_data: list[Notice] = []
     logger.info("Открываем архив: %s", zip_path)
@@ -488,7 +461,7 @@ async def parse_zip_archive_protocols(zip_path: str, region: int, filter_number:
     return all_data
 
 
-async def parse_zip_archive_purchases(zip_path: str, region: int, filter_number: int) -> list[Notice]:
+async def parse_zip_archive_purchases(zip_path: str, region: int, filter_number: int) -> list[Notice] | None:
     zip_path = os.path.abspath(zip_path)
     all_data: list[Notice] = []
     logger.info("Открываем архив: %s", zip_path)
