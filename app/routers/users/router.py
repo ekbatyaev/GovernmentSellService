@@ -19,7 +19,7 @@ from app.settings import logger, settings, MOSCOW_TZ
 
 users_router = APIRouter(prefix="/users", tags=["users"])
 
-@users_router.post("", response_model = ResponseModel, status_code=status.HTTP_201_CREATED,
+@users_router.post("", response_model=ResponseModel, status_code=status.HTTP_201_CREATED,
                    dependencies=[Depends(require_admin)])
 async def call_put_user(user: User, db: AsyncSession = Depends(get_db)):
     try:
@@ -48,7 +48,7 @@ async def call_get_user(guid: str, db: AsyncSession = Depends(get_db),
     return ResponseModel(status_message="found",
                                 data=User.model_validate(user))
 
-@users_router.delete("/{guid}", response_model = ResponseModel,
+@users_router.delete("/{guid}", response_model=ResponseModel,
                      status_code=status.HTTP_200_OK)
 async def call_delete_user(guid: str, db: AsyncSession = Depends(get_db),
                            current_user: UserDatabase = Depends(get_current_user)):
@@ -259,7 +259,7 @@ async def call_register_user(auth_code_guid: str, register_user: RegisterUser, d
              <b>{register_user.email}</b></p>
           <p><a href="{approve_link}" style="display:inline-block;padding:10px 24px;background:#2563eb;color:#fff;
              text-decoration:none;border-radius:6px;font-weight:600;">Подтвердить</a></p>
-          <p style="font-size:12px;color:#6b7280;">Если кнопка не работает: 
+          <p style="font-size:12px;color:#6b7280;">Если кнопка не работает:
           <a href="{approve_link}">{approve_link}</a></p>
         </div>"""
 

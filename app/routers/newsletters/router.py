@@ -36,7 +36,7 @@ async def call_get_newsletter(guid: str, db: AsyncSession = Depends(get_db)):
     return ResponseModel(status_message="found",
                                 data=NewsLetter.model_validate(newsletter))
 
-@newsletter_router.delete("/{guid}", response_model = ResponseModel, status_code=status.HTTP_200_OK)
+@newsletter_router.delete("/{guid}", response_model=ResponseModel, status_code=status.HTTP_200_OK)
 async def call_delete_newsletter(guid: str, db: AsyncSession = Depends(get_db)):
     try:
         newsletter_delete_status = await delete_newsletter(db, guid)
