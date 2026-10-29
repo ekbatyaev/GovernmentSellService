@@ -1,6 +1,6 @@
 from fastapi import HTTPException
 from fastapi import APIRouter
-from app.routers.dependencies import require_token, get_current_user
+from app.routers.dependencies import get_current_user
 from app.routers.schemas import ResponseModel
 from fastapi import Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,9 +12,9 @@ from app.backend.database.crud.newsletter import (put_newsletter, search_newslet
                                                   get_newsletter, delete_newsletter,
                                                   update_newsletter, confirm_newsletter)
 
-newsletter_router = APIRouter(prefix ="/newsletters", tags=["newsletters"], dependencies=[Depends(get_current_user)])
+newsletter_router = APIRouter(prefix="/newsletters", tags=["newsletters"], dependencies=[Depends(get_current_user)])
 
-@newsletter_router.post("", response_model = ResponseModel, status_code=status.HTTP_201_CREATED)
+@newsletter_router.post("", response_model=ResponseModel, status_code=status.HTTP_201_CREATED)
 async def call_put_newsletter(newsletter: NewsLetter, db: AsyncSession = Depends(get_db)):
     try:
         new_newsletter = await put_newsletter(db, newsletter)
@@ -24,17 +24,6 @@ async def call_put_newsletter(newsletter: NewsLetter, db: AsyncSession = Depends
         status_message="created",
         data=NewsLetter.model_validate(new_newsletter),
     )
-
-@newsletter_router.post("/search", response_model=ResponseModel, status_code=status.HTTP_200_OK)
-async def call_search_newsletters(
-        filters: FilterNewsLetters,
-        db: AsyncSession = Depends(get_db)
-    ):
-    try:
-        newsletters = await search_newsletters(db, filters)
-    except IntegrityError:
-        raise HTTPException(status_code=400, detail="Failed to search newsletters")
-    return ResponseModel(status_message="found", data=newsletters)
 
 @newsletter_router.get("/{guid}", response_model=ResponseModel, status_code=status.HTTP_200_OK)
 async def call_get_newsletter(guid: str, db: AsyncSession = Depends(get_db)):
@@ -47,7 +36,7 @@ async def call_get_newsletter(guid: str, db: AsyncSession = Depends(get_db)):
     return ResponseModel(status_message="found",
                                 data=NewsLetter.model_validate(newsletter))
 
-@newsletter_router.delete("/{guid}", response_model = ResponseModel, status_code=status.HTTP_200_OK)
+@newsletter_router.delete("/{guid}", response_model=ResponseModel, status_code=status.HTTP_200_OK)
 async def call_delete_newsletter(guid: str, db: AsyncSession = Depends(get_db)):
     try:
         newsletter_delete_status = await delete_newsletter(db, guid)
@@ -66,6 +55,17 @@ async def call_update_newsletter(guid: str, updated_newsletter: UpdateNewsLetter
     except IntegrityError:
         raise HTTPException(status_code=400, detail="Failed to update newsletter")
     return ResponseModel(status_message="updated", data={"guid": guid})
+
+@newsletter_router.post("/search", response_model=ResponseModel, status_code=status.HTTP_200_OK)
+async def call_search_newsletters(
+        filters: FilterNewsLetters,
+        db: AsyncSession = Depends(get_db)
+    ):
+    try:
+        newsletters = await search_newsletters(db, filters)
+    except IntegrityError:
+        raise HTTPException(status_code=400, detail="Failed to search newsletters")
+    return ResponseModel(status_message="found", data=newsletters)
 
 @newsletter_router.post("/confirm", response_model=ResponseModel, status_code=status.HTTP_200_OK)
 async def call_confirm_newsletter(option_newsletter_data: ConfirmOptionNewsLetter, db: AsyncSession = Depends(get_db)):

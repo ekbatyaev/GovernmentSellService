@@ -1,5 +1,4 @@
 import secrets
-from datetime import datetime, timedelta, timezone
 import jwt
 from fastapi import Depends, HTTPException, status, Header
 from fastapi.security import OAuth2PasswordBearer
@@ -16,18 +15,6 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/login")
 
 def hash_password(password: str) -> str:
     return password_hash.hash(password)
-
-
-def verify_password(password: str, hashed: str) -> bool:
-    return password_hash.verify(password, hashed)
-
-
-def create_access_token(user: UserDatabase) -> str:
-    payload = {
-        "sub": user.guid,
-        "exp": datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=settings.jwt_expire_minutes),
-    }
-    return jwt.encode(payload, settings.jwt_secret, algorithm="HS256")
 
 
 async def get_current_user(
