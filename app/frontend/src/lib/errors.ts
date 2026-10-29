@@ -15,6 +15,10 @@ const KNOWN_ERRORS: Record<string, string> = {
   "Failed to create newsletter": "Вы уже подписаны на эту рассылку",
   "Admin only": "Действие доступно только администратору",
   "User is not exists": "Пользователь не найден",
+  "User not found": "Пользователь с таким email не найден",
+  "You are not allowed to change user info": "Аккаунт ещё не подтверждён администратором",
+  "Failed to update user password": "Не удалось сменить пароль, попробуйте ещё раз",
+  "Invalid current password": "Текущий пароль указан неверно",
   "Purchase not found": "Заявка не найдена",
   "The mail server is not available right now. Please, try later.":
     "Почтовый сервер недоступен, попробуйте позже",

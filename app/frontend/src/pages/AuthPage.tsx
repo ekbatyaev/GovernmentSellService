@@ -1,9 +1,15 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Loader2 } from "lucide-react";
 import eSymbolUrl from "../assets/e-symbol.svg";
 import { ApiError } from "../api/client";
 import { getStats } from "../api/stats";
-import { login, register, requestRegisterCode } from "../api/users";
+import {
+  login,
+  recoverPassword,
+  register,
+  requestPasswordRecoverCode,
+  requestRegisterCode,
+} from "../api/users";
 import { useAuth } from "../auth/AuthContext";
 import { clearToken, setToken } from "../auth/session";
 import { Button } from "../components/ui/Button";
@@ -14,8 +20,43 @@ import { errorMessage } from "../lib/errors";
 // Бэк выдаёт новый код не чаще раза в 5 минут (send_auth_code)
 const RESEND_COOLDOWN = 300;
 
-type Tab = "login" | "register";
+type View = "login" | "register" | "recover";
 type Status = { text: string; error: boolean } | null;
+
+const linkButtonClass =
+  "text-xs font-semibold text-[color:var(--se-techno-green)] disabled:text-[color:var(--se-muted)] hover:underline";
+
+/** Обратный отсчёт до повторной отправки кода: [секунд осталось, запустить отсчёт]. */
+function useResendCooldown() {
+  const [cooldown, setCooldown] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
+
+  function startCooldown() {
+    if (timerRef.current) clearInterval(timerRef.current);
+    setCooldown(RESEND_COOLDOWN);
+    timerRef.current = setInterval(() => {
+      setCooldown((prev) => {
+        if (prev <= 1) {
+          if (timerRef.current) clearInterval(timerRef.current);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1_000);
+  }
+
+  return [cooldown, startCooldown] as const;
+}
+
+/** Общие проверки шага «код + пароль»; возвращает текст ошибки или null. */
+function validateCodeAndPassword(code: string, password: string, passwordRepeat: string): string | null {
+  if (!/^\d{6}$/.test(code.trim())) return "Код состоит из 6 цифр";
+  if (password.length < 8 || password.length > 128) return "Пароль должен быть от 8 до 128 символов";
+  if (password !== passwordRepeat) return "Пароли не совпадают";
+  return null;
+}
 
 function StatusBox({ status }: { status: Status }) {
   if (!status) return null;
@@ -40,7 +81,7 @@ function Spinner({ text }: { text: string }) {
 
 // ─── вход ────────────────────────────────────────────────────────────────────
 
-function LoginForm() {
+function LoginForm({ onForgot }: { onForgot: () => void }) {
   const auth = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -97,6 +138,11 @@ function LoginForm() {
         value={password}
         onChange={(e) => setPassword(e.target.value)}
       />
+      <div className="-mt-2 text-right">
+        <button type="button" onClick={onForgot} className={linkButtonClass}>
+          Забыли пароль?
+        </button>
+      </div>
       <StatusBox status={status} />
       <Button type="submit" disabled={loading} className="w-full">
         {loading ? <Spinner text="Входим..." /> : "Войти"}
@@ -116,24 +162,7 @@ function RegisterForm() {
   const [passwordRepeat, setPasswordRepeat] = useState("");
   const [status, setStatus] = useState<Status>(null);
   const [loading, setLoading] = useState(false);
-  const [cooldown, setCooldown] = useState(0);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
-
-  function startCooldown() {
-    if (timerRef.current) clearInterval(timerRef.current);
-    setCooldown(RESEND_COOLDOWN);
-    timerRef.current = setInterval(() => {
-      setCooldown((prev) => {
-        if (prev <= 1) {
-          if (timerRef.current) clearInterval(timerRef.current);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1_000);
-  }
+  const [cooldown, startCooldown] = useResendCooldown();
 
   async function sendCode() {
     if (!email) {
@@ -158,16 +187,9 @@ function RegisterForm() {
   async function handleRegister(event: FormEvent) {
     event.preventDefault();
     if (!codeGuid) return;
-    if (!/^\d{6}$/.test(code.trim())) {
-      setStatus({ text: "Код состоит из 6 цифр", error: true });
-      return;
-    }
-    if (password.length < 8 || password.length > 128) {
-      setStatus({ text: "Пароль должен быть от 8 до 128 символов", error: true });
-      return;
-    }
-    if (password !== passwordRepeat) {
-      setStatus({ text: "Пароли не совпадают", error: true });
+    const invalid = validateCodeAndPassword(code, password, passwordRepeat);
+    if (invalid) {
+      setStatus({ text: invalid, error: true });
       return;
     }
 
@@ -239,7 +261,7 @@ function RegisterForm() {
           type="button"
           onClick={() => void sendCode()}
           disabled={cooldown > 0 || loading}
-          className="text-xs font-semibold text-[color:var(--se-techno-green)] disabled:text-[color:var(--se-muted)] hover:underline"
+          className={linkButtonClass}
         >
           {cooldown > 0 ? `Отправить повторно через ${cooldown} с.` : "Отправить код повторно"}
         </button>
@@ -266,10 +288,152 @@ function RegisterForm() {
   );
 }
 
+// ─── восстановление пароля ───────────────────────────────────────────────────
+
+function RecoverForm({ onDone }: { onDone: () => void }) {
+  const [step, setStep] = useState<"email" | "code" | "done">("email");
+  const [email, setEmail] = useState("");
+  const [codeGuid, setCodeGuid] = useState<string | null>(null);
+  const [code, setCode] = useState("");
+  const [password, setPassword] = useState("");
+  const [passwordRepeat, setPasswordRepeat] = useState("");
+  const [status, setStatus] = useState<Status>(null);
+  const [loading, setLoading] = useState(false);
+  const [cooldown, startCooldown] = useResendCooldown();
+
+  async function sendCode() {
+    if (!email) {
+      setStatus({ text: "Введите email", error: true });
+      return;
+    }
+    try {
+      setLoading(true);
+      setStatus(null);
+      const { data } = await requestPasswordRecoverCode(email);
+      setCodeGuid(data.guid);
+      setStep("code");
+      setStatus({ text: "Код отправлен на указанный email", error: false });
+      startCooldown();
+    } catch (e) {
+      setStatus({ text: errorMessage(e, "Не удалось отправить код"), error: true });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleRecover(event: FormEvent) {
+    event.preventDefault();
+    if (!codeGuid) return;
+    const invalid = validateCodeAndPassword(code, password, passwordRepeat);
+    if (invalid) {
+      setStatus({ text: invalid, error: true });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setStatus(null);
+      await recoverPassword(codeGuid, email, password, Number(code.trim()));
+      setStep("done");
+    } catch (e) {
+      setStatus({ text: errorMessage(e, "Не удалось сменить пароль"), error: true });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (step === "done") {
+    return (
+      <div className="flex flex-col items-center gap-4 py-6 text-center">
+        <CheckCircle2 size={48} className="text-[color:var(--se-techno-green)]" />
+        <div className="text-lg font-bold text-[color:var(--se-text)]">Пароль изменён</div>
+        <p className="max-w-sm text-sm text-[color:var(--se-muted)]">
+          Теперь можно войти с новым паролем.
+        </p>
+        <Button type="button" onClick={onDone} className="w-full">
+          Войти
+        </Button>
+      </div>
+    );
+  }
+
+  if (step === "email") {
+    return (
+      <form
+        className="space-y-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void sendCode();
+        }}
+      >
+        <p className="text-sm text-[color:var(--se-muted)]">
+          Укажите email, с которым вы регистрировались, — пришлём на него код для смены пароля.
+        </p>
+        <Input
+          label="Email"
+          type="email"
+          autoComplete="email"
+          placeholder="you@example.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+        <StatusBox status={status} />
+        <Button type="submit" disabled={loading} className="w-full">
+          {loading ? <Spinner text="Отправляем..." /> : "Получить код"}
+        </Button>
+      </form>
+    );
+  }
+
+  return (
+    <form className="space-y-4" onSubmit={handleRecover}>
+      <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 space-y-3">
+        <p className="text-sm text-[color:var(--se-muted)]">
+          Код отправлен на <span className="font-semibold text-[color:var(--se-text)]">{email}</span>.
+          Проверить его можно через 20 секунд после отправки.
+        </p>
+        <Input
+          placeholder="Код из письма"
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+        />
+        <button
+          type="button"
+          onClick={() => void sendCode()}
+          disabled={cooldown > 0 || loading}
+          className={linkButtonClass}
+        >
+          {cooldown > 0 ? `Отправить повторно через ${cooldown} с.` : "Отправить код повторно"}
+        </button>
+      </div>
+      <Input
+        label="Новый пароль (от 8 символов)"
+        type="password"
+        autoComplete="new-password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+      />
+      <Input
+        label="Повторите пароль"
+        type="password"
+        autoComplete="new-password"
+        value={passwordRepeat}
+        onChange={(e) => setPasswordRepeat(e.target.value)}
+      />
+      <StatusBox status={status} />
+      <Button type="submit" disabled={loading} className="w-full">
+        {loading ? <Spinner text="Сохраняем..." /> : "Сменить пароль"}
+      </Button>
+    </form>
+  );
+}
+
 // ─── страница ────────────────────────────────────────────────────────────────
 
 export function AuthPage() {
-  const [tab, setTab] = useState<Tab>("login");
+  const [view, setView] = useState<View>("login");
 
   return (
     <div className="se-shell-gradient flex min-h-screen items-center justify-center px-4 py-10 text-[color:var(--se-text)]">
@@ -285,29 +449,48 @@ export function AuthPage() {
         </div>
 
         <Card>
-          <div className="mb-5 grid grid-cols-2 gap-1 rounded-2xl bg-slate-100 p-1">
-            {(
-              [
-                ["login", "Вход"],
-                ["register", "Регистрация"],
-              ] as const
-            ).map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setTab(id)}
-                className={`rounded-xl py-2 text-sm font-semibold transition ${
-                  tab === id
-                    ? "bg-white text-[color:var(--se-techno-green)] shadow-sm"
-                    : "text-[color:var(--se-muted)] hover:text-[color:var(--se-text)]"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          {view === "recover" ? (
+            <>
+              <div className="mb-5 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setView("login")}
+                  aria-label="Назад ко входу"
+                  className="rounded-xl p-1.5 text-[color:var(--se-muted)] transition hover:bg-slate-100 hover:text-[color:var(--se-text)]"
+                >
+                  <ArrowLeft size={18} />
+                </button>
+                <div className="text-lg font-bold">Восстановление пароля</div>
+              </div>
+              <RecoverForm onDone={() => setView("login")} />
+            </>
+          ) : (
+            <>
+              <div className="mb-5 grid grid-cols-2 gap-1 rounded-2xl bg-slate-100 p-1">
+                {(
+                  [
+                    ["login", "Вход"],
+                    ["register", "Регистрация"],
+                  ] as const
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setView(id)}
+                    className={`rounded-xl py-2 text-sm font-semibold transition ${
+                      view === id
+                        ? "bg-white text-[color:var(--se-techno-green)] shadow-sm"
+                        : "text-[color:var(--se-muted)] hover:text-[color:var(--se-text)]"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
 
-          {tab === "login" ? <LoginForm /> : <RegisterForm />}
+              {view === "login" ? <LoginForm onForgot={() => setView("recover")} /> : <RegisterForm />}
+            </>
+          )}
         </Card>
       </div>
     </div>

@@ -1,6 +1,6 @@
 from fastapi import HTTPException
 from fastapi import APIRouter
-from app.routers.dependencies import require_token, get_current_user
+from app.routers.dependencies import get_current_user
 from app.routers.schemas import ResponseModel
 from fastapi import Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,17 +24,6 @@ async def call_put_newsletter(newsletter: NewsLetter, db: AsyncSession = Depends
         status_message="created",
         data=NewsLetter.model_validate(new_newsletter),
     )
-
-@newsletter_router.post("/search", response_model=ResponseModel, status_code=status.HTTP_200_OK)
-async def call_search_newsletters(
-        filters: FilterNewsLetters,
-        db: AsyncSession = Depends(get_db)
-    ):
-    try:
-        newsletters = await search_newsletters(db, filters)
-    except IntegrityError:
-        raise HTTPException(status_code=400, detail="Failed to search newsletters")
-    return ResponseModel(status_message="found", data=newsletters)
 
 @newsletter_router.get("/{guid}", response_model=ResponseModel, status_code=status.HTTP_200_OK)
 async def call_get_newsletter(guid: str, db: AsyncSession = Depends(get_db)):
@@ -66,6 +55,17 @@ async def call_update_newsletter(guid: str, updated_newsletter: UpdateNewsLetter
     except IntegrityError:
         raise HTTPException(status_code=400, detail="Failed to update newsletter")
     return ResponseModel(status_message="updated", data={"guid": guid})
+
+@newsletter_router.post("/search", response_model=ResponseModel, status_code=status.HTTP_200_OK)
+async def call_search_newsletters(
+        filters: FilterNewsLetters,
+        db: AsyncSession = Depends(get_db)
+    ):
+    try:
+        newsletters = await search_newsletters(db, filters)
+    except IntegrityError:
+        raise HTTPException(status_code=400, detail="Failed to search newsletters")
+    return ResponseModel(status_message="found", data=newsletters)
 
 @newsletter_router.post("/confirm", response_model=ResponseModel, status_code=status.HTTP_200_OK)
 async def call_confirm_newsletter(option_newsletter_data: ConfirmOptionNewsLetter, db: AsyncSession = Depends(get_db)):

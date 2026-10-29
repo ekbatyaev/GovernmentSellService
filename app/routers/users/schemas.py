@@ -1,11 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional, Literal
-
-
-class UpdateUser(BaseModel):
-    email: Optional[EmailStr] = None
-    password: Optional[str] = None
-    role: Optional[Literal["admin", "user", "guest"]] = None
+from typing import Literal
 
 class ConfirmEmailUser(BaseModel):
     email: EmailStr
