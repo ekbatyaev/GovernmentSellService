@@ -79,5 +79,4 @@ async def login_user(db: AsyncSession, email: str, password: str) -> LoginUser:
 
     if user is None or not verify_password(password, user.password):
         return LoginUser(status="invalid")
-
     return LoginUser(status="updated", payload=create_access_token(user))

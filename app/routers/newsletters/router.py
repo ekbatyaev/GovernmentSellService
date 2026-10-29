@@ -12,9 +12,9 @@ from app.backend.database.crud.newsletter import (put_newsletter, search_newslet
                                                   get_newsletter, delete_newsletter,
                                                   update_newsletter, confirm_newsletter)
 
-newsletter_router = APIRouter(prefix ="/newsletters", tags=["newsletters"], dependencies=[Depends(get_current_user)])
+newsletter_router = APIRouter(prefix="/newsletters", tags=["newsletters"], dependencies=[Depends(get_current_user)])
 
-@newsletter_router.post("", response_model = ResponseModel, status_code=status.HTTP_201_CREATED)
+@newsletter_router.post("", response_model=ResponseModel, status_code=status.HTTP_201_CREATED)
 async def call_put_newsletter(newsletter: NewsLetter, db: AsyncSession = Depends(get_db)):
     try:
         new_newsletter = await put_newsletter(db, newsletter)

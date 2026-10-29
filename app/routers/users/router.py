@@ -172,7 +172,7 @@ async def call_send_recover_code(confirm_email_user: ConfirmEmailUser, db: Async
 
 @users_router.post("/password_recover/{auth_code_guid}", response_model=ResponseModel,
                    status_code=status.HTTP_200_OK)
-async def call_recover_password(auth_code_guid:str, recover_pass_user: RecoverPasswordUser,
+async def call_recover_password(auth_code_guid: str, recover_pass_user: RecoverPasswordUser,
                                 db: AsyncSession = Depends(get_db)):
     try:
         users: list[User] = await search_users(db, FilterUser(email=str(recover_pass_user.email)))
@@ -218,7 +218,8 @@ async def call_recover_password(auth_code_guid:str, recover_pass_user: RecoverPa
 @users_router.post("/register/{auth_code_guid}", response_model=ResponseModel, status_code=status.HTTP_201_CREATED)
 async def call_register_user(auth_code_guid: str, register_user: RegisterUser, db: AsyncSession = Depends(get_db)):
     try:
-        auth_code_confirm_status = await check_auth_code(db, auth_code_guid, register_user.code, str(register_user.email))
+        auth_code_confirm_status = await check_auth_code(db, auth_code_guid,
+                                                         register_user.code, str(register_user.email))
         if auth_code_confirm_status == "not found":
             raise HTTPException(status_code=500, detail="Not found auth code")
         elif auth_code_confirm_status == "expired":
@@ -258,7 +259,8 @@ async def call_register_user(auth_code_guid: str, register_user: RegisterUser, d
              <b>{register_user.email}</b></p>
           <p><a href="{approve_link}" style="display:inline-block;padding:10px 24px;background:#2563eb;color:#fff;
              text-decoration:none;border-radius:6px;font-weight:600;">Подтвердить</a></p>
-          <p style="font-size:12px;color:#6b7280;">Если кнопка не работает: <a href="{approve_link}">{approve_link}</a></p>
+          <p style="font-size:12px;color:#6b7280;">Если кнопка не работает: 
+          <a href="{approve_link}">{approve_link}</a></p>
         </div>"""
 
     try:
