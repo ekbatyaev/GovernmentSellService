@@ -244,7 +244,7 @@ async def call_register_user(auth_code_guid: str, register_user: RegisterUser, d
         guid=new_user_guid,
         email=register_user.email,
         password=hash_password(register_user.password),
-        role= "user" if employee_systeme_flag else "guest",
+        role="user" if employee_systeme_flag else "guest",
         created_at=datetime.now(MOSCOW_TZ).replace(tzinfo=None),
     )
 
