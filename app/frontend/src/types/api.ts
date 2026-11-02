@@ -5,7 +5,8 @@ export type StatusMessage =
   | "updated"
   | "found"
   | "not found"
-  | "approved";
+  | "approved"
+  | "continued";
 
 export type ApiResponse<T> = {
   status_message: StatusMessage;
