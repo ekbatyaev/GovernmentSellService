@@ -237,12 +237,14 @@ async def call_register_user(auth_code_guid: str, register_user: RegisterUser, d
         raise HTTPException(status_code=429, detail="The code is not deleted")
 
     new_user_guid = str(uuid.uuid4())
+    user_email = str(register_user.email)
+    employee_systeme_flag = user_email.lower().endswith("@systeme.ru")
 
     new_user_info = User(
         guid=new_user_guid,
         email=register_user.email,
         password=hash_password(register_user.password),
-        role="guest",
+        role= "user" if employee_systeme_flag else "guest",
         created_at=datetime.now(MOSCOW_TZ).replace(tzinfo=None),
     )
 
@@ -251,27 +253,30 @@ async def call_register_user(auth_code_guid: str, register_user: RegisterUser, d
     except IntegrityError:
         raise HTTPException(status_code=400, detail="Failed to create user")
 
-    approve_link = f"{settings.app_web_open_url}/approve/{new_user_guid}"
+    status_message = "created"
+    if not employee_systeme_flag:
+        approve_link = f"{settings.app_web_open_url}/approve/{new_user_guid}"
 
-    body = f"""\
-        <div style="font-family:Segoe UI,Arial,sans-serif;font-size:15px;color:#111827;max-width:480px;">
-          <p>Новый пользователь ждёт подтверждения:<br>
-             <b>{register_user.email}</b></p>
-          <p><a href="{approve_link}" style="display:inline-block;padding:10px 24px;background:#2563eb;color:#fff;
-             text-decoration:none;border-radius:6px;font-weight:600;">Подтвердить</a></p>
-          <p style="font-size:12px;color:#6b7280;">Если кнопка не работает:
-          <a href="{approve_link}">{approve_link}</a></p>
-        </div>"""
+        body = f"""\
+            <div style="font-family:Segoe UI,Arial,sans-serif;font-size:15px;color:#111827;max-width:480px;">
+              <p>Новый пользователь ждёт подтверждения:<br>
+                 <b>{register_user.email}</b></p>
+              <p><a href="{approve_link}" style="display:inline-block;padding:10px 24px;background:#2563eb;color:#fff;
+                 text-decoration:none;border-radius:6px;font-weight:600;">Подтвердить</a></p>
+              <p style="font-size:12px;color:#6b7280;">Если кнопка не работает:
+              <a href="{approve_link}">{approve_link}</a></p>
+            </div>"""
 
-    try:
-        await send_email(settings.supervisor_system_email, "Подтверждение регистрации пользователя",
-                         body)
-    except Exception as e:
-        logger.exception(f"Ошибка: {e}")
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                            detail="The mail server is not available right now. Please, try later.")
+        try:
+            await send_email(settings.supervisor_system_email, "Подтверждение регистрации пользователя",
+                             body)
+        except Exception as e:
+            logger.exception(f"Ошибка: {e}")
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                                detail="The mail server is not available right now. Please, try later.")
+        status_message = "continued"
 
-    return ResponseModel(status_message="created", data={"guid": new_user_guid})
+    return ResponseModel(status_message=status_message, data={"guid": new_user_guid})
 
 
 @users_router.post("/approve/{guid}", status_code=status.HTTP_200_OK, dependencies=[Depends(require_admin)])

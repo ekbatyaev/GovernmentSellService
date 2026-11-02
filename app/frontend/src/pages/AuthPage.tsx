@@ -81,11 +81,19 @@ function Spinner({ text }: { text: string }) {
 
 // ─── вход ────────────────────────────────────────────────────────────────────
 
-function LoginForm({ onForgot }: { onForgot: () => void }) {
+function LoginForm({
+  onForgot,
+  initialEmail,
+  notice,
+}: {
+  onForgot: () => void;
+  initialEmail?: string;
+  notice?: string;
+}) {
   const auth = useAuth();
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(initialEmail ?? "");
   const [password, setPassword] = useState("");
-  const [status, setStatus] = useState<Status>(null);
+  const [status, setStatus] = useState<Status>(notice ? { text: notice, error: false } : null);
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(event: FormEvent) {
@@ -153,7 +161,7 @@ function LoginForm({ onForgot }: { onForgot: () => void }) {
 
 // ─── регистрация ─────────────────────────────────────────────────────────────
 
-function RegisterForm() {
+function RegisterForm({ onRegistered }: { onRegistered: (email: string) => void }) {
   const [step, setStep] = useState<"email" | "code" | "done">("email");
   const [email, setEmail] = useState("");
   const [codeGuid, setCodeGuid] = useState<string | null>(null);
@@ -196,7 +204,12 @@ function RegisterForm() {
     try {
       setLoading(true);
       setStatus(null);
-      await register(codeGuid, email, password, Number(code.trim()));
+      // created — сотрудник, может войти сразу; continued — ждёт подтверждения администратором
+      const { status_message } = await register(codeGuid, email, password, Number(code.trim()));
+      if (status_message === "created") {
+        onRegistered(email);
+        return;
+      }
       setStep("done");
     } catch (e) {
       setStatus({ text: errorMessage(e, "Не удалось зарегистрироваться"), error: true });
@@ -434,6 +447,8 @@ function RecoverForm({ onDone }: { onDone: () => void }) {
 
 export function AuthPage() {
   const [view, setView] = useState<View>("login");
+  // email только что зарегистрированного сотрудника — подставляем в форму входа
+  const [registeredEmail, setRegisteredEmail] = useState<string | null>(null);
 
   return (
     <div className="se-shell-gradient flex min-h-screen items-center justify-center px-4 py-10 text-[color:var(--se-text)]">
@@ -476,7 +491,10 @@ export function AuthPage() {
                   <button
                     key={id}
                     type="button"
-                    onClick={() => setView(id)}
+                    onClick={() => {
+                      setRegisteredEmail(null);
+                      setView(id);
+                    }}
                     className={`rounded-xl py-2 text-sm font-semibold transition ${
                       view === id
                         ? "bg-white text-[color:var(--se-techno-green)] shadow-sm"
@@ -488,7 +506,20 @@ export function AuthPage() {
                 ))}
               </div>
 
-              {view === "login" ? <LoginForm onForgot={() => setView("recover")} /> : <RegisterForm />}
+              {view === "login" ? (
+                <LoginForm
+                  onForgot={() => setView("recover")}
+                  initialEmail={registeredEmail ?? undefined}
+                  notice={registeredEmail ? "Регистрация завершена" : undefined}
+                />
+              ) : (
+                <RegisterForm
+                  onRegistered={(registered) => {
+                    setRegisteredEmail(registered);
+                    setView("login");
+                  }}
+                />
+              )}
             </>
           )}
         </Card>
