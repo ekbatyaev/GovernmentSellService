@@ -1,6 +1,6 @@
 from typing import Any
 from pydantic import BaseModel, Field, model_validator
-from app.schemas.purchase import Notice, Document, Lot, Item
+from app.schemas.purchase import Notice, Document
 
 class ParseSoapResponse(BaseModel):
     code: int | None = None

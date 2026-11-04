@@ -61,7 +61,7 @@ PDF_TITLE_PAGE_IMAGE_TEXT_ENABLED = True
 PDF_TITLE_PAGE_RENDER_DPI = 180
 PDF_TITLE_PAGE_IMAGE_TEXT_LANG = "rus+eng"
 
-SUPPORTED_EXTENSIONS = {".txt", ".pdf", ".docx", ".doc", ".xlsx", ".xls", ".odt", ".ods"}
+SUPPORTED_EXTENSIONS = {".txt", ".pdf", ".docx", ".docs", ".xlsx", ".xls", ".odt", ".ods"}
 ARCHIVE_EXTENSIONS = {".zip", ".rar"}
 OFFICE_ZIP_EXTENSIONS = {".docx", ".xlsx", ".pptx", ".odt", ".ods"}
 
@@ -776,7 +776,7 @@ def classify_document(filename: str, protocol_mode: bool, filter_type: int) -> s
     if protocol_mode and "протокол" in filename.lower() and filter_type in PROTOCOL_EXTRACTORS:
         return TASK_PROTOCOL
 
-    if filter_type == 1 and not protocol_mode and Path(filename).suffix.lower() in (".pdf", ".docx", ".doc", ".odt"):
+    if filter_type == 1 and not protocol_mode and Path(filename).suffix.lower() in (".pdf", ".docx", ".docs", ".odt"):
         return TASK_DESIGNER
 
     if filter_type == 2 and TZ_FILENAME_RE.search(filename):
@@ -794,37 +794,6 @@ async def _run_llm(extractor, text: str) -> dict:
 
     async with _llm_semaphore:
         return await extractor(text)
-
-
-async def process_text_into_accumulator(
-    text: str,
-    accumulator: dict,
-    documents_accumulator,
-    filename: str,
-    protocol_mode: bool = False,
-    filter_type: int = 0,
-    task_id: str | None = None,
-) -> bool:
-    if not text or not text.strip():
-        return False
-
-    filename = filename.strip()
-
-    if filename in documents_accumulator:
-        logger.info(
-            "DOCUMENT SKIP | %s",
-            format_log_kv(task_id=task_id, filename=filename, reason="already_processed"),
-        )
-        return True
-
-    extracted = await compute_fields(text, filename, protocol_mode, filter_type, task_id)
-    if extracted is None:
-        return False
-
-    merge_extracted_into_accumulator(accumulator, extracted)
-    add_processed_document(documents_accumulator, filename)
-    return True
-
 
 async def compute_fields(
     text: str,
@@ -1064,11 +1033,11 @@ def group_attached_files(attached_files: list[Document]) -> list[dict[str, Docum
         info = get_rar_group_info((doc.filename).strip())
 
         if not info:
-            single.append({"group_type": "single", "doc": doc})
+            single.append({"group_type": "single", "docs": doc})
             continue
 
         entry = {
-            "doc": doc,
+            "docs": doc,
             "part_num": info["part_num"],
             "is_start": info["is_start"],
             "base": info["base"],
@@ -1095,7 +1064,7 @@ def group_attached_files(attached_files: list[Document]) -> list[dict[str, Docum
     # Одиночные .rar без сопутствующих томов.
     for base, entry in oldstyle_main.items():
         if base not in oldstyle_subparts:
-            result.append({"group_type": "single", "doc": entry["doc"]})
+            result.append({"group_type": "single", "docs": entry["docs"]})
 
     return result
 
@@ -1105,9 +1074,9 @@ async def download_multipart_rar(parts: list, work_dir: Path, task_id: str | Non
 
     paths = await asyncio.gather(*(
         download_file(
-            url=item["doc"].url,
+            url=item["docs"].url,
             download_dir=work_dir,
-            filename=item["doc"].filename,
+            filename=item["docs"].filename,
             task_id=task_id,
         )
         for item in parts
@@ -1148,7 +1117,7 @@ async def process_one_attached_file_and_merge(
         group_type = item["group_type"]
 
         if group_type == "single":
-            doc: Document = item["doc"]
+            doc: Document = item["docs"]
             source_url = doc.url
             source_name = doc.filename
             task_id = short_id(source_url)
@@ -1169,7 +1138,7 @@ async def process_one_attached_file_and_merge(
         elif group_type == "multipart_rar":
             base = item["base"]
             parts = item["parts"]
-            source_url = " | ".join(p["doc"].url for p in parts)
+            source_url = " | ".join(p["docs"].url for p in parts)
             task_id = short_id(source_url)
 
             work_dir = ensure_dir(tmp_dir / f"{safe_filename(base)}_{stable_id(source_url)}")

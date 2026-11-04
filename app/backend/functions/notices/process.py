@@ -1,7 +1,7 @@
 from app.settings import logger, settings
 from app.backend.constraints import REGIONS_OF_THE_FILTERS, ALL_REGION_CODES
 from app.backend.parsers.request_archives import get_docs_by_region, download_archive_from_result
-from app.backend.parsers.xml_parser import parse_zip_archive_purchases, parse_zip_archive_protocols
+from app.backend.parsers.xml import parse_zip_archive_purchases, parse_zip_archive_protocols
 from app.backend.schemas import GroupsRegNumbers
 from app.backend.functions.notices.record import save_purchase_record, save_protocol_record
 from datetime import datetime, timedelta
