@@ -4,10 +4,12 @@ from pydantic import BaseModel, Field, ConfigDict
 from app.settings import MOSCOW_TZ
 
 class Customer(BaseModel):
+    model_config = ConfigDict(coerce_numbers_to_str=True)
+
     full_name: str
-    inn: int
-    kpp: int
-    ogrn: int
+    inn: str
+    kpp: str
+    ogrn: str
 
 class Contact(BaseModel):
     last_name: str
@@ -32,11 +34,11 @@ class Item(BaseModel):
     additional_info: str
 
 class Lot(BaseModel):
-    guid: str
-    ordinal_number: str
-    subject: str
-    initial_sum: float
-    currency: str
+    guid: Optional[str] = None
+    ordinal_number: Optional[str] = None
+    subject: Optional[str] = None
+    initial_sum: float = 0.0
+    currency: Optional[str]
     items: Optional[list[Item]] = None
 
 class Notice(BaseModel):

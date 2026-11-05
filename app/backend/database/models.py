@@ -10,6 +10,12 @@ from typing import Literal
 
 class NoticeDatabase(Base):
     __tablename__ = "purchases"
+    __table_args__ = (
+        UniqueConstraint(
+            "registration_number", "filter_type_name",
+            name="uq_purchases_reg_filter",
+        ),
+    )
 
     guid: Mapped[str] = mapped_column(String(64), primary_key=True)
 

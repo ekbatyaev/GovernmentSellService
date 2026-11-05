@@ -166,7 +166,7 @@ def _normalize_protocol(data: dict, file_name: str) -> NoticeParser:
         for lot in lots:
             lot = lot if isinstance(lot, dict) else {}
 
-            initial_sum_val = _normalize_contract_sum(lot.get("initialSum") or lot.get("maxContractPrice)"))
+            initial_sum_val = _normalize_contract_sum(lot.get("initialSum") or lot.get("maxContractPrice"))
 
             Lots.append(Lot(
                 guid=lot.get("guid", ""),
@@ -245,16 +245,16 @@ def _normalize_purchase(data: dict, file_name: str) -> NoticeParser:
             it = it or {}
             Items.append(Item(
                 guid=it.get("guid", ""),
-                okpd2_name=(it.get("okpd2") or {}).get("code", ""),
-                okpd2_code=(it.get("okpd2") or {}).get("name", ""),
+                okpd2_name=(it.get("okpd2") or {}).get("name", ""),
+                okpd2_code=(it.get("okpd2") or {}).get("code", ""),
                 additional_info=it.get("additionalInfo", "")
             ))
 
-        Lots.append(Lot(guid=lot.get("guid"),
-                        ordinal_number=lot.get("ordinalNumber"),
-                        subject=lot_data.get("subject"),
+        Lots.append(Lot(guid=lot.get("guid", ""),
+                        ordinal_number=lot.get("ordinalNumber", ""),
+                        subject=lot_data.get("subject", ""),
                         initial_sum=initial_sum_val,
-                        currency=(lot_data.get("currency") or {}).get("code"),
+                        currency=(lot_data.get("currency", "") or {}).get("code", ""),
                         items=Items))
 
     return NoticeParser(**result, source_file=file_name, lots=Lots)

@@ -40,7 +40,7 @@ async def save_purchase_record(purchase: Notice, registration_numbers_dict_per_d
 
                 # Если находим обновляем
                 elif len(purchases) > 1:
-                    logger.exception(
+                    logger.warning(
                         "Pipeline: ошибка сохранения закупки | reg=%s | guid=%s",
                         purchase.registration_number,
                         purchase.guid,
@@ -67,7 +67,7 @@ async def save_purchase_record(purchase: Notice, registration_numbers_dict_per_d
                             purchase.registration_number
                         )
                     else:
-                        logger.exception(
+                        logger.warning(
                             "Pipeline: ошибка сохранения закупки | reg=%s | guid=%s",
                             purchase.registration_number,
                             purchase.guid,
