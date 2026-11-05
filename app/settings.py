@@ -61,7 +61,7 @@ class Settings(BaseSettings):
     daily_job_hour_msk: int = 10
     daily_job_minute_msk: int = 0
 
-    token: str = Field(repr = False)
+    token: str = Field(repr=False)
     postgres_user: str
     postgres_password: str
     postgres_db: str
