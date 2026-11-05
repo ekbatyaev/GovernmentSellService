@@ -17,6 +17,14 @@ _DESIGNER_LEGAL_FORM_RE = re.compile(
     r"(ООО|АО|ПАО|Общество\s+с\s+Ограниченной\s+Ответственностью)", re.IGNORECASE
 )
 
+def pick_longest_designer(value: str) -> str:
+    parts = []
+    for x in (value or "").split(";"):
+        x = x.strip()
+        if x and x not in parts:
+            parts.append(x)
+    return max(parts, key=len) if parts else ""
+
 def _normalize_designer_name(value: str) -> str:
     value = (value or "").replace(" ", " ").replace("“", "«").replace("”", "»")
     if value.count('"') >= 2:

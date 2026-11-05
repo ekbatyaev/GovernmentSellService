@@ -9,6 +9,11 @@ class AnalyzeStats(BaseModel):
     skipped: int = 0
     total: int = 0
 
+class ProcessStats(BaseModel):
+    stats: Optional[AnalyzeStats] = None
+    source_url: Optional[str] = None
+    error: Optional[str] = None
+
 class ExtractInfo(BaseModel):
     path: Path
     text: Optional[str] = None

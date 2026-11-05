@@ -12,7 +12,7 @@ from app.settings import settings, logger
 from app.backend.parsers.filters.departments.rosseti import request_filters_rosseti
 from app.backend.parsers.filters.departments.oem import request_filters_oem
 from app.backend.parsers.filters.departments.itm import request_filters_itm
-from app.backend.parsers.docs.doc_parser import process_attached_files_and_merge
+from app.backend.parsers.docs.process import process_attached_files_and_merge
 from app.schemas.purchase import Customer, Contact, ApplyRequest, Lot, Item, Document, FilterNotice
 from app.backend.parsers.schemas import Notice, NoticeParser
 from app.backend.database.crud.purchase import search_purchases

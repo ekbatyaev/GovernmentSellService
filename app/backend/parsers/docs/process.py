@@ -4,6 +4,7 @@ import time
 import httpx
 from pathlib import Path
 from typing import Dict, List, Tuple
+from app.backend.parsers.docs.operations.analyze import analyze_file_and_merge_results
 from app.backend.parsers.schemas import Document
 from app.settings import logger
 from app.backend.parsers.docs.functions import ensure_dir, format_log_kv, stable_id, safe_filename
@@ -12,9 +13,10 @@ from app.backend.parsers.docs.operations.accumulate import (init_result_accumula
                                                             init_documents_accumulator,
                                                             finalize_result_accumulator,
                                                             finalize_documents_accumulator)
-from app.backend.parsers.docs.schemas import GroupFileAnalysis, Entry
-from app.backend.parsers.docs.operations.group import accumulate_attached_files
+from app.backend.parsers.docs.schemas import GroupFileAnalysis, Entry, AnalyzeStats, ProcessStats
+from app.backend.parsers.docs.operations.accumulate import accumulate_attached_files
 from app.backend.parsers.docs.operations.download import download_file, download_multipart_rar
+from app.backend.parsers.docs.operations.regex.fields import pick_longest_designer
 
 async def process_one_attached_file_and_merge(
     item: GroupFileAnalysis,
@@ -23,7 +25,9 @@ async def process_one_attached_file_and_merge(
     documents_accumulator,
     protocol_mode: bool = False,
     filter_type: int = 1,
-) -> dict:
+) -> ProcessStats:
+
+    result: ProcessStats
     work_dir = None
     started = time.perf_counter()
 
@@ -65,30 +69,32 @@ async def process_one_attached_file_and_merge(
         else:
             raise RuntimeError(f"Неизвестный group_type: {item.group_type}")
 
-        stats = await read_path_and_merge(
+        stats: AnalyzeStats = await analyze_file_and_merge_results(
             target, accumulator, documents_accumulator, protocol_mode, filter_type, task_id=task_id
         )
 
         logger.info(
             "ATTACHED DONE | %s",
             format_log_kv(
-                task_id=task_id, group_type=group_type,
-                elapsed=f"{time.perf_counter() - started:.3f}s", **stats,
+                task_id=task_id, group_type=item.group_type,
+                elapsed=f"{time.perf_counter() - started:.3f}s", **stats.model_dump(),
             ),
         )
-        return {"source_url": source_url, "error": None, "stats": stats}
+        result = ProcessStats(source_url=source_url, stats=stats)
 
     except httpx.HTTPError as e:
         logger.exception("ATTACHED DOWNLOAD ERROR")
-        return {"source_url": item, "error": f"Ошибка скачивания: {e}", "stats": None}
+        result = ProcessStats(error=f"Ошибка скачивания: {e}", stats=None)
 
     except Exception as e:
         logger.exception("ATTACHED PROCESS ERROR")
-        return {"source_url": item, "error": f"Ошибка обработки: {e}", "stats": None}
+        result = ProcessStats(error=f"Ошибка обработки: {e}", stats=None)
 
     finally:
         if work_dir and work_dir.exists():
             await asyncio.to_thread(shutil.rmtree, work_dir, ignore_errors=True)
+
+    return result
 
 async def process_attached_files_and_merge(
     attached_files: list,
@@ -121,16 +127,27 @@ async def process_attached_files_and_merge(
     # влияет на итоговый выбор Проектировщика, он должен быть воспроизводимым.
     for idx, item in enumerate(grouped_items, start=1):
         item_started = time.perf_counter()
-        await process_one_attached_file_and_merge(
+        process_stats: ProcessStats = await process_one_attached_file_and_merge(
             item, tmp_dir, accumulator, documents_accumulator, protocol_mode, filter_type
         )
-        logger.info(
-            "ATTACHED BATCH ITEM DONE | %s",
-            format_log_kv(
-                index=idx, total=len(grouped_items), group_type=item.group_type,
-                elapsed=f"{time.perf_counter() - item_started:.3f}s",
-            ),
-        )
+        if not process_stats.error:
+            logger.info(
+                "ATTACHED BATCH ITEM DONE SUCCESSFULLY| %s",
+                format_log_kv(
+                    index=idx, total=len(grouped_items), group_type=item.group_type,
+                    elapsed=f"{time.perf_counter() - item_started:.3f}s",
+                ),
+            )
+        else:
+            logger.warning(
+                "ATTACHED BATCH ITEM DONE WITH ERROR| %s",
+                format_log_kv(
+                    index=idx, total=len(grouped_items), group_type=item.group_type,
+                    elapsed=f"{time.perf_counter() - item_started:.3f}s",
+                ),
+            )
+            logger.warning(f"ERROR: {process_stats.error}")
+
 
     logger.info(
         "ATTACHED BATCH DONE | %s",
