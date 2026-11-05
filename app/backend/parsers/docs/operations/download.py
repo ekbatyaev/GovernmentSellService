@@ -113,7 +113,7 @@ async def download_file(
     async with aiofiles.open(path, "rb") as f:
         head = await f.read(512)
 
-    is_probably_html= (b"<html" in head[:4096].lower() or b"<!doctype html" in head[:4096].lower()
+    is_probably_html = (b"<html" in head[:4096].lower() or b"<!doctype html" in head[:4096].lower()
                        or b"<body" in head[:4096].lower())
 
     if is_probably_html:

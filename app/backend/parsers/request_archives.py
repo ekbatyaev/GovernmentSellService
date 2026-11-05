@@ -85,7 +85,7 @@ def parse_soap_response(xml_text: str) -> ParseSoapResponse:
     if isinstance(archive_urls, str):
         archive_urls = [archive_urls]
 
-    return ParseSoapResponse(archive_urls = archive_urls, **error_info)
+    return ParseSoapResponse(archive_urls=archive_urls, **error_info)
 
 
 # ---------------------------------------------------------------------------

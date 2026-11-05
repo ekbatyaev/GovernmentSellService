@@ -90,20 +90,20 @@ def request_filters_itclg(text: str, lots: list[Lot]) -> ItmFilter:
 
     elif has_okpd2_match(lots, TARGET_CODES_ITCLG):
         result = True
-        reason  = "has_okpd2_match: есть совпадения по базе okpd2"
+        reason = "has_okpd2_match: есть совпадения по базе okpd2"
 
     else:
         result = False
         reason = "no_match: нет релевантных маркеров по ITCLG"
 
     return ItmFilter(
-        result = result,
-        reason = reason,
-        filter_name = "ITCLG",
-        component = has_component,
-        brand = has_brand,
-        work_patterns = has_work_patterns,
-        normalized_text = text
+        result=result,
+        reason=reason,
+        filter_name="ITCLG",
+        component=has_component,
+        brand=has_brand,
+        work_patterns=has_work_patterns,
+        normalized_text=text
     )
 
 
@@ -487,7 +487,7 @@ if __name__ == "__main__":
             ]
         }
         ]
-    Lots = [Lot(guid = lot.get("guid"), ordinal_number = lot.get("ordinal_number"), subject = lot.get("subject"),
-                initial_sum = lot.get("initial_sum"), currency = lot.get("currency"),
-                items = [Item(**item) for item in lot.get("items")]) for lot in lots]
+    Lots = [Lot(guid=lot.get("guid"), ordinal_number=lot.get("ordinal_number"), subject=lot.get("subject"),
+                initial_sum=lot.get("initial_sum"), currency=lot.get("currency"),
+                items=[Item(**item) for item in lot.get("items")]) for lot in lots]
     print(request_filters_itm("прецизионый кондиционер", Lots))

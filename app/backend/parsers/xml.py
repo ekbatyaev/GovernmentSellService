@@ -103,9 +103,9 @@ def _extract_documents(attachments: dict) -> list[Document]:
 
     document = _ensure_list(document)
     return [Document(
-            filename =  doc.get("fileName", ""),
-            description = doc.get("description", ""),
-            url = doc.get("url", "")
+            filename=doc.get("fileName", ""),
+            description=doc.get("description", ""),
+            url=doc.get("url", "")
         )
         for doc in document
     ]
@@ -168,15 +168,15 @@ def _normalize_protocol(data: dict, file_name: str) -> NoticeParser:
             initial_sum_val = _normalize_contract_sum(lot.get("initialSum") or lot.get("maxContractPrice)"))
 
             Lots.append(Lot(
-                guid = lot.get("guid", ""),
-                ordinal_number = lot.get("ordinalNumber", ""),
-                subject = lot.get("subject", ""),
-                initial_sum = initial_sum_val,
-                currency = (lot.get("currency") or {}).get("code", ""),
-                items = []
+                guid=lot.get("guid", ""),
+                ordinal_number=lot.get("ordinalNumber", ""),
+                subject=lot.get("subject", ""),
+                initial_sum=initial_sum_val,
+                currency=(lot.get("currency") or {}).get("code", ""),
+                items=[]
             ))
 
-    return NoticeParser(**result, source_file = file_name, lots = Lots)
+    return NoticeParser(**result, source_file=file_name, lots=Lots)
 
 
 def _normalize_purchase(data: dict, file_name: str) -> NoticeParser:
@@ -243,20 +243,20 @@ def _normalize_purchase(data: dict, file_name: str) -> NoticeParser:
         for it in lot_items:
             it = it or {}
             Items.append(Item(
-                guid = it.get("guid", ""),
-                okpd2_name = (it.get("okpd2") or {}).get("code", ""),
-                okpd2_code = (it.get("okpd2") or {}).get("name", ""),
-                additional_info = it.get("additionalInfo", "")
+                guid=it.get("guid", ""),
+                okpd2_name=(it.get("okpd2") or {}).get("code", ""),
+                okpd2_code=(it.get("okpd2") or {}).get("name", ""),
+                additional_info=it.get("additionalInfo", "")
             ))
 
-        Lots.append(Lot(guid = lot.get("guid"),
-                        ordinal_number = lot.get("ordinalNumber"),
-                        subject = lot_data.get("subject"),
-                        initial_sum = initial_sum_val,
-                        currency = (lot_data.get("currency") or {}).get("code"),
-                        items = Items))
+        Lots.append(Lot(guid=lot.get("guid"),
+                        ordinal_number=lot.get("ordinalNumber"),
+                        subject=lot_data.get("subject"),
+                        initial_sum=initial_sum_val,
+                        currency=(lot_data.get("currency") or {}).get("code"),
+                        items=Items))
 
-    return NoticeParser(**result, source_file = file_name, lots = Lots)
+    return NoticeParser(**result, source_file=file_name, lots=Lots)
 
 def _read_and_parse_xml(archive: zipfile.ZipFile, file_name: str) -> dict:
     """Блокирующая часть (чтение из zip + парсинг XML). Вызывается через
@@ -368,7 +368,7 @@ async def _process_purchase_entry(
             candidates.append((2, "Тендеры для OEM"))
 
         itm_check = None
-        if filter_number in (0, 3) :
+        if filter_number in (0, 3):
             itm_check = request_filters_itm(work_name, Purchase.lots)
             if itm_check.result:
                 candidates.append((3, "Тендеры для ITM"))
@@ -378,7 +378,7 @@ async def _process_purchase_entry(
 
         purchases = await asyncio.gather(*[
             _query_search_purchases(
-                registration_number = Purchase.registration_number, list_filter_type_name=[name]
+                registration_number=Purchase.registration_number, list_filter_type_name=[name]
             )
             for _, name in candidates
         ])

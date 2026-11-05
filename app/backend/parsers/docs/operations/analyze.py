@@ -77,7 +77,7 @@ async def analyze_file_and_merge_results(
                     "DOCUMENT SKIP | %s",
                     format_log_kv(task_id=task_id, filename=name, reason="already_processed"),
                 )
-                stats.ok+= 1
+                stats.ok += 1
                 continue
 
             seen_in_batch.add(name)

@@ -311,4 +311,3 @@ def request_filters_oem(work_name: str) -> OemFilter:
 
 if __name__ == "__main__":
     print(request_filters_oem("Работа"))
-

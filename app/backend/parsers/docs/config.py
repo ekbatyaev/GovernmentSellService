@@ -81,7 +81,7 @@ ODF_MIMETYPES = {
     b"application/vnd.oasis.opendocument.presentation": ".odp",
 }
 
-filestore_limiter = AsyncLimiter(max_rate=1, time_period = 2)
+filestore_limiter = AsyncLimiter(max_rate=1, time_period=2)
 
 download_semaphore = asyncio.Semaphore(DOWNLOAD_CONCURRENCY)
 extract_semaphore = asyncio.Semaphore(EXTRACT_CONCURRENCY)
