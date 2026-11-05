@@ -115,7 +115,7 @@ async def save_protocol_record(protocol: Notice, registration_numbers_dict_per_d
 
                     # Если находим обновляем
                 if len(purchases) > 1:
-                    logger.exception(
+                    logger.warning(
                         "Pipeline: ошибка сохранения закупки | reg=%s | guid=%s",
                         protocol.registration_number, protocol.guid
                     )
