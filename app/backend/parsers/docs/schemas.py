@@ -3,6 +3,12 @@ from typing import Literal, Optional
 from pathlib import Path
 from app.schemas.purchase import Document
 
+class AnalyzeStats(BaseModel):
+    ok: int = 0
+    failed: int = 0
+    skipped: int = 0
+    total: int = 0
+
 class ExtractInfo(BaseModel):
     path: Path
     text: Optional[str] = None

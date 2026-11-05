@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import List, Tuple, Iterable
 from app.settings import logger
 from app.backend.parsers.docs.functions import format_log_kv
-from app.backend.parsers.docs.schemas import ExtractInfo
+from app.backend.parsers.docs.schemas import ExtractInfo, AnalyzeStats
 from app.backend.parsers.docs.operations.extract import extract_one, extract_archive
 from app.backend.parsers.docs.config import (SUPPORTED_EXTENSIONS, ARCHIVE_EXTENSIONS,
                                              OFFICE_ZIP_EXTENSIONS)
@@ -39,9 +39,9 @@ async def analyze_file_and_merge_results(
     protocol_mode: bool = False,
     filter_type: int = 0,
     task_id: str | None = None,
-) -> dict:
+) -> AnalyzeStats:
     path = Path(path)
-    stats = {"ok": 0, "failed": 0, "skipped": 0, "total": 0}
+    stats = AnalyzeStats()
 
     logger.info("READ_PATH START | %s", format_log_kv(task_id=task_id, path=path))
 
@@ -65,10 +65,10 @@ async def analyze_file_and_merge_results(
         seen_in_batch = set()
 
         for file_path, text, error in results:
-            stats["total"] += 1
+            stats.total += 1
 
             if error or not text:
-                stats["failed"] += 1
+                stats.failed += 1
                 continue
 
             name = file_path.name.strip()
@@ -77,7 +77,7 @@ async def analyze_file_and_merge_results(
                     "DOCUMENT SKIP | %s",
                     format_log_kv(task_id=task_id, filename=name, reason="already_processed"),
                 )
-                stats["ok"] += 1
+                stats.ok+= 1
                 continue
 
             seen_in_batch.add(name)
@@ -95,24 +95,24 @@ async def analyze_file_and_merge_results(
         # Фаза 3: слияние строго по порядку файлов — результат воспроизводим.
         for (name, _), extracted in zip(pending, computed):
             if extracted is None:
-                stats["failed"] += 1
+                stats.failed += 1
                 continue
 
             merge_extracted_into_accumulator(accumulator, extracted)
             add_processed_document(documents_accumulator, name)
-            stats["ok"] += 1
+            stats.ok += 1
 
     async def walk(target: Path) -> None:
         if not target.exists():
-            stats["failed"] += 1
-            stats["total"] += 1
+            stats.failed += 1
+            stats.total += 1
             return
 
         if target.is_dir():
             files = list(iter_candidate_files(target))
             if not files:
-                stats["failed"] += 1
-                stats["total"] += 1
+                stats.failed += 1
+                stats.total += 1
                 return
 
             regular = [f for f in files if f.suffix.lower() not in ARCHIVE_EXTENSIONS or is_office_zip(f)]
@@ -136,8 +136,8 @@ async def analyze_file_and_merge_results(
                 "READ_PATH SKIP | %s",
                 format_log_kv(task_id=task_id, path=target.name, reason="temp_file"),
             )
-            stats["skipped"] += 1
-            stats["total"] += 1
+            stats.skipped += 1
+            stats.total += 1
             return
 
         ext = target.suffix.lower()
@@ -149,18 +149,18 @@ async def analyze_file_and_merge_results(
                 return
 
             if ext not in SUPPORTED_EXTENSIONS:
-                stats["skipped"] += 1
-                stats["total"] += 1
+                stats.skipped += 1
+                stats.total += 1
                 return
 
             await merge_files([target])
 
         except Exception:
-            stats["failed"] += 1
-            stats["total"] += 1
+            stats.failed += 1
+            stats.total += 1
             logger.exception("READ_PATH ITEM ERROR | %s", format_log_kv(task_id=task_id, path=target))
 
     await walk(path)
 
-    logger.info("READ_PATH DONE | %s", format_log_kv(task_id=task_id, path=path, **stats))
+    logger.info("READ_PATH DONE | %s", format_log_kv(task_id=task_id, path=path, **stats.model_dump()))
     return stats
