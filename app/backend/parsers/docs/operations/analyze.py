@@ -71,7 +71,7 @@ async def analyze_file_and_merge_results(
                 stats.failed += 1
                 continue
 
-            name = result.file_path.name.strip()
+            name = result.path.name.strip()
             if name in documents_accumulator or name in seen_in_batch:
                 logger.info(
                     "DOCUMENT SKIP | %s",
