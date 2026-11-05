@@ -3,7 +3,7 @@ import json
 import re
 from dataclasses import dataclass
 from typing import Any, Optional
-from openai import AsyncOpenAI, APIConnectionError, APITimeoutError, OpenAIError
+from openai import AsyncOpenAI, APIConnectionError, APITimeoutError, OpenAIError, NOT_GIVEN, APIStatusError
 from app.settings import settings, logger
 
 
@@ -53,11 +53,10 @@ def _extract_json(content: str) -> Any:
 @dataclass
 class LLMClient:
     api_key: str = settings.llm_api_key
-    api_base: str = settings.llm_base_url or "https://rest-assistant.api.cloud.yandex.net/v1"
-    model_name: str = settings.llm_model_name or "aliceai-llm"
-    folder_id: Optional[str] = settings.llm_folder_id or None
-    max_tokens: int = 30000
-    temperature: float = 0.8
+    api_base: str = settings.llm_base_url or "https://tenders.systeme.ru/litellm/v1"
+    model_name: str = settings.llm_model_name or "deepseek-v4.1-flash"
+    max_tokens: int = 60000
+    temperature: float = 0.0
     request_timeout: float = 100.0
     max_retries: int = 3
     system_prompt: str = ""
@@ -79,22 +78,30 @@ class LLMClient:
         Возвращает распарсенный JSON-объект из output_text ответа модели.
         """
 
-        extra_body = {}
-        if guided_json is not None:
-            extra_body["json_schema"] = guided_json
+        text_format = (
+            {
+                "format": {
+                    "type": "json_schema",
+                    "name": "extraction",
+                    "schema": guided_json,
+                    "strict": True,
+                }
+            }
+            if guided_json is not None
+            else NOT_GIVEN
+        )
 
         last_error: Optional[Exception] = None
 
         async with AsyncOpenAI(
             api_key=self.api_key,
             base_url=self.api_base,
-            project=self.folder_id,
             timeout=self.request_timeout,
         ) as async_http_client:
             for attempt in range(1, self.max_retries + 1):
                 try:
                     response = await async_http_client.responses.create(
-                        model=f"gpt://{self.folder_id}/{self.model_name}",
+                        model=f"{self.model_name}",
                         instructions=system_prompt,
                         max_output_tokens=self.max_tokens,
                         temperature=self.temperature,
@@ -104,8 +111,8 @@ class LLMClient:
                                 "content": user_content,
                             }
                         ],
-                        extra_body=extra_body,
-                        stream=False,
+                        text=text_format,
+                        stream=False
                     )
 
                     raw_output = response.output_text or ""
@@ -116,6 +123,12 @@ class LLMClient:
                 except APITimeoutError as e:
                     last_error = e
                     logger.warning("Таймаут на попытке %s/%s", attempt, self.max_retries)
+
+                except APIStatusError as e:
+                    if e.status_code < 500 and e.status_code != 429:
+                        raise LLMRequestError(f"Запрос отклонён ({e.status_code}): {e.message}") from e
+                    last_error = e
+                    logger.warning("Ошибка API на попытке %s/%s: %s", attempt, self.max_retries, e)
 
                 except (APIConnectionError, OpenAIError) as e:
                     last_error = e

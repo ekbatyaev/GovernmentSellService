@@ -54,7 +54,6 @@ class Settings(BaseSettings):
     llm_api_key: str
     llm_base_url: str
     llm_model_name: str
-    llm_folder_id: str
 
     system_token: str
     kontur_api_key: str | None = None
