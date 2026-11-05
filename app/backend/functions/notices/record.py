@@ -7,7 +7,8 @@ from sqlalchemy.exc import IntegrityError
 from typing import Literal
 import asyncio
 
-async def save_purchase_record(purchase: Notice, registration_numbers_dict_per_day: dict, record_semaphore: asyncio.Semaphore) -> None:
+async def save_purchase_record(purchase: Notice, registration_numbers_dict_per_day: dict,
+                               record_semaphore: asyncio.Semaphore) -> None:
     async with record_semaphore:
         try:
             async with db_session() as db:
