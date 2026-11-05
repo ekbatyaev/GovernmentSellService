@@ -75,7 +75,8 @@ async def _query_search_purchases(**kwargs) -> Notice | None:
     # Для новых закупок пустой результат — нормальная ситуация
     if not purchases:
         logger.info(
-            f"Заявка под регистрационным номером: {kwargs.get("registration_number")} и фильтрами: {kwargs} не найдена.")
+            f"Заявка под регистрационным номером: {kwargs.get("registration_number")} "
+            f"и фильтрами: {kwargs} не найдена.")
         return None
 
     if len(purchases) > 1:
