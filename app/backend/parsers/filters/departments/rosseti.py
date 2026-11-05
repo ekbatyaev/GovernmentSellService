@@ -208,7 +208,8 @@ def request_filters_rosseti(customer_name, work_name) -> RossetiFilter:
 
     has_pir_by_titles = bool(
         re.search(
-            r"\bПИР\b.{0,80}\bпо\s+(?:\d+|одному|двум|тр[её]м|четыр[её]м|пяти|шести|семи|восьми|девяти|десяти)\s+титул[а-я]*",
+            (r"\bПИР\b.{0,80}\bпо\s+(?:\d+|одному|двум|тр[её]м|четыр[её]м|пяти|шести|семи|восьми|девяти|десяти)"
+            r"\s+титул[а-я]*"),
             work_name,
             re.IGNORECASE
         )

@@ -54,7 +54,6 @@ class Settings(BaseSettings):
     llm_api_key: str
     llm_base_url: str
     llm_model_name: str
-    llm_folder_id: str
 
     system_token: str
     kontur_api_key: str | None = None
@@ -62,7 +61,7 @@ class Settings(BaseSettings):
     daily_job_hour_msk: int = 10
     daily_job_minute_msk: int = 0
 
-    token: str = Field(repr = False)
+    token: str = Field(repr=False)
     postgres_user: str
     postgres_password: str
     postgres_db: str
