@@ -3,6 +3,7 @@ from app.backend.parsers.docs.config import FIELDS
 from app.backend.parsers.docs.schemas import RarAnalysisInfo, Entry, GroupFileAnalysis
 from app.schemas.purchase import Document
 from app.backend.parsers.docs.operations.regex.rar import get_rar_group_info
+from app.settings import logger
 
 FIELD_SETS = {1: FIELDS["rosseti"], 2: FIELDS["oem"], 3: FIELDS["itm"]}
 
@@ -33,6 +34,9 @@ def merge_extracted_into_accumulator(accumulator: dict, extracted: dict) -> None
         for chunk in value.replace("\n", ";").split(";"):
             chunk = chunk.strip()
             if chunk:
+                if field not in accumulator:
+                    logger.warning(f"Accumulator with fields: {accumulator} got unexpected field: {field}")
+                    continue
                 accumulator[field][chunk] = None
 
 def add_processed_document(documents_accumulator, filename: str) -> None:

@@ -35,7 +35,7 @@ PDF_TITLE_PAGE_IMAGE_TEXT_ENABLED = True
 PDF_TITLE_PAGE_RENDER_DPI = 180
 PDF_TITLE_PAGE_IMAGE_TEXT_LANG = "rus+eng"
 
-SUPPORTED_EXTENSIONS = {".txt", ".pdf", ".docx", ".docs", ".xlsx", ".xls", ".odt", ".ods"}
+SUPPORTED_EXTENSIONS = {".txt", ".pdf", ".docx", ".xlsx", ".xls", ".odt", ".ods"}
 ARCHIVE_EXTENSIONS = {".zip", ".rar"}
 OFFICE_ZIP_EXTENSIONS = {".docx", ".xlsx", ".pptx", ".odt", ".ods"}
 

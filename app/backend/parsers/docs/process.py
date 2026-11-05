@@ -5,7 +5,7 @@ import httpx
 from pathlib import Path
 from typing import Dict, List, Tuple
 from app.backend.parsers.docs.operations.analyze import analyze_file_and_merge_results
-from app.backend.parsers.schemas import Document
+from app.schemas.purchase import Document
 from app.settings import logger
 from app.backend.parsers.docs.functions import ensure_dir, format_log_kv, stable_id, safe_filename
 from app.backend.parsers.docs.operations.accumulate import (init_result_accumulator,
@@ -105,7 +105,7 @@ async def process_attached_files_and_merge(
     filter_type: int = 1,
 ) -> Tuple[Dict, List]:
     """
-    Основная точка входа (async). Синхронный вариант — process_attached_files_and_merge_sync.
+    Основная точка входа (async).
     """
     tmp_dir = ensure_dir(tmp_dir)
     accumulator = init_result_accumulator(field_mode=filter_type)

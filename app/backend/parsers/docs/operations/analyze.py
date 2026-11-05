@@ -64,14 +64,14 @@ async def analyze_file_and_merge_results(
         pending: List[Tuple[str, str]] = []
         seen_in_batch = set()
 
-        for file_path, text, error in results:
+        for result in results:
             stats.total += 1
 
-            if error or not text:
+            if result.error or not result.text:
                 stats.failed += 1
                 continue
 
-            name = file_path.name.strip()
+            name = result.file_path.name.strip()
             if name in documents_accumulator or name in seen_in_batch:
                 logger.info(
                     "DOCUMENT SKIP | %s",
@@ -81,7 +81,7 @@ async def analyze_file_and_merge_results(
                 continue
 
             seen_in_batch.add(name)
-            pending.append((name, text))
+            pending.append((name, result.text))
 
         if not pending:
             return

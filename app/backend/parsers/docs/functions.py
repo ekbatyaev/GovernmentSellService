@@ -13,9 +13,11 @@ def ensure_dir(path: str | Path) -> Path:
 def format_log_kv(**kwargs) -> str:
     return " | ".join(f"{k}={v}" for k, v in kwargs.items() if v is not None)
 
-def stable_id(value: str, len: int = -1) -> str:
+def stable_id(value: str, length: int | None = None) -> str:
     stable_id = hashlib.md5(value.encode("utf-8", errors="ignore")).hexdigest()
-    return stable_id[:len]
+    if length:
+        return stable_id[:length]
+    return stable_id
 
 def safe_filename(name: str) -> str:
     name = os.path.basename((name or "").strip().replace("\x00", ""))

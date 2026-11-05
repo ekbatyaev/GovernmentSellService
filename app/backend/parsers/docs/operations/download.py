@@ -141,24 +141,26 @@ async def download_file(
 async def download_multipart_rar(parts: list[Entry], work_dir: Path, task_id: str | None = None) -> Path:
     logger.info("MULTIPART_RAR START | %s", format_log_kv(task_id=task_id, parts=len(parts)))
 
-    paths = await asyncio.gather(*(
-        download_file(
-            url=item.doc.url,
-            download_dir=work_dir,
-            filename=item.doc.filename,
-            task_id=task_id,
-        )
-        for item in parts
-    ))
+    try:
+        async with asyncio.TaskGroup() as tg:
+            tasks = [
+                tg.create_task(download_file(
+                    url=item.doc.url,
+                    download_dir=work_dir,
+                    filename=item.doc.filename,
+                    task_id=task_id,
+                ))
+                for item in parts
+            ]
+    except ExceptionGroup as eg:
+        raise eg.exceptions[0]
 
     downloaded = sorted(
-        ({"path": p, "part_num": item.part_num, "is_start": item.is_start}
-         for p, item in zip(paths, parts)),
-        key=lambda x: x.part_num,
+        ((task.result(), item) for task, item in zip(tasks, parts)),
+        key=lambda x: x[1].part_num or 0,
     )
 
-    start_parts = [x for x in downloaded if x["is_start"]]
-    chosen = (start_parts[0] if start_parts else downloaded[0])["path"]
+    chosen = next((path for path, item in downloaded if item.is_start), downloaded[0][0])
 
     logger.info(
         "MULTIPART_RAR DONE | %s",
