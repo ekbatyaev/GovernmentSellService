@@ -1,9 +1,12 @@
-from app.backend.parsers.docs.config import (TASK_PROTOCOL, TASK_TZ_MARKERS, TASK_DESIGNER, TASK_NONE,
+from app.backend.parsers.docs.config import (TASK_PROTOCOL, TASK_TZ_MARKERS, TASK_DESIGNER,
                                              PROTOCOL_EXTRACTORS, MAX_TEXT_CHARS, llm_semaphore)
 from app.settings import logger
 from typing import Optional
 from app.backend.parsers.docs.operations.classify import classify_document
 from app.backend.parsers.docs.functions import format_log_kv
+from app.backend.parsers.docs.operations.regex.fields import (is_working_documentation_title_page,
+                                                              check_availability_of_fields_from_text,
+                                                              extract_designer_from_title_text)
 
 async def _run_llm(extractor, text: str) -> dict:
     # Страховка по объёму: PDF режется при чтении, но протокол может прийти и

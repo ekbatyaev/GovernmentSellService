@@ -13,7 +13,7 @@ from app.backend.parsers.docs.operations.accumulate import (init_result_accumula
                                                             finalize_result_accumulator,
                                                             finalize_documents_accumulator)
 from app.backend.parsers.docs.schemas import GroupFileAnalysis, Entry
-from app.backend.parsers.docs.operations.group import group_attached_files
+from app.backend.parsers.docs.operations.group import accumulate_attached_files
 from app.backend.parsers.docs.operations.download import download_file, download_multipart_rar
 
 async def process_one_attached_file_and_merge(
@@ -113,7 +113,7 @@ async def process_attached_files_and_merge(
             finalize_documents_accumulator(documents_accumulator),
         )
 
-    grouped_items: list[GroupFileAnalysis] = group_attached_files(attached_files)
+    grouped_items: list[GroupFileAnalysis] = accumulate_attached_files(attached_files)
     logger.info("ATTACHED BATCH START | %s", format_log_kv(groups=len(grouped_items), tmp_dir=tmp_dir))
     batch_started = time.perf_counter()
 

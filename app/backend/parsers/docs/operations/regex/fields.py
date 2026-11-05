@@ -1,8 +1,43 @@
+import re
+
+_DESIGNER_PATTERNS = [
+    r"(Общество\s+с\s+Ограниченной\s+Ответственностью\s*[«\"“]\s*[^»\"”\n]{2,120}\s*[»\"”])",
+    r"(Общество\s+с\s+Ограниченной\s+Ответственностью\s+[A-ZА-ЯЁ0-9][A-ZА-ЯЁа-яё0-9\s\-]{2,120})",
+    r"(ООО\s*[«\"“]\s*[^»\"”\n]{2,120}\s*[»\"”])",
+    r"(ПАО\s*[«\"“]\s*[^»\"”\n]{2,120}\s*[»\"”])",
+    r"(АО\s*[«\"“]\s*[^»\"”\n]{2,120}\s*[»\"”])",
+]
+
+_DESIGNER_STOP_WORDS = (
+    "генеральный директор", "главный инженер", "инн", "кпп", "огрн",
+    "e-mail", "email", "лист", "стадия", "раздел", "объект",
+)
+
+_DESIGNER_LEGAL_FORM_RE = re.compile(
+    r"(ООО|АО|ПАО|Общество\s+с\s+Ограниченной\s+Ответственностью)", re.IGNORECASE
+)
+
+def _normalize_designer_name(value: str) -> str:
+    value = (value or "").replace(" ", " ").replace("“", "«").replace("”", "»")
+    if value.count('"') >= 2:
+        value = value.replace('"', "«", 1).replace('"', "»", 1)
+
+    value = value.replace("« ", "«").replace(" »", "»")
+    value = re.sub(r"\s+", " ", value).strip()
+
+    value = re.sub(r"\bМ\s*-\s*ЭНЕРГО\b", "М-ЭНЕРГО", value, flags=re.IGNORECASE)
+    value = re.sub(r"\bМ\s+ЭНЕРГО\b", "М-ЭНЕРГО", value, flags=re.IGNORECASE)
+    value = re.sub(
+        r"Общество\s+с\s+Ограниченной\s+Ответственностью",
+        "Общество с Ограниченной Ответственностью",
+        value,
+        flags=re.IGNORECASE,
+    )
+    return value.strip(" ,.;:-")
 
 def normalize_for_title_check(text: str) -> str:
     text = (text or "").replace(" ", " ").replace("Ё", "Е").replace("ё", "е")
     return re.sub(r"\s+", " ", text).strip().lower()
-
 
 def is_working_documentation_title_page(text: str) -> bool:
     """Титульный лист рабочей документации. Основной маркер: 'РАБОЧАЯ ДОКУМЕНТАЦИЯ'."""
@@ -31,22 +66,22 @@ def extract_designer_from_title_text(text: str) -> str:
     for source_text in ("\n".join(lines), " ".join(lines)):
         for pattern in _DESIGNER_PATTERNS:
             for match in re.finditer(pattern, source_text, flags=re.IGNORECASE | re.MULTILINE):
-                candidates.append(normalize_designer_name(match.group(1)))
+                candidates.append(_normalize_designer_name(match.group(1)))
 
     # Правовая форма и название на соседних строках.
     for i, line in enumerate(lines):
         if re.fullmatch(r"Общество\s+с\s+Ограниченной\s+Ответственностью", line, flags=re.IGNORECASE):
             if i + 1 < len(lines) and lines[i + 1]:
-                candidates.append(normalize_designer_name(f"{line} {lines[i + 1]}"))
+                candidates.append(_normalize_designer_name(f"{line} {lines[i + 1]}"))
 
     # ООО/АО/ПАО без кавычек в шапке титульника.
     for line in lines[:8]:
         if re.match(r"^(ООО|АО|ПАО)\b", line, flags=re.IGNORECASE):
-            candidates.append(normalize_designer_name(line))
+            candidates.append(_normalize_designer_name(line))
 
     cleaned, seen = [], set()
     for candidate in candidates:
-        candidate = normalize_designer_name(candidate)
+        candidate = _normalize_designer_name(candidate)
         lower = candidate.lower()
 
         if len(candidate) < 5 or lower in seen:
