@@ -136,7 +136,7 @@ async def get_docs_by_region(
     exact_date = exact_date or (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
 
     envelope = f"""
-<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" 
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
 xmlns:ws="http://zakupki.gov.ru/fz44/get-docs-ip/ws">
    <soapenv:Header>
       <individualPerson_token>{settings.token}</individualPerson_token>
