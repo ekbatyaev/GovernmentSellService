@@ -56,7 +56,7 @@ class LLMClient:
     api_base: str = settings.llm_base_url or "https://tenders.systeme.ru/litellm/v1"
     model_name: str = settings.llm_model_name or "deepseek-v4.1-flash"
     max_tokens: int = 60000
-    temperature: float = 0.0
+    temperature: float = 0.6
     request_timeout: float = 100.0
     max_retries: int = 3
     system_prompt: str = ""
@@ -66,6 +66,7 @@ class LLMClient:
         user_content: Any,
         guided_json: Optional[dict] = None,
         system_prompt: Optional[str] = None,
+        temperature: Optional[float] = None
     ) -> dict:
         """
         Отправляет запрос в LLM (Yandex Cloud, Responses API) с retry-логикой
@@ -104,7 +105,7 @@ class LLMClient:
                         model=f"{self.model_name}",
                         instructions=system_prompt,
                         max_output_tokens=self.max_tokens,
-                        temperature=self.temperature,
+                        temperature=temperature or self.temperature,
                         input=[
                             {
                                 "role": "user",
