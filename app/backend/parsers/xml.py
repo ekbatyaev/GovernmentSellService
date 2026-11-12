@@ -2,7 +2,6 @@ import asyncio
 import copy
 import json
 import os
-import re
 import uuid
 import zipfile
 from typing import List, Tuple
@@ -394,14 +393,6 @@ async def _process_purchase_entry(
             result_info, documents_list = _existing_info(purchase)
 
             if filter_type == 1:
-                match = re.search(r"для нужд\s+([^.,()\-–—]+)", PurchaseDeepCopy.name or "", re.IGNORECASE)
-                value = match.group(1).strip() if match else ""
-                words = value.split()
-                if words:
-                    first_word = words[0]
-                    result_info["Филиал/РЭС"] = value if len(first_word) > 4 else first_word
-                else:
-                    result_info["Филиал/РЭС"] = None
 
                 PurchaseDeepCopy.result_info, PurchaseDeepCopy.documents_list = await process_attached_files_and_merge(
                     attached_files=PurchaseDeepCopy.attached_files,
