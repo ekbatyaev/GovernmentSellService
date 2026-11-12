@@ -105,6 +105,7 @@ GUIDED_JSON = {
     "additionalProperties": False,
 }
 
+
 async def itm_get_model_extraction(message) -> Dict:
 
     user_content = \
@@ -126,10 +127,12 @@ async def itm_get_model_extraction(message) -> Dict:
         raise
     return fields
 
+
 async def main():
 
     text = \
-"""Протокол № 229
+        """
+Протокол № 229
 заседания комиссии ФКП «Ясень» по закупке у единственного поставщика
 
 г. Москва                                           «05» мая 2026 г.
@@ -170,7 +173,6 @@ async def main():
 Члены комиссии, присутствующие на заседании:"""
 
     single = await itm_get_model_extraction(text)
-
 
     print("\n=== SINGLE ===")
     print(single)

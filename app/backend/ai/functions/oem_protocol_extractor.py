@@ -75,6 +75,7 @@ GUIDED_JSON = {
     "additionalProperties": False,
 }
 
+
 async def oem_get_model_extraction(message) -> Dict:
     user_content = \
         [
@@ -98,7 +99,8 @@ async def oem_get_model_extraction(message) -> Dict:
 
 async def main():
     text = \
-"""Протокол № 229
+        """
+Протокол № 229
 заседания комиссии ФКП «Ясень» по закупке у единственного поставщика
 
 г. Москва                                           «05» мая 2026 г.

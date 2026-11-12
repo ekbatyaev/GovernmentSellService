@@ -116,7 +116,7 @@ async def rosseti_get_model_extraction(message) -> Dict:
 async def main():
 
     text = \
-"""
+        """
 ОБЩАЯ ИНФОРМАЦИЯ О ЗАКУПКЕ:
 Предмет закупки: Определение подрядчика на выполнение СМР, ПНР, материалы и оборудование (дополнительный объем)
  по титулу: Строительство БКТП-10/0,4 кВ с тр-ми 2х400 кВА, 2КЛ-10 кВ от сооруж. ТП-10/0,4кВ 1 с.ш. до места
@@ -180,7 +180,6 @@ async def main():
 """
 
     single = await rosseti_get_model_extraction(text)
-
 
     print("\n=== SINGLE ===")
     print(single)
