@@ -34,6 +34,7 @@ API_TIMEOUT_SECONDS = 30
 
 MAX_CONCURRENT_FILES = 8
 
+
 def _remove_ns(obj):
     if isinstance(obj, dict):
         new_dict = {}
@@ -53,6 +54,7 @@ def _ensure_list(value):
         return value
     return [value]
 
+
 def _normalize_contract_sum(text: str | None) -> float:
     if text is None:
         return 0.0
@@ -62,6 +64,7 @@ def _normalize_contract_sum(text: str | None) -> float:
     except ValueError:
         logger.warning(f"Строка {text!r} не прошла валидацию на float.")
         return 0.0
+
 
 async def _query_search_purchases(**kwargs) -> Notice | None:
     async with db_session() as db:
@@ -80,8 +83,10 @@ async def _query_search_purchases(**kwargs) -> Notice | None:
 
     if len(purchases) > 1:
         logger.warning(
-            f"Найдены несколько заявок под одним регистрационным номером: {kwargs.get("registration_number")}")
+            f"Найдены несколько заявок под одним регистрационным номером: {kwargs.get("registration_number")}"
+        )
     return purchases[0]
+
 
 def _existing_info(purchase: Notice | None) -> tuple[dict, list]:
     """Копии result_info / documents_list уже сохранённой закупки (пустые, если её нет).
@@ -102,7 +107,8 @@ def _extract_documents(attachments: dict) -> list[Document]:
             document = None
 
     document = _ensure_list(document)
-    return [Document(
+    return [
+        Document(
             filename=doc.get("fileName", ""),
             description=doc.get("description", ""),
             url=doc.get("url", "")
@@ -254,9 +260,11 @@ def _normalize_purchase(data: dict, file_name: str) -> NoticeParser:
                         subject=lot_data.get("subject", ""),
                         initial_sum=initial_sum_val,
                         currency=(lot_data.get("currency", "") or {}).get("code", ""),
-                        items=Items))
+                        items=Items)
+                    )
 
     return NoticeParser(**result, source_file=file_name, lots=Lots)
+
 
 def _read_and_parse_xml(archive: zipfile.ZipFile, file_name: str) -> dict:
     """Блокирующая часть (чтение из zip + парсинг XML). Вызывается через
@@ -265,6 +273,7 @@ def _read_and_parse_xml(archive: zipfile.ZipFile, file_name: str) -> dict:
         xml_content = file.read()
     data = xmltodict.parse(xml_content)
     return _remove_ns(data)
+
 
 async def _process_protocol_entry(
     archive: zipfile.ZipFile, file_name: str, region: int, filter_number: int
