@@ -56,7 +56,7 @@ SOFFICE_USER_PROFILE = "file:///tmp/lo_profile"  # изоляция профил
 
 MAX_ARCHIVE_MEMBERS = 500
 MAX_ARCHIVE_TOTAL_BYTES = 500 * 1024 * 1024
-MAX_ARCHIVE_DEPTH = 5
+MAX_ARCHIVE_DEPTH = 3
 
 BLOCKED_TYPES = {
     "application/x-dosexec",
