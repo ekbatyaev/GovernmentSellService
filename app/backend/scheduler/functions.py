@@ -8,8 +8,10 @@ from app.schemas.service import FilterAuthCode
 from sqlalchemy.exc import IntegrityError
 from typing import Any
 
+
 def moscow_datetime() -> datetime:
     return datetime.now(MOSCOW_TZ).replace(tzinfo=None)
+
 
 async def get_row_base_info(purchase: Notice) -> dict[str, Any]:
     row = {
@@ -22,6 +24,7 @@ async def get_row_base_info(purchase: Notice) -> dict[str, Any]:
         "Заказчик название": purchase.customer.full_name
     }
     return row
+
 
 async def complete_row_tender(filter_name: str, purchase: Notice) -> dict[str, Any]:
     row = await get_row_base_info(purchase)
@@ -36,7 +39,8 @@ async def complete_row_tender(filter_name: str, purchase: Notice) -> dict[str, A
                "Проектировщик": purchase.result_info.get("Проектировщик"),
                "Дата исполнения договора": purchase.result_info.get("Дата исполнения договора"),
                "Филиал/РЭС": purchase.result_info.get("Филиал/РЭС"),
-               "Ссылка на тендер": f"https://zakupki.gov.ru/epz/order/notice/notice223/common-info.html?regNumber={purchase.registration_number}"
+               "Ссылка на тендер": f"https://zakupki.gov.ru/epz/order/notice/notice223/"
+                                   f"common-info.html?regNumber={purchase.registration_number}"
                }
     elif filter_name == "Тендеры для OEM":
         row = {**row,
@@ -47,7 +51,8 @@ async def complete_row_tender(filter_name: str, purchase: Notice) -> dict[str, A
                "Победитель": purchase.result_info.get("Победитель"),
                "Итоговая цена контракта": purchase.result_info.get("Итоговая цена контракта"),
                "Слова маячки в тз": purchase.result_info.get("Слова маячки в тз"),
-               "Ссылка на тендер": f"https://zakupki.gov.ru/epz/order/notice/notice223/common-info.html?regNumber={purchase.registration_number}"
+               "Ссылка на тендер": f"https://zakupki.gov.ru/epz/order/notice/notice223/common-info.html?regNumber="
+                                   f"{purchase.registration_number}"
                }
 
     elif filter_name == "Тендеры для ITM":
@@ -56,10 +61,12 @@ async def complete_row_tender(filter_name: str, purchase: Notice) -> dict[str, A
                "ИНН": purchase.result_info.get("ИНН"),
                "Итоговая цена контракта": purchase.result_info.get("Итоговая цена контракта"),
                "Другие участники": purchase.result_info.get("Другие участники"),
-               "Ссылка на тендер": f"https://zakupki.gov.ru/epz/order/notice/notice223/common-info.html?regNumber={purchase.registration_number}"
+               "Ссылка на тендер": f"https://zakupki.gov.ru/epz/order/notice/notice223/common-info.html?regNumber="
+                                   f"{purchase.registration_number}"
                }
 
     return row
+
 
 async def clean_notices(db: AsyncSession, **kwargs) -> None:
     try:
@@ -81,6 +88,7 @@ async def clean_notices(db: AsyncSession, **kwargs) -> None:
     logger.info(
         f"Daily job: успешно удалено {deleted_count} заявок из {len(purchases)}"
     )
+
 
 async def clean_auth_codes(db: AsyncSession, **kwargs) -> None:
     try:

@@ -21,6 +21,7 @@ soap_rate_limiter = AsyncLimiter(max_rate=1, time_period=60 / 80)
 
 _download_semaphore = asyncio.Semaphore(settings.max_concurrent_semaphore)
 
+
 class ServiceError(Exception):
     """Сервис вернул ошибку в теле ответа."""
 
@@ -32,6 +33,7 @@ class ServiceError(Exception):
 
 class RateLimitExceeded(ServiceError):
     """Превышен лимит запросов к сервису (код 13)."""
+
 
 async_client = httpx.AsyncClient(timeout=30)
 
@@ -50,6 +52,7 @@ DEFAULT_HEADERS = {
 }
 # Проставляем дефолтные заголовки один раз на общий async_client.
 async_client.headers.update(DEFAULT_HEADERS)
+
 
 class _NotFound(Exception):
     """Служебный сигнал 404 — не ретраим, просто сообщаем вызывающему коду."""
@@ -70,6 +73,7 @@ def _log_retry(retry_state) -> None:
         retry_state.attempt_number,
         exc,
     )
+
 
 def parse_soap_response(xml_text: str) -> ParseSoapResponse:
     data = xmltodict.parse(xml_text)
@@ -121,7 +125,6 @@ async def soap_post(envelope_xml: str) -> dict:
         if parsed.code == 13:
             raise RateLimitExceeded(parsed.code, parsed.message)
         raise ServiceError(parsed.code, parsed.message)
-
 
     return {"httpStatus": response.status_code, **(parsed.model_dump())}
 

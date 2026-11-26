@@ -6,6 +6,7 @@ import jwt
 
 password_hash = PasswordHash.recommended()
 
+
 def create_access_token(user: UserDatabase) -> str:
     payload = {
         "sub": user.guid,

@@ -5,10 +5,13 @@ from app.schemas.purchase import Document
 from app.backend.parsers.docs.operations.regex.rar import get_rar_group_info
 from app.settings import logger
 
+
 FIELD_SETS = {1: FIELDS["rosseti"], 2: FIELDS["oem"], 3: FIELDS["itm"]}
+
 
 def init_result_accumulator(field_mode: int = 1) -> dict:
     return {field: OrderedDict() for field in FIELD_SETS[field_mode]}
+
 
 def init_documents_accumulator(documents_list_old=None) -> OrderedDict:
     result = OrderedDict()
@@ -19,6 +22,7 @@ def init_documents_accumulator(documents_list_old=None) -> OrderedDict:
         if name:
             result[name] = None
     return result
+
 
 def merge_extracted_into_accumulator(accumulator: dict, extracted: dict) -> None:
     if not extracted:
@@ -39,16 +43,20 @@ def merge_extracted_into_accumulator(accumulator: dict, extracted: dict) -> None
                     continue
                 accumulator[field][chunk] = None
 
+
 def add_processed_document(documents_accumulator, filename: str) -> None:
     filename = str(filename).strip()
     if filename:
         documents_accumulator[filename] = None
 
+
 def finalize_result_accumulator(accumulator: dict) -> dict:
     return {field: "; ".join(values.keys()) if values else "" for field, values in accumulator.items()}
 
+
 def finalize_documents_accumulator(documents_accumulator) -> list:
     return list(documents_accumulator.keys())
+
 
 def accumulate_attached_files(attached_files: list[Document]) -> list[GroupFileAnalysis]:
     list_group_file_analysis = []

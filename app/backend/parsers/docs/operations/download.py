@@ -14,6 +14,12 @@ import httpx
 import asyncio
 import re
 import time
+import uuid
+
+
+class InvalidDownloadContentError(Exception):
+    """Сервер вернул некорректное содержимое документа."""
+
 
 def _guess_filename(response: httpx.Response, url: str, fallback: str = "downloaded_file") -> str:
     cd = response.headers.get("Content-Disposition", "")
@@ -28,12 +34,23 @@ def _guess_filename(response: httpx.Response, url: str, fallback: str = "downloa
     content_type = (response.headers.get("Content-Type") or "").split(";")[0].strip().lower()
     return safe_filename(fallback + (mimetypes.guess_extension(content_type) or ""))
 
+
 def _is_retryable_download_error(exc: BaseException) -> bool:
-    """Повторяем 429, 5xx и сетевые сбои. Остальные 4xx повторять бессмысленно."""
+    """
+    Повторяем 429, 5xx, сетевые сбои
+    и получение некорректного содержимого.
+    """
     if isinstance(exc, httpx.HTTPStatusError):
         status = exc.response.status_code
         return status == 429 or status >= 500
-    return isinstance(exc, httpx.TransportError)
+
+    return isinstance(
+        exc,
+        (
+            httpx.TransportError,
+            InvalidDownloadContentError,
+        ),
+    )
 
 
 def _wait_retry_after(retry_state) -> float:
@@ -58,6 +75,7 @@ def _log_download_retry(retry_state) -> None:
         ),
     )
 
+
 @retry(
     retry=retry_if_exception(_is_retryable_download_error),
     stop=stop_after_attempt(5),
@@ -75,68 +93,171 @@ async def download_file(
     client = await get_client()
     started = time.perf_counter()
 
+    temp_path: Path | None = None
+    expected_size: str | None = None
+    written = 0
+
     logger.info(
         "DOWNLOAD START | %s",
-        format_log_kv(task_id=task_id, url=url, filename=filename, download_dir=download_dir),
-    )
-
-    async with download_semaphore:
-        async with filestore_limiter:
-            async with client.stream("GET", url) as response:
-                response.raise_for_status()
-
-                path = download_dir / safe_filename(filename or _guess_filename(response, url))
-                content_encoding = (response.headers.get("Content-Encoding") or "").lower()
-                expected_size = (
-                    response.headers.get("Content-Length")
-                    if content_encoding in ("", "identity")
-                    else None
-                )
-                written = 0
-
-                async with aiofiles.open(path, "wb") as f:
-                    async for chunk in response.aiter_bytes(CHUNK_SIZE):
-                        if chunk:
-                            await f.write(chunk)
-                            written += len(chunk)
-
-    if expected_size:
-        try:
-            if written != int(expected_size):
-                raise RuntimeError(f"Файл скачан не полностью: expected={expected_size}, got={written}")
-        except ValueError:
-            pass
-
-    if not path.exists() or path.stat().st_size == 0:
-        raise RuntimeError("Файл не скачан или пустой")
-
-    async with aiofiles.open(path, "rb") as f:
-        head = await f.read(512)
-
-    is_probably_html = (b"<html" in head[:4096].lower() or b"<!doctype html" in head[:4096].lower()
-                       or b"<body" in head[:4096].lower())
-
-    if is_probably_html:
-        raise RuntimeError("Сервер вернул HTML вместо документа")
-
-    magic_ext = guess_extension_from_magic(head, path.name)
-    if magic_ext and path.suffix.lower() != magic_ext and not is_rar_part_filename(path.name):
-        fixed = path.with_suffix(magic_ext)
-        path.rename(fixed)
-        path = fixed
-
-    logger.info(
-        "DOWNLOAD DONE | %s",
         format_log_kv(
             task_id=task_id,
             url=url,
-            saved_as=path.name,
-            size_bytes=written,
-            expected_size=expected_size,
-            elapsed=f"{time.perf_counter() - started:.3f}s",
+            filename=filename,
+            download_dir=download_dir,
         ),
     )
-    return path
+
+    try:
+        async with download_semaphore:
+            async with filestore_limiter:
+                async with client.stream("GET", url) as response:
+                    response.raise_for_status()
+
+                    path = download_dir / safe_filename(
+                        filename or _guess_filename(response, url)
+                    )
+
+                    # Временный файл с коротким уникальным именем
+                    temp_path = download_dir / (
+                        f".{uuid.uuid4().hex}.part"
+                    )
+
+                    content_type = (
+                        response.headers.get("Content-Type") or ""
+                    ).split(";")[0].strip().lower()
+
+                    content_encoding = (
+                        response.headers.get("Content-Encoding") or ""
+                    ).strip().lower()
+
+                    expected_size = (
+                        response.headers.get("Content-Length")
+                        if content_encoding in ("", "identity")
+                        else None
+                    )
+
+                    async with aiofiles.open(temp_path, "wb") as f:
+                        async for chunk in response.aiter_bytes(
+                            CHUNK_SIZE
+                        ):
+                            if chunk:
+                                await f.write(chunk)
+                                written += len(chunk)
+
+        # Проверяем размер скачанного документа
+        if expected_size is not None:
+            try:
+                expected = int(expected_size)
+            except ValueError:
+                expected = None
+
+            if expected is not None and written != expected:
+                raise InvalidDownloadContentError(
+                    f"Файл скачан не полностью: "
+                    f"expected={expected}, got={written}"
+                )
+
+        # Проверяем наличие содержимого
+        if (
+            not temp_path.exists()
+            or temp_path.stat().st_size == 0
+        ):
+            raise InvalidDownloadContentError(
+                "Файл не скачан или пустой"
+            )
+
+        # Читаем первые 4096 байт
+        async with aiofiles.open(temp_path, "rb") as f:
+            head = await f.read(4096)
+
+        # Проверяем, не вернул ли сервер HTML
+        normalized_head = head.lstrip(
+            b"\xef\xbb\xbf \t\r\n"
+        ).lower()
+
+        is_probably_html = (
+            normalized_head.startswith(b"<!doctype html")
+            or normalized_head.startswith(b"<html")
+            or normalized_head.startswith(b"<head")
+            or normalized_head.startswith(b"<body")
+            or (
+                content_type in {
+                    "text/html",
+                    "application/xhtml+xml",
+                }
+                and (
+                    b"<html" in normalized_head
+                    or b"<body" in normalized_head
+                )
+            )
+        )
+
+        # Настоящий HTML-документ допускаем:
+        # анализатор впоследствии его пропустит.
+        if (
+            is_probably_html
+            and path.suffix.lower() not in {".html", ".htm"}
+        ):
+            logger.warning(
+                "DOWNLOAD HTML RESPONSE | %s",
+                format_log_kv(
+                    task_id=task_id,
+                    url=url,
+                    filename=path.name,
+                    content_type=content_type,
+                    size_bytes=written,
+                ),
+            )
+
+            raise InvalidDownloadContentError(
+                "Получен HTML вместо запрошенного документа"
+            )
+
+        # Определяем настоящее расширение файла
+        magic_ext = guess_extension_from_magic(
+            head, path.name
+        )
+
+        if (
+            magic_ext
+            and path.suffix.lower() != magic_ext
+            and not is_rar_part_filename(path.name)
+        ):
+            path = path.with_suffix(magic_ext)
+
+        # Только проверенный файл получает окончательное имя
+        temp_path.replace(path)
+        temp_path = None
+
+        logger.info(
+            "DOWNLOAD DONE | %s",
+            format_log_kv(
+                task_id=task_id,
+                url=url,
+                saved_as=path.name,
+                size_bytes=written,
+                expected_size=expected_size,
+                elapsed=f"{time.perf_counter() - started:.3f}s",
+            ),
+        )
+
+        return path
+
+    finally:
+        # Удаляем временный файл при любой ошибке
+        if temp_path is not None:
+            try:
+                temp_path.unlink(missing_ok=True)
+            except OSError as e:
+                logger.warning(
+                    "DOWNLOAD CLEANUP ERROR | %s",
+                    format_log_kv(
+                        task_id=task_id,
+                        path=temp_path,
+                        error=str(e),
+                    ),
+                )
+
 
 async def download_multipart_rar(parts: list[Entry], work_dir: Path, task_id: str | None = None) -> Path:
     logger.info("MULTIPART_RAR START | %s", format_log_kv(task_id=task_id, parts=len(parts)))

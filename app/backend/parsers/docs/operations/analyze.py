@@ -1,23 +1,26 @@
 import asyncio
+import shutil
 import tempfile
 from pathlib import Path
 from typing import List, Tuple, Iterable
 from app.settings import logger
 from app.backend.parsers.docs.functions import format_log_kv
 from app.backend.parsers.docs.schemas import ExtractInfo, AnalyzeStats
-from app.backend.parsers.docs.operations.extract import extract_one, extract_archive
+from app.backend.parsers.docs.operations.extractors.archives import extract_archive
+from app.backend.parsers.docs.operations.extractors.files import (extract_one, convert_legacy_batch,
+                                                                  detect_true_extension)
 from app.backend.parsers.docs.config import (SUPPORTED_EXTENSIONS, ARCHIVE_EXTENSIONS,
-                                             OFFICE_ZIP_EXTENSIONS)
+                                             OFFICE_ZIP_EXTENSIONS, MAX_ARCHIVE_DEPTH)
 from app.backend.parsers.docs.operations.accumulate import merge_extracted_into_accumulator, add_processed_document
 from app.backend.parsers.docs.operations.classify import classify_document, FULL_TEXT_TASKS
 from app.backend.parsers.docs.operations.compute import compute_fields
 
+
 def iter_candidate_files(target: Path) -> Iterable[Path]:
     for p in sorted(target.rglob("*")):
-        if not p.is_file() or is_temp_or_junk_file(p):
-            continue
-        if p.suffix.lower() in (SUPPORTED_EXTENSIONS | ARCHIVE_EXTENSIONS):
+        if p.is_file() and not p.is_symlink():
             yield p
+
 
 def is_temp_or_junk_file(path: Path) -> bool:
     """Временные файлы офисных пакетов и мусор из архивов."""
@@ -29,8 +32,10 @@ def is_temp_or_junk_file(path: Path) -> bool:
         or "__MACOSX" in path.parts    # служебная папка macOS в архивах
     )
 
+
 def is_office_zip(path: Path) -> bool:
     return path.suffix.lower() in OFFICE_ZIP_EXTENSIONS
+
 
 async def analyze_file_and_merge_results(
     path: str | Path,
@@ -50,115 +55,301 @@ async def analyze_file_and_merge_results(
         if not files:
             return
 
-        # Фаза 1: извлечение текста параллельно. Сколько текста читать у PDF,
-        # решает тот же классификатор, что потом разбирает поля.
-        results: list[ExtractInfo] = await asyncio.gather(*(
-            extract_one(
-                f,
-                task_id,
-                full_text=classify_document(f.name, protocol_mode, filter_type) in FULL_TEXT_TASKS,
-            )
-            for f in files
-        ))
+        converted_map, lo_tmp = await convert_legacy_batch(files, task_id)
+        try:
 
-        pending: List[Tuple[str, str]] = []
-        seen_in_batch = set()
-
-        for result in results:
-            stats.total += 1
-
-            if result.error or not result.text:
-                stats.failed += 1
-                continue
-
-            name = result.path.name.strip()
-            if name in documents_accumulator or name in seen_in_batch:
-                logger.info(
-                    "DOCUMENT SKIP | %s",
-                    format_log_kv(task_id=task_id, filename=name, reason="already_processed"),
+            results: list[ExtractInfo] = await asyncio.gather(*(
+                extract_one(
+                    f,
+                    task_id,
+                    full_text=classify_document(f.name, protocol_mode, filter_type) in FULL_TEXT_TASKS,
+                    converted_legacy=converted_map.get(f),
                 )
+                for f in files
+            ))
+
+            pending: List[Tuple[str, str]] = []
+            seen_in_batch = set()
+
+            for result in results:
+                stats.total += 1
+
+                if result.skipped:
+                    stats.skipped += 1
+                    continue
+
+                if result.error or not result.text:
+                    stats.failed += 1
+                    continue
+
+                name = result.path.name.strip()
+                if name in documents_accumulator or name in seen_in_batch:
+                    logger.info(
+                        "DOCUMENT SKIP | %s",
+                        format_log_kv(task_id=task_id, filename=name, reason="already_processed"),
+                    )
+                    stats.skipped += 1
+                    continue
+
+                seen_in_batch.add(name)
+                pending.append((name, result.text))
+
+            if not pending:
+                return
+
+            computed = await asyncio.gather(
+                *(
+                    compute_fields(
+                        text,
+                        name,
+                        protocol_mode,
+                        filter_type,
+                        task_id,
+                    )
+                    for name, text in pending
+                ),
+                return_exceptions=True,
+            )
+
+            for (name, _), extracted in zip(pending, computed):
+                if isinstance(extracted, asyncio.CancelledError):
+                    raise extracted
+
+                if isinstance(extracted, Exception):
+                    stats.failed += 1
+
+                    logger.error(
+                        "COMPUTE FIELDS ERROR | %s",
+                        format_log_kv(
+                            task_id=task_id,
+                            filename=name,
+                            error_type=type(extracted).__name__,
+                            error=str(extracted),
+                        ),
+                    )
+                    continue
+
+                if extracted is None:
+                    stats.failed += 1
+                    continue
+
+                merge_extracted_into_accumulator(
+                    accumulator, extracted
+                )
+
+                add_processed_document(
+                    documents_accumulator, name
+                )
+
                 stats.ok += 1
-                continue
 
-            seen_in_batch.add(name)
-            pending.append((name, result.text))
+        finally:
+            if lo_tmp:
+                shutil.rmtree(lo_tmp, ignore_errors=True)
 
-        if not pending:
-            return
-
-        # Фаза 2: расчёт полей параллельно (обращения к модели под семафором).
-        computed = await asyncio.gather(*(
-            compute_fields(text, name, protocol_mode, filter_type, task_id)
-            for name, text in pending
-        ))
-
-        # Фаза 3: слияние строго по порядку файлов — результат воспроизводим.
-        for (name, _), extracted in zip(pending, computed):
-            if extracted is None:
-                stats.failed += 1
-                continue
-
-            merge_extracted_into_accumulator(accumulator, extracted)
-            add_processed_document(documents_accumulator, name)
-            stats.ok += 1
-
-    async def walk(target: Path) -> None:
-        if not target.exists():
-            stats.failed += 1
-            stats.total += 1
-            return
-
-        if target.is_dir():
-            files = list(iter_candidate_files(target))
-            if not files:
+    async def walk(target: Path, depth: int = 0) -> None:
+        try:
+            if not target.exists():
                 stats.failed += 1
                 stats.total += 1
+
+                logger.warning(
+                    "READ_PATH NOT FOUND | %s",
+                    format_log_kv(
+                        task_id=task_id,
+                        path=target,
+                    ),
+                )
                 return
 
-            regular = [f for f in files if f.suffix.lower() not in ARCHIVE_EXTENSIONS or is_office_zip(f)]
-            archives = [f for f in files if f.suffix.lower() in ARCHIVE_EXTENSIONS and not is_office_zip(f)]
+            # Обработка директории
+            if target.is_dir():
+                files = list(iter_candidate_files(target))
 
-            logger.info(
-                "READ_DIR SPLIT | %s",
-                format_log_kv(
-                    task_id=task_id, path=target,
-                    regular_files=len(regular), archive_files=len(archives),
-                ),
-            )
+                # Пустая директория — не ошибка чтения
+                if not files:
+                    stats.skipped += 1
+                    stats.total += 1
 
-            await merge_files(regular)
-            for archive in archives:
-                await walk(archive)
-            return
+                    logger.info(
+                        "READ_DIR EMPTY | %s",
+                        format_log_kv(
+                            task_id=task_id,
+                            path=target,
+                        ),
+                    )
+                    return
 
-        if is_temp_or_junk_file(target):
-            logger.info(
-                "READ_PATH SKIP | %s",
-                format_log_kv(task_id=task_id, path=target.name, reason="temp_file"),
-            )
-            stats.skipped += 1
-            stats.total += 1
-            return
+                regular: list[Path] = []
+                archives: list[Path] = []
 
-        ext = target.suffix.lower()
-        try:
-            if ext in ARCHIVE_EXTENSIONS and not is_office_zip(target):
-                with tempfile.TemporaryDirectory() as tmp:
-                    await extract_archive(target, Path(tmp), task_id=task_id)
-                    await walk(Path(tmp))
+                for f in files:
+                    if is_temp_or_junk_file(f):
+                        stats.skipped += 1
+                        stats.total += 1
+                        continue
+
+                    try:
+                        true_ext = await asyncio.to_thread(
+                            detect_true_extension, f
+                        )
+
+                    except ValueError as e:
+                        stats.skipped += 1
+                        stats.total += 1
+
+                        logger.info(
+                            "READ_PATH SKIP | %s",
+                            format_log_kv(
+                                task_id=task_id,
+                                path=f.name,
+                                reason=str(e),
+                            ),
+                        )
+                        continue
+
+                    except Exception as e:
+                        stats.failed += 1
+                        stats.total += 1
+
+                        logger.warning(
+                            "READ_PATH DETECT ERROR | %s",
+                            format_log_kv(
+                                task_id=task_id,
+                                path=f.name,
+                                error=str(e),
+                            ),
+                        )
+                        continue
+
+                    if true_ext in ARCHIVE_EXTENSIONS:
+                        archives.append(f)
+
+                    elif true_ext in SUPPORTED_EXTENSIONS:
+                        regular.append(f)
+
+                    else:
+                        stats.skipped += 1
+                        stats.total += 1
+
+                        logger.info(
+                            "READ_PATH SKIP | %s",
+                            format_log_kv(
+                                task_id=task_id,
+                                path=f.name,
+                                reason="unsupported_format",
+                                ext=true_ext,
+                            ),
+                        )
+
+                logger.info(
+                    "READ_DIR SPLIT | %s",
+                    format_log_kv(
+                        task_id=task_id,
+                        path=target,
+                        regular_files=len(regular),
+                        archive_files=len(archives),
+                    ),
+                )
+
+                await merge_files(regular)
+
+                for archive in archives:
+                    await walk(archive, depth)
+
                 return
 
-            if ext not in SUPPORTED_EXTENSIONS:
+            # Пропускаем временные файлы
+            if target.is_symlink() or is_temp_or_junk_file(target):
                 stats.skipped += 1
                 stats.total += 1
+
+                logger.info(
+                    "READ_PATH SKIP | %s",
+                    format_log_kv(
+                        task_id=task_id,
+                        path=target.name,
+                        reason="temp_or_symlink",
+                    ),
+                )
                 return
 
+            # Определяем настоящий формат
+            try:
+                true_ext = await asyncio.to_thread(
+                    detect_true_extension, target
+                )
+            except ValueError as e:
+                stats.skipped += 1
+                stats.total += 1
+
+                logger.info(
+                    "READ_PATH SKIP | %s",
+                    format_log_kv(
+                        task_id=task_id,
+                        path=target.name,
+                        reason=str(e),
+                    ),
+                )
+                return
+
+            # Обрабатываем архив
+            if true_ext in ARCHIVE_EXTENSIONS:
+                if depth >= MAX_ARCHIVE_DEPTH:
+                    stats.failed += 1
+                    stats.total += 1
+
+                    logger.warning(
+                        "ARCHIVE DEPTH LIMIT | %s",
+                        format_log_kv(
+                            task_id=task_id,
+                            path=target.name,
+                            depth=depth,
+                        ),
+                    )
+                    return
+
+                with tempfile.TemporaryDirectory() as tmp:
+                    await extract_archive(
+                        target,
+                        Path(tmp),
+                        task_id=task_id,
+                    )
+
+                    await walk(Path(tmp), depth + 1)
+
+                return
+
+            # Неподдерживаемый формат — штатный пропуск
+            if true_ext not in SUPPORTED_EXTENSIONS:
+                stats.skipped += 1
+                stats.total += 1
+
+                logger.info(
+                    "READ_PATH SKIP | %s",
+                    format_log_kv(
+                        task_id=task_id,
+                        path=target.name,
+                        reason="unsupported_format",
+                        ext=true_ext,
+                    ),
+                )
+                return
+
+            # Обычный документ
             await merge_files([target])
 
         except Exception:
             stats.failed += 1
             stats.total += 1
-            logger.exception("READ_PATH ITEM ERROR | %s", format_log_kv(task_id=task_id, path=target))
+
+            logger.exception(
+                "READ_PATH ITEM ERROR | %s",
+                format_log_kv(
+                    task_id=task_id,
+                    path=target,
+                ),
+            )
 
     await walk(path)
 

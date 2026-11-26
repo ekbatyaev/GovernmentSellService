@@ -111,6 +111,7 @@ TARGET_PATTERNS_ROSSETI = [re.compile(p, re.IGNORECASE) for p in TARGET_OBJECT_P
 
 # Функция фильтрация
 
+
 def request_filters_rosseti(customer_name, work_name) -> RossetiFilter:
 
     customer_name = normalize(customer_name)
@@ -209,7 +210,7 @@ def request_filters_rosseti(customer_name, work_name) -> RossetiFilter:
     has_pir_by_titles = bool(
         re.search(
             (r"\bПИР\b.{0,80}\bпо\s+(?:\d+|одному|двум|тр[её]м|четыр[её]м|пяти|шести|семи|восьми|девяти|десяти)"
-            r"\s+титул[а-я]*"),
+             r"\s+титул[а-я]*"),
             work_name,
             re.IGNORECASE
         )
@@ -224,15 +225,15 @@ def request_filters_rosseti(customer_name, work_name) -> RossetiFilter:
     )
 
     ok_job = ok_job_raw and (
-            has_target_object_action
-            or has_group_objects
-            or has_metering
-            or has_electro_supply
-            or has_zes_order_objects
-            or has_bktp_in_tu
-            or has_pir_by_titles
-            or has_tp_contract_pir
-            or (has_tech_connection and has_rosseti_context)
+        has_target_object_action
+        or has_group_objects
+        or has_metering
+        or has_electro_supply
+        or has_zes_order_objects
+        or has_bktp_in_tu
+        or has_pir_by_titles
+        or has_tp_contract_pir
+        or (has_tech_connection and has_rosseti_context)
     )
 
     has_from = bool(
@@ -299,11 +300,11 @@ def request_filters_rosseti(customer_name, work_name) -> RossetiFilter:
     )
 
     excluded_job = (
-            excluded_hard
-            or is_land_release_line_work
-            or is_line_only_work
-            or (excluded_soft and not has_target_object_action)
-            or (only_source_object and not source_object_allowed)
+        excluded_hard
+        or is_land_release_line_work
+        or is_line_only_work
+        or (excluded_soft and not has_target_object_action)
+        or (only_source_object and not source_object_allowed)
     )
 
     result = ok_customer and ok_job and not excluded_job
@@ -324,6 +325,7 @@ def request_filters_rosseti(customer_name, work_name) -> RossetiFilter:
         excluded_job=excluded_job,
         reason=reason
     )
+
 
 if __name__ == "__main__":
     print(request_filters_rosseti("тест", "тест"))

@@ -19,6 +19,8 @@ services:
 
   app:
     cpus: 2.4
+    init: true
+    shm_size: "3gb"
     build:
       dockerfile: Dockerfile
     depends_on:

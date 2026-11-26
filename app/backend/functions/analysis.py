@@ -8,6 +8,7 @@ import pandas as pd
 from app.backend.email.functions import send_email
 from app.settings import logger
 
+
 def _build_analysis_workbook(rows, analysis_path) -> None:
     """Синхронная сборка Excel-файла (была телом create_analysis).
     Вызывается через asyncio.to_thread, чтобы не блокировать event loop."""
@@ -84,7 +85,9 @@ async def create_analysis(rows, analysis_path):
         logger.exception("Pipeline: ошибка при создании анализа | path=%s", analysis_path)
 
 
-async def send_analysis(date_of_processing_notices: date, rows: list, emails: list, created: int, updated: int, skipped: int, extra_rows: list = None, path_name_extra="all_purchases.xlsx") -> None:
+async def send_analysis(date_of_processing_notices: date, rows: list, emails: list, created: int,
+                        updated: int, skipped: int, extra_rows: list = None,
+                        path_name_extra="all_purchases.xlsx") -> None:
     date_str = date_of_processing_notices.strftime('%d.%m.%Y')
 
     logger.info(f"""При обработке закупок за {date_str}\n
@@ -102,7 +105,8 @@ async def send_analysis(date_of_processing_notices: date, rows: list, emails: li
                     <p>Новых заявок добавлено: <b style="color:#E74C3C;font-size:18px;">{created}</b></p>
                     <p>Заявок обновлено: <b style="color:#F39C12;font-size:18px;">{updated}</b></p>
                     <p>Пропущено: <b style="color:#7F8C8D;font-size:18px;">{skipped}</b></p>
-                    <hr><p style="color:#888;font-size:12px;">Это письмо сформировано автоматически, отвечать на него не нужно. 
+                    <hr><p style="color:#888;font-size:12px;">Это письмо сформировано автоматически,
+                     отвечать на него не нужно.
                     В excel-таблицах отображается максимум 50 000 строк-заявок.</p>
                     </body></html>
                     """

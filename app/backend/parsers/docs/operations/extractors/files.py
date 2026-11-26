@@ -1,5 +1,6 @@
 from pathlib import Path
-from app.backend.parsers.docs.config import SUPPORTED_EXTENSIONS, extract_semaphore
+from app.backend.parsers.docs.config import (SUPPORTED_EXTENSIONS, extract_semaphore,
+                                             SOFFICE_BIN, LEGACY_OFFICE_EXTENSIONS, EXT_TO_MIME)
 from app.backend.parsers.docs.functions import format_log_kv
 from kreuzberg import (
     extract_bytes,
@@ -10,37 +11,18 @@ from app.backend.parsers.docs.config import (PDF_TITLE_PAGE_RENDER_DPI, OCR_CONF
                                              MAX_PDF_PAGES, MAX_TEXT_CHARS, MAX_TEXT_FILE_BYTES,
                                              PDF_PAGES_CONFIG, PDF_TITLE_PAGE_MIN_TEXT_CHARS,
                                              PDF_TITLE_PAGE_IMAGE_TEXT_ENABLED)
-from charset_normalizer import from_bytes
+from app.backend.parsers.docs.operations.extractors.functions import (is_binary_bytes, detect_encoding,
+                                                                      detect_true_extension, convert_legacy_batch)
 from app.backend.parsers.docs.schemas import ExtractInfo
 from app.settings import logger
 import asyncio
-import zipfile
-import rarfile
 import time
+import shutil
 
 
-def is_binary_bytes(data: bytes) -> bool:
-    if not data:
-        return False
-    head = data[:4096]
-    if b"\x00" in head:
-        return True
-    text_like = sum(32 <= b <= 126 or b in b"\r\n\t\f\b" or b >= 128 for b in head)
-    return (text_like / max(1, len(head))) < 0.75
+class SkipDocument(Exception):
+    """Документ намеренно пропущен."""
 
-
-def detect_encoding(data: bytes) -> str:
-    best = from_bytes(data).best()
-    if best and best.encoding:
-        return best.encoding
-
-    for enc in ("utf-8", "utf-8-sig", "cp1251", "utf-16", "latin-1"):
-        try:
-            data.decode(enc)
-            return enc
-        except Exception:
-            pass
-    return "utf-8"
 
 def _read_text_file(path: Path) -> str:
     """
@@ -55,6 +37,7 @@ def _read_text_file(path: Path) -> str:
         raise ValueError("Файл бинарный, это не txt")
 
     return data.decode(detect_encoding(data), errors="replace").strip()
+
 
 async def _ocr_pdf_page(path: Path, page_index: int = 0, task_id: str | None = None) -> str:
     """OCR ТОЛЬКО указанной страницы: рендерим её в PNG и распознаём."""
@@ -83,6 +66,7 @@ async def _ocr_pdf_page(path: Path, page_index: int = 0, task_id: str | None = N
             format_log_kv(task_id=task_id, path=path.name, error=str(e)),
         )
         return ""
+
 
 async def _extract_pdf_title_text(path: Path, task_id: str | None = None) -> str:
     """
@@ -142,83 +126,73 @@ async def _extract_pdf_full_text(path: Path, task_id: str | None = None) -> str:
     )
     return "\n".join(parts).strip()[:MAX_TEXT_CHARS]
 
-def _extract_zip(path: Path, extract_to: Path) -> int:
-    with zipfile.ZipFile(path, "r") as zf:
-        members = zf.namelist()
-        zf.extractall(extract_to)
-    return len(members)
 
-
-def _extract_rar(path: Path, extract_to: Path) -> int:
-    try:
-        with rarfile.RarFile(path) as rf:
-            if rf.needs_password():
-                raise RuntimeError("RAR-архив защищён паролем")
-            members = rf.infolist()
-            rf.extractall(path=extract_to)
-        return len(members)
-
-    except rarfile.BadRarFile as e:
-        raise RuntimeError(f"RAR-архив повреждён или имеет неподдерживаемый формат: {e}")
-    except rarfile.NeedFirstVolume:
-        raise RuntimeError("Для распаковки многотомного RAR нужен первый том архива")
-    except rarfile.PasswordRequired:
-        raise RuntimeError("RAR-архив защищён паролем")
-    except rarfile.RarCannotExec as e:
-        raise RuntimeError(f"Не удалось запустить unrar: {e}")
-    except RuntimeError:
-        raise
-    except Exception as e:
-        raise RuntimeError(f"Не удалось распаковать RAR: {e}")
-
-async def extract_archive(path: Path, extract_to: Path, task_id: str | None = None) -> None:
-    ext = path.suffix.lower()
-    started = time.perf_counter()
-    logger.info("EXTRACT START | %s", format_log_kv(task_id=task_id, path=path.name, ext=ext))
-
-    worker = _extract_zip if ext == ".zip" else _extract_rar
-    files = await asyncio.to_thread(worker, path, extract_to)
-
-    logger.info(
-        "EXTRACT DONE | %s",
-        format_log_kv(
-            task_id=task_id, path=path.name, files=files,
-            elapsed=f"{time.perf_counter() - started:.3f}s",
-        ),
-    )
-
-async def _extract_text(path: Path, task_id: str | None = None, full_text: bool = False) -> str:
+async def _extract_text(
+    path: Path,
+    task_id: str | None = None,
+    full_text: bool = False,
+    converted_legacy: Path | None = None,
+) -> str:
     """
     Единая точка извлечения текста. Бросает ValueError на неподдерживаемый формат.
 
     full_text=False у PDF означает «только титульный лист» — это оптимизация ровно
     под поиск проектировщика. Для всего остального (протоколы, ТЗ) нужен full_text=True,
     иначе в модель и в поиск слов-маячков уйдёт одна первая страница.
+
+    converted_legacy — путь к OOXML-версии для legacy-форматов (.doc/.xls/.ppt/.odt),
+    подготовленный вызовом convert_legacy_batch(). Если None и soffice доступен —
+    конвертируем одиночным вызовом; если soffice недоступен — читаем как есть,
+    битость вычистит salvage в extract_one.
     """
     ext = path.suffix.lower()
 
     if ext not in SUPPORTED_EXTENSIONS:
-        raise ValueError(f"Пропущен неподдерживаемый формат: {ext or path.name}")
+        logger.warning(f"Найден неподдерживаемый формат: {ext or path.name}")
+
+    # реальный тип по содержимому; роутим по нему
+    true_ext = await asyncio.to_thread(detect_true_extension, path)
+    if true_ext not in SUPPORTED_EXTENSIONS:
+        raise SkipDocument(f"Пропущен неподдерживаемый формат: {true_ext} ({path.name})")
 
     async with extract_semaphore:
-        if ext == ".txt":
+        # legacy Office читаем через конвертированный OOXML
+        if true_ext in LEGACY_OFFICE_EXTENSIONS:
+            source = converted_legacy
+            if source is None and SOFFICE_BIN:
+                single_map, single_tmp = await convert_legacy_batch([path], task_id)
+                source = single_map.get(path)
+                if source is None:
+                    shutil.rmtree(single_tmp, ignore_errors=True)
+            if source is not None:
+                result = await extract_file(source)
+                return (result.content or "").strip()
+            logger.warning(
+                "LEGACY DIRECT READ | %s",
+                format_log_kv(task_id=task_id, path=path.name),
+            )
+
+        if true_ext == ".txt":
             return await asyncio.to_thread(_read_text_file, path)
 
-        if ext == ".pdf":
+        if true_ext == ".pdf":
             if full_text:
                 return await _extract_pdf_full_text(path, task_id)
             return await _extract_pdf_title_text(path, task_id)
 
-        result = await extract_file(path)
+        result = await extract_file(path, mime_type=EXT_TO_MIME.get(true_ext))
         return (result.content or "").strip()
 
+
 async def extract_one(
-    path: Path, task_id: str | None, full_text: bool = False
+    path: Path, task_id: str | None, full_text: bool = False,
+    converted_legacy: Path | None = None
 ) -> ExtractInfo:
     """Возвращает (path, text, error). Исключения не пробрасывает."""
     started = time.perf_counter()
     try:
-        text = await _extract_text(path, task_id=task_id, full_text=full_text)
+        text = await _extract_text(path, task_id=task_id, full_text=full_text,
+                                   converted_legacy=converted_legacy)
         elapsed = time.perf_counter() - started
 
         if not text.strip():
@@ -240,6 +214,23 @@ async def extract_one(
         return ExtractInfo(path=path,
                            text=text,
                            error=None)
+
+    except SkipDocument as e:
+        logger.info(
+            "READ_FILE SKIPPED | %s",
+            format_log_kv(
+                task_id=task_id,
+                filename=path.name,
+                reason=str(e),
+            ),
+        )
+
+        return ExtractInfo(
+            path=path,
+            text=None,
+            error=None,
+            skipped=True
+        )
 
     except ValueError as e:
         logger.warning(

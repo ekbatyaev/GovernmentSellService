@@ -40,9 +40,11 @@ async def init_db() -> None:
 async def dispose_db() -> None:
     await engine.dispose()
 
+
 async def get_db() -> AsyncIterator[AsyncSession]:
     async with Session() as db:
         yield db
+
 
 @asynccontextmanager
 async def db_session() -> AsyncIterator[AsyncSession]:
@@ -53,6 +55,7 @@ async def db_session() -> AsyncIterator[AsyncSession]:
         except Exception:
             await db.rollback()
             raise
+
 
 @asynccontextmanager
 async def advisory_lock(lock_key: int) -> AsyncIterator[bool]:
@@ -76,6 +79,7 @@ async def advisory_lock(lock_key: int) -> AsyncIterator[bool]:
         finally:
             if acquired:
                 await conn.execute(text("SELECT pg_advisory_unlock(:k)"), {"k": lock_key})
+
 
 async def advisory_unlock(conn: AsyncConnection | AsyncSession, lock_key: int) -> bool:
     return bool(

@@ -7,6 +7,7 @@ from app.backend.functions.notices.record import save_purchase_record, save_prot
 from datetime import datetime, timedelta
 import asyncio
 
+
 async def _process_purchases_for_region(
     region,
     date_str: str,
@@ -44,7 +45,10 @@ async def _process_purchases_for_region(
                 zip_path_purchases = await download_archive_from_result(archive_url)
 
                 if zip_path_purchases is None:
-                    logger.warning("Pipeline: скачивание архива закупок не удалось | region=%s | archive_url=%s", region, archive_url)
+                    logger.warning(
+                        "Pipeline: скачивание архива закупок не удалось | region=%s | archive_url=%s",
+                        region,
+                        archive_url)
                     return
 
                 logger.info("Pipeline: архив закупок скачан: %s", zip_path_purchases)
@@ -52,11 +56,11 @@ async def _process_purchases_for_region(
                 purchases = await parse_zip_archive_purchases(zip_path_purchases, region, filter_number)
 
                 logger.info("Pipeline: после фильтров закупок: %s", len(purchases))
-
                 await asyncio.gather(*[
                     save_purchase_record(purchase, registration_numbers_dict_per_day, record_semaphore)
                     for purchase in purchases
                 ])
+
             except Exception:
                 logger.exception(
                     "Pipeline: ошибка обработки архива закупок | region=%s | archive_url=%s",
@@ -112,7 +116,6 @@ async def _process_protocols_for_region(
                 protocols = await parse_zip_archive_protocols(zip_path_protocols, region, filter_number)
 
                 logger.info("Pipeline: после фильтров протоколов: %s", len(protocols))
-
                 await asyncio.gather(*[
                     save_protocol_record(protocol, registration_numbers_dict_per_day, record_semaphore)
                     for protocol in protocols
@@ -125,6 +128,7 @@ async def _process_protocols_for_region(
                 )
 
     await asyncio.gather(*[_handle_archive(url) for url in archive_urls_protocols])
+
 
 async def process_day(date_str: str, filter_number=0) -> dict:
     logger.info("Pipeline: обработка даты %s", date_str)
@@ -143,8 +147,6 @@ async def process_day(date_str: str, filter_number=0) -> dict:
     async def _process_region(region) -> None:
         async with region_semaphore:
             try:
-                # Закупки и протоколы одного региона не пересекаются по
-                # данным — тянем параллельно.
                 await asyncio.gather(
                     _process_purchases_for_region(
                         region, date_str, filter_number, registration_numbers_dict_per_day,
@@ -161,6 +163,7 @@ async def process_day(date_str: str, filter_number=0) -> dict:
     await asyncio.gather(*[_process_region(region) for region in ALL_REGION_CODES])
 
     return registration_numbers_dict_per_day
+
 
 async def process_period(date_from: datetime, date_to: datetime, filter_number: int):
     logger.info(

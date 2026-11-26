@@ -67,6 +67,7 @@ FILTERS_WORK_PATTERNS_ITCLG = [re.compile(p, re.IGNORECASE) for p in FILTERS_WOR
 
 # Функция фильтрация
 
+
 def request_filters_itclg(text: str, lots: list[Lot]) -> ItmFilter:
     """
     Возвращает True, если закупка проходит любой из фильтров,
@@ -168,6 +169,7 @@ BRAND_PATTERNS_ITRAA = [re.compile(p, re.IGNORECASE) for p in FILTERS_BRANDS_ITR
 FILTERS_WORK_PATTERNS_ITRAA = [re.compile(p, re.IGNORECASE) for p in FILTERS_WORK_ITRAA]
 
 # Функция фильтрация
+
 
 def request_filters_itraa(text: str, lots: list) -> ItmFilter:
     """
@@ -272,6 +274,7 @@ FILTERS_WORK_PATTERNS_ITDIG = [re.compile(p, re.IGNORECASE) for p in FILTERS_WOR
 
 # Функция фильтрация
 
+
 def request_filters_itdig(text: str, lots: list) -> ItmFilter:
     """
     Возвращает True, если закупка проходит любой из фильтров,
@@ -371,6 +374,7 @@ FILTERS_WORK_PATTERNS_IT3PH = [re.compile(p, re.IGNORECASE) for p in FILTERS_WOR
 
 # Функция фильтрация
 
+
 def request_filters_it3ph(text: str, lots: list) -> ItmFilter:
     """
     Возвращает True, если закупка проходит любой из фильтров,
@@ -454,6 +458,7 @@ def request_filters_itm(work_name: str, lots: list[Lot]) -> ItmFilter:
         normalized_text=""
     )
 
+
 if __name__ == "__main__":
     lots = [
         {
@@ -501,7 +506,7 @@ if __name__ == "__main__":
                 }
             ]
         }
-        ]
+    ]
     Lots = [Lot(guid=lot.get("guid"), ordinal_number=lot.get("ordinal_number"), subject=lot.get("subject"),
                 initial_sum=lot.get("initial_sum"), currency=lot.get("currency"),
                 items=[Item(**item) for item in lot.get("items")]) for lot in lots]

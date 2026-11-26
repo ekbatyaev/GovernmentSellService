@@ -6,6 +6,7 @@ from sqlalchemy import select
 from app.schemas.user import User, UpdateUser, FilterUser, LoginUser
 from typing import Literal
 
+
 async def put_user(db: AsyncSession, user: User) -> UserDatabase:
     new_user = UserDatabase(**user.model_dump())
     db.add(new_user)
@@ -16,6 +17,7 @@ async def put_user(db: AsyncSession, user: User) -> UserDatabase:
         raise
     await db.refresh(new_user)
     return new_user
+
 
 async def search_users(db: AsyncSession, filters: FilterUser) -> list[User]:
     query = select(UserDatabase)
@@ -39,9 +41,11 @@ async def search_users(db: AsyncSession, filters: FilterUser) -> list[User]:
     data = [User.model_validate(n) for n in users]
     return data
 
+
 async def get_user(db: AsyncSession, guid: str) -> User | None:
     user = await db.get(UserDatabase, guid)
     return user
+
 
 async def delete_user(db: AsyncSession, guid: str) -> bool:
     user = await db.get(UserDatabase, guid)
@@ -50,6 +54,7 @@ async def delete_user(db: AsyncSession, guid: str) -> bool:
     await db.delete(user)
     await db.commit()
     return True
+
 
 async def update_user(db: AsyncSession, guid: str, updated_user: UpdateUser) -> Literal["not found", "updated"]:
     query = select(UserDatabase).where(UserDatabase.guid == guid)
@@ -72,6 +77,7 @@ async def update_user(db: AsyncSession, guid: str, updated_user: UpdateUser) -> 
         raise
 
     return "updated"
+
 
 async def login_user(db: AsyncSession, email: str, password: str) -> LoginUser:
     result = await db.execute(select(UserDatabase).where(UserDatabase.email == email))

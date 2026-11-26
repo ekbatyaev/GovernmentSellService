@@ -1,7 +1,8 @@
 from typing import Any, Literal
 from pydantic import BaseModel
 
+
 class ResponseModel(BaseModel):
     status_message: Literal["success", "created", "deleted",
-                                "updated", "found", "not found", "approved", "continued"]
+                            "updated", "found", "not found", "approved", "continued"]
     data: Any

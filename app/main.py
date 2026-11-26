@@ -23,6 +23,7 @@ from app.settings import BASE_DIR
 from app.backend.database.functions import create_admin_user
 from app.schemas.user import User
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
 
@@ -64,7 +65,7 @@ async def lifespan(app: FastAPI):
         await async_client_fastapi.aclose()
 
 app = FastAPI(title="Zakupki Database API",
-    description="API для управления госзакупками", lifespan=lifespan)
+              description="API для управления госзакупками", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -81,12 +82,10 @@ STATIC_DIR = BASE_DIR / "static"
 if STATIC_DIR.is_dir():
     app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="assets")
 
-
     @app.get("/", include_in_schema=False)
     @app.get("/approve/{guid}", include_in_schema=False)
     async def spa_index(guid: str | None = None):
         return FileResponse(STATIC_DIR / "index.html")
-
 
     @app.get("/{name}.svg", include_in_schema=False)
     async def root_svg(name: str):

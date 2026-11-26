@@ -10,7 +10,8 @@ from sqlalchemy.exc import IntegrityError
 from app.backend.database.crud.purchase import (put_purchase, search_purchases,
                                                 get_purchase, delete_purchase, update_purchase)
 
-purchase_router = APIRouter(prefix = "/purchases", tags=["purchases"], dependencies=[Depends(get_current_user)])
+purchase_router = APIRouter(prefix="/purchases", tags=["purchases"], dependencies=[Depends(get_current_user)])
+
 
 @purchase_router.post("", response_model=ResponseModel, status_code=status.HTTP_201_CREATED)
 async def call_put_purchase(notice: Notice, db: AsyncSession = Depends(get_db)):
@@ -23,16 +24,18 @@ async def call_put_purchase(notice: Notice, db: AsyncSession = Depends(get_db)):
         data=Notice.model_validate(new_purchase),
     )
 
+
 @purchase_router.post("/search", response_model=ResponseModel, status_code=status.HTTP_200_OK)
 async def call_search_purchases(
-        filters: FilterNotice,
-        db: AsyncSession = Depends(get_db)
-    ):
+    filters: FilterNotice,
+    db: AsyncSession = Depends(get_db)
+):
     try:
         purchases = await search_purchases(db, filters)
     except IntegrityError:
         raise HTTPException(status_code=400, detail="Failed to search purchases")
     return ResponseModel(status_message="found", data=purchases)
+
 
 @purchase_router.get("/{guid}", response_model=ResponseModel, status_code=status.HTTP_200_OK)
 async def call_get_purchase(guid: str, db: AsyncSession = Depends(get_db)):
@@ -43,9 +46,10 @@ async def call_get_purchase(guid: str, db: AsyncSession = Depends(get_db)):
     except IntegrityError:
         raise HTTPException(status_code=400, detail="Failed to get purchase")
     return ResponseModel(status_message="found",
-                                data=Notice.model_validate(purchase))
+                         data=Notice.model_validate(purchase))
 
-@purchase_router.delete("/{guid}", response_model = ResponseModel, status_code=status.HTTP_200_OK)
+
+@purchase_router.delete("/{guid}", response_model=ResponseModel, status_code=status.HTTP_200_OK)
 async def call_delete_purchase(guid: str, db: AsyncSession = Depends(get_db)):
     try:
         purchase_delete_status = await delete_purchase(db, guid)
@@ -54,6 +58,7 @@ async def call_delete_purchase(guid: str, db: AsyncSession = Depends(get_db)):
     except IntegrityError:
         raise HTTPException(status_code=400, detail="Failed to delete purchase")
     return ResponseModel(status_message="deleted", data={"guid": guid})
+
 
 @purchase_router.patch("/{guid}", response_model=ResponseModel, status_code=status.HTTP_200_OK)
 async def call_update_purchase(guid: str, updated_notice: UpdateNotice, db: AsyncSession = Depends(get_db)):

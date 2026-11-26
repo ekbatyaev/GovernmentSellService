@@ -17,6 +17,7 @@ _DESIGNER_LEGAL_FORM_RE = re.compile(
     r"(ООО|АО|ПАО|Общество\s+с\s+Ограниченной\s+Ответственностью)", re.IGNORECASE
 )
 
+
 def pick_longest_designer(value: str) -> str:
     parts = []
     for x in (value or "").split(";"):
@@ -24,6 +25,7 @@ def pick_longest_designer(value: str) -> str:
         if x and x not in parts:
             parts.append(x)
     return max(parts, key=len) if parts else ""
+
 
 def _normalize_designer_name(value: str) -> str:
     value = (value or "").replace(" ", " ").replace("“", "«").replace("”", "»")
@@ -43,14 +45,17 @@ def _normalize_designer_name(value: str) -> str:
     )
     return value.strip(" ,.;:-")
 
+
 def normalize_for_title_check(text: str) -> str:
     text = (text or "").replace(" ", " ").replace("Ё", "Е").replace("ё", "е")
     return re.sub(r"\s+", " ", text).strip().lower()
+
 
 def is_working_documentation_title_page(text: str) -> bool:
     """Титульный лист рабочей документации. Основной маркер: 'РАБОЧАЯ ДОКУМЕНТАЦИЯ'."""
     normalized = normalize_for_title_check(text)
     return bool(normalized) and bool(re.search(r"рабочая\s+документация", normalized))
+
 
 def check_availability_of_fields_from_text(text: str) -> str:
     """
@@ -58,6 +63,7 @@ def check_availability_of_fields_from_text(text: str) -> str:
     """
     pattern = r"(ПЧ|ЧП|УПП|SCADA|ШУ|преобразоват.*частот|устройств.*плавн.*пуск|шкаф.*управл)"
     return "Есть" if re.search(pattern, text, re.IGNORECASE) else "Нету"
+
 
 def extract_designer_from_title_text(text: str) -> str:
     """Достаёт проектировщика с титульного листа. Если явного кандидата нет — ''."""

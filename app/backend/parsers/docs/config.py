@@ -12,6 +12,8 @@ from kreuzberg import (
 from typing import Optional
 import asyncio
 import httpx
+import shutil
+
 
 CONNECT_TIMEOUT = 15
 READ_TIMEOUT = 90
@@ -35,9 +37,64 @@ PDF_TITLE_PAGE_IMAGE_TEXT_ENABLED = True
 PDF_TITLE_PAGE_RENDER_DPI = 180
 PDF_TITLE_PAGE_IMAGE_TEXT_LANG = "rus+eng"
 
-SUPPORTED_EXTENSIONS = {".txt", ".pdf", ".docx", ".xlsx", ".xls", ".odt", ".ods"}
+SUPPORTED_EXTENSIONS = {".txt", ".pdf", ".docx", ".odt", ".ods",
+                        ".doc", ".ott", ".odp", ".rtf"}
 ARCHIVE_EXTENSIONS = {".zip", ".rar"}
 OFFICE_ZIP_EXTENSIONS = {".docx", ".xlsx", ".pptx", ".odt", ".ods"}
+
+LEGACY_OFFICE_EXTENSIONS = {".doc", ".xls", ".ppt", ".odt", ".ott", ".odp", ".ods"}
+LEGACY_TARGET_FORMAT = {
+    ".doc": "docx", ".odt": "docx", ".ott": "docx",
+    ".xls": "xlsx", ".ods": "xlsx",
+    ".ppt": "pptx", ".odp": "pptx",
+}
+
+SOFFICE_BIN = shutil.which("soffice") or shutil.which("libreoffice")
+SOFFICE_TIMEOUT = 120          # сек на один пакетный вызов
+MAX_SOFFICE_BATCH = 50         # файлов за один вызов
+SOFFICE_USER_PROFILE = "file:///tmp/lo_profile"  # изоляция профиля
+
+MAX_ARCHIVE_MEMBERS = 500
+MAX_ARCHIVE_TOTAL_BYTES = 500 * 1024 * 1024
+MAX_ARCHIVE_DEPTH = 5
+
+BLOCKED_TYPES = {
+    "application/x-dosexec",
+    "application/x-executable",
+    "application/x-sharedlib",
+    "application/x-msdownload",
+}
+
+MIME_TO_EXTENSION = {
+    "application/pdf": ".pdf",
+    "text/plain": ".txt",
+    "application/zip": ".zip",
+    "application/vnd.rar": ".rar",
+    "application/x-rar-compressed": ".rar",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": ".pptx",
+    "application/rtf": ".rtf",
+    "text/rtf": ".rtf",
+    "application/msword": ".doc",
+    "application/vnd.ms-excel": ".xls",
+    "application/vnd.ms-powerpoint": ".ppt",
+}
+
+EXT_TO_MIME = {ext: mime for mime, ext in MIME_TO_EXTENSION.items()}
+
+SKIPPED_EXTENSIONS = {
+    ".xml",
+    ".html",
+    ".htm",
+}
+
+SKIPPED_MIME_TO_EXTENSION = {
+    "text/xml": ".xml",
+    "application/xml": ".xml",
+    "text/html": ".html",
+    "application/xhtml+xml": ".html",
+}
 
 PDF_PAGES_CONFIG = ExtractionConfig(pages=PageConfig(extract_pages=True))
 OCR_CONFIG = ExtractionConfig(
@@ -91,6 +148,7 @@ fallback_wait = wait_exponential(multiplier=2, min=5, max=120)
 
 _client: Optional[httpx.AsyncClient] = None
 _client_lock = asyncio.Lock()
+
 
 async def get_client() -> httpx.AsyncClient:
     """

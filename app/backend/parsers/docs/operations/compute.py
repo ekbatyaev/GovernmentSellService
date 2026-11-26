@@ -8,6 +8,7 @@ from app.backend.parsers.docs.operations.regex.fields import (is_working_documen
                                                               check_availability_of_fields_from_text,
                                                               extract_designer_from_title_text)
 
+
 async def _run_llm(extractor, text: str) -> dict:
     # Страховка по объёму: PDF режется при чтении, но протокол может прийти и
     # толстым docx/xlsx, у которых своего лимита нет.
@@ -17,6 +18,7 @@ async def _run_llm(extractor, text: str) -> dict:
 
     async with llm_semaphore:
         return await extractor(text)
+
 
 async def compute_fields(
     text: str,
@@ -33,6 +35,7 @@ async def compute_fields(
         task = classify_document(filename, protocol_mode, filter_type)
 
         if task == TASK_PROTOCOL:
+            return {}
             return await _run_llm(PROTOCOL_EXTRACTORS[filter_type], text) or {}
 
         if task == TASK_DESIGNER and is_working_documentation_title_page(text):

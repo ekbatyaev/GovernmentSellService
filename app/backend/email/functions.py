@@ -7,7 +7,8 @@ from exchangelib import (Credentials, Account, FileAttachment,
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
-async def send_email(to_email, subject, body, attachments = None):
+
+async def send_email(to_email, subject, body, attachments=None):
     if not to_email or not _EMAIL_RE.match(to_email):
         logger.error(f"Пропускаю отправку — некорректный email: {to_email!r}")
         return
@@ -52,4 +53,8 @@ async def send_email(to_email, subject, body, attachments = None):
 
 
 if __name__ == "__main__":
-    asyncio.run(send_email(settings.smtp_test_email, "Тест EWS", "Привет! Это письмо отправлено через Exchange Web Services."))
+    asyncio.run(
+        send_email(
+            settings.smtp_test_email,
+            "Тест EWS",
+            "Привет! Это письмо отправлено через Exchange Web Services."))

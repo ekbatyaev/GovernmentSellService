@@ -19,6 +19,7 @@ from app.settings import logger, settings, MOSCOW_TZ
 
 users_router = APIRouter(prefix="/users", tags=["users"])
 
+
 @users_router.post("", response_model=ResponseModel, status_code=status.HTTP_201_CREATED,
                    dependencies=[Depends(require_admin)])
 async def call_put_user(user: User, db: AsyncSession = Depends(get_db)):
@@ -46,7 +47,8 @@ async def call_get_user(guid: str, db: AsyncSession = Depends(get_db),
     except IntegrityError:
         raise HTTPException(status_code=400, detail="Failed to get user")
     return ResponseModel(status_message="found",
-                                data=User.model_validate(user))
+                         data=User.model_validate(user))
+
 
 @users_router.delete("/{guid}", response_model=ResponseModel,
                      status_code=status.HTTP_200_OK)
@@ -63,9 +65,10 @@ async def call_delete_user(guid: str, db: AsyncSession = Depends(get_db),
         raise HTTPException(status_code=400, detail="Failed to delete user")
     return ResponseModel(status_message="deleted", data={"guid": guid})
 
+
 @users_router.patch("/{guid}", response_model=ResponseModel, status_code=status.HTTP_200_OK)
 async def call_update_user(guid: str, updated_user: UpdateUser,
-                      db: AsyncSession = Depends(get_db), current_user: UserDatabase = Depends(get_current_user)):
+                           db: AsyncSession = Depends(get_db), current_user: UserDatabase = Depends(get_current_user)):
     if (guid != current_user.guid and current_user.role != "admin") or current_user.role == "guest":
         raise HTTPException(status_code=403, detail="You are not allowed to change user info")
 
@@ -86,6 +89,7 @@ async def call_update_user(guid: str, updated_user: UpdateUser,
         raise HTTPException(status_code=400, detail="Failed to update user")
     return ResponseModel(status_message="updated", data={"guid": guid})
 
+
 @users_router.post("/password_change", response_model=ResponseModel, status_code=status.HTTP_200_OK)
 async def call_change_password(change_pass_user: ChangePasswordUser, db: AsyncSession = Depends(get_db),
                                current_user: UserDatabase = Depends(get_current_user)):
@@ -102,6 +106,7 @@ async def call_change_password(change_pass_user: ChangePasswordUser, db: AsyncSe
 
     return ResponseModel(status_message="updated", data={})
 
+
 @users_router.post("/login", response_model=ResponseModel, status_code=status.HTTP_200_OK)
 async def call_login_user(form: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
     try:
@@ -115,6 +120,7 @@ async def call_login_user(form: OAuth2PasswordRequestForm = Depends(), db: Async
         status_message="updated",
         data={"access_token": user_login.payload, "token_type": "bearer"}
     )
+
 
 @users_router.post("/confirm", response_model=ResponseModel, status_code=status.HTTP_201_CREATED)
 async def call_confirm_user(confirm_email_user: ConfirmEmailUser, db: AsyncSession = Depends(get_db)):
@@ -141,6 +147,7 @@ async def call_confirm_user(confirm_email_user: ConfirmEmailUser, db: AsyncSessi
                                 detail="Подождите 5 минут перед тем как отправить другой проверочный код.")
     except IntegrityError:
         raise HTTPException(status_code=400, detail="Failed to send auth code")
+
 
 @users_router.post("/password_recover", response_model=ResponseModel, status_code=status.HTTP_201_CREATED)
 async def call_send_recover_code(confirm_email_user: ConfirmEmailUser, db: AsyncSession = Depends(get_db)):
@@ -169,6 +176,7 @@ async def call_send_recover_code(confirm_email_user: ConfirmEmailUser, db: Async
                                 detail="Подождите 5 минут перед тем как отправить другой проверочный код.")
     except IntegrityError:
         raise HTTPException(status_code=400, detail="Failed to send auth code")
+
 
 @users_router.post("/password_recover/{auth_code_guid}", response_model=ResponseModel,
                    status_code=status.HTTP_200_OK)

@@ -1,5 +1,6 @@
 import re
 
+
 def normalize(text: str) -> str:
     text = str(text or "")
     text = text.replace("ё", "е").replace("Ё", "Е")

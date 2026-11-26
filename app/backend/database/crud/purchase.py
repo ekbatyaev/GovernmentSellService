@@ -1,10 +1,12 @@
 from sqlalchemy.exc import IntegrityError
 from app.schemas.purchase import Notice, FilterNotice, UpdateNotice
+from app.backend.database.functions import merge_result_info, merge_unique_list
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.backend.database.models import NoticeDatabase
 from sqlalchemy import select, or_
 from datetime import datetime, timedelta
 from typing import Literal
+
 
 async def put_purchase(db: AsyncSession, notice: Notice) -> NoticeDatabase:
     new_purchase = NoticeDatabase(**notice.model_dump())
@@ -16,6 +18,7 @@ async def put_purchase(db: AsyncSession, notice: Notice) -> NoticeDatabase:
         raise
     await db.refresh(new_purchase)
     return new_purchase
+
 
 async def search_purchases(db: AsyncSession, filters: FilterNotice) -> list[Notice]:
     query = select(NoticeDatabase)
@@ -89,9 +92,11 @@ async def search_purchases(db: AsyncSession, filters: FilterNotice) -> list[Noti
     data = [Notice.model_validate(p) for p in purchases]
     return data
 
+
 async def get_purchase(db: AsyncSession, guid: str) -> Notice | None:
     purchase = await db.get(NoticeDatabase, guid)
     return purchase
+
 
 async def delete_purchase(db: AsyncSession, guid: str) -> bool:
     purchase = await db.get(NoticeDatabase, guid)
@@ -100,6 +105,7 @@ async def delete_purchase(db: AsyncSession, guid: str) -> bool:
     await db.delete(purchase)
     await db.commit()
     return True
+
 
 async def update_purchase(db: AsyncSession, guid: str, updated_notice: UpdateNotice) -> Literal["not found", "updated"]:
     query = select(NoticeDatabase).where(NoticeDatabase.guid == guid)
@@ -121,4 +127,44 @@ async def update_purchase(db: AsyncSession, guid: str, updated_notice: UpdateNot
         await db.rollback()
         raise
 
+    return "updated"
+
+
+async def upsert_notice(db: AsyncSession, purchase: Notice) -> Literal["created", "updated"]:
+    """INSERT или дополняющий UPDATE. Безопасен при конкурентных вызовах:
+    повторное чтение под FOR UPDATE + union-merge. Возвращает created/updated."""
+    for attempt in range(2):
+        try:
+            notice = await db.scalar(
+                select(NoticeDatabase)
+                .where(NoticeDatabase.registration_number == purchase.registration_number,
+                       NoticeDatabase.filter_type_name == purchase.filter_type_name)
+                .with_for_update()
+            )
+
+            incoming = purchase.model_dump()
+
+            if notice is None:
+                db.add(NoticeDatabase(**incoming))
+                await db.commit()
+                return "created"
+
+            for field, value in incoming.items():
+                if value is None or field in ("documents_list", "result_info"):
+                    continue
+                setattr(notice, field, value)
+            notice.documents_list = merge_unique_list(
+                notice.documents_list or [], incoming.get("documents_list") or [])
+            notice.result_info = merge_result_info(
+                notice.result_info or {}, incoming.get("result_info") or {})
+            await db.commit()
+            return "updated"
+
+        except IntegrityError:
+            await db.rollback()
+            if attempt == 0:
+                # другой воркер вставил строку между нашим SELECT и INSERT —
+                # перечитаем под блокировкой и сольёмся с ним
+                continue
+            raise
     return "updated"

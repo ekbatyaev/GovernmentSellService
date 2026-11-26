@@ -13,6 +13,7 @@ from app.settings import MOSCOW_TZ
 from app.backend.database.crud.service import get_auth_code, delete_auth_code, update_auth_code
 from app.settings import logger
 
+
 async def put_newsletter(db: AsyncSession, newsletter: NewsLetter) -> NewsLetterDatabase:
     new_newsletter = NewsLetterDatabase(**newsletter.model_dump())
     db.add(new_newsletter)
@@ -23,6 +24,7 @@ async def put_newsletter(db: AsyncSession, newsletter: NewsLetter) -> NewsLetter
         raise
     await db.refresh(new_newsletter)
     return new_newsletter
+
 
 async def search_newsletters(db: AsyncSession, filters: FilterNewsLetters) -> list[NewsLetter]:
     query = select(NewsLetterDatabase)
@@ -43,9 +45,11 @@ async def search_newsletters(db: AsyncSession, filters: FilterNewsLetters) -> li
     data = [NewsLetter.model_validate(n) for n in newsletters]
     return data
 
+
 async def get_newsletter(db: AsyncSession, guid: str) -> NewsLetter | None:
     newsletter = await db.get(NewsLetterDatabase, guid)
     return newsletter
+
 
 async def delete_newsletter(db: AsyncSession, guid: str) -> bool:
     newsletter = await db.get(NewsLetterDatabase, guid)
@@ -55,7 +59,9 @@ async def delete_newsletter(db: AsyncSession, guid: str) -> bool:
     await db.commit()
     return True
 
-async def update_newsletter(db: AsyncSession, guid: str, updated_newsletter: UpdateNewsLetter) -> Literal["not found", "updated"]:
+
+async def update_newsletter(db: AsyncSession, guid: str,
+                            updated_newsletter: UpdateNewsLetter) -> Literal["not found", "updated"]:
     query = select(NewsLetterDatabase).where(NewsLetterDatabase.guid == guid)
 
     newsletter = await db.scalar(query)
@@ -77,8 +83,10 @@ async def update_newsletter(db: AsyncSession, guid: str, updated_newsletter: Upd
 
     return "updated"
 
+
 async def confirm_newsletter(db: AsyncSession, option_newsletter_data:
-ConfirmOptionNewsLetter) -> Literal["not found", "expired", "too many attempts", "invalid", "failed", "deleted", "created"]:
+                             ConfirmOptionNewsLetter) -> Literal["not found", "expired", "too many attempts",
+                                                                 "invalid", "failed", "deleted", "created"]:
     try:
         auth_code = await get_auth_code(db, option_newsletter_data.guid)
     except IntegrityError as e:
@@ -117,9 +125,9 @@ ConfirmOptionNewsLetter) -> Literal["not found", "expired", "too many attempts",
     if option_newsletter_data.option == "subscribe":
 
         new_newsletter = NewsLetter(guid=str(uuid.uuid4()),
-                                            email=option_newsletter_data.email,
-                                            filter_type_name=option_newsletter_data.filter_type_name,
-                                            district_name=option_newsletter_data.district_name)
+                                    email=option_newsletter_data.email,
+                                    filter_type_name=option_newsletter_data.filter_type_name,
+                                    district_name=option_newsletter_data.district_name)
 
         try:
             await put_newsletter(db, new_newsletter)

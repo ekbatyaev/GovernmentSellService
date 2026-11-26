@@ -10,6 +10,7 @@ TZ_FILENAME_RE = re.compile(
     re.IGNORECASE,
 )
 
+
 def classify_document(filename: str, protocol_mode: bool, filter_type: int) -> str:
     filename = str(filename).strip()
 

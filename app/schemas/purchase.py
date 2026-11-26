@@ -3,6 +3,7 @@ from typing import Optional
 from pydantic import BaseModel, Field, ConfigDict
 from app.settings import MOSCOW_TZ
 
+
 class Customer(BaseModel):
     model_config = ConfigDict(coerce_numbers_to_str=True)
 
@@ -11,6 +12,7 @@ class Customer(BaseModel):
     kpp: str
     ogrn: str
 
+
 class Contact(BaseModel):
     last_name: str
     first_name: str
@@ -18,20 +20,24 @@ class Contact(BaseModel):
     phone: str
     email: str
 
+
 class ApplyRequest(BaseModel):
     submission_order: str
     submission_place: str
+
 
 class Document(BaseModel):
     filename: str
     description: str
     url: str
 
+
 class Item(BaseModel):
     guid: str
     okpd2_code: str
     okpd2_name: str
     additional_info: str
+
 
 class Lot(BaseModel):
     guid: Optional[str] = None
@@ -40,6 +46,7 @@ class Lot(BaseModel):
     initial_sum: float = 0.0
     currency: Optional[str]
     items: Optional[list[Item]] = None
+
 
 class Notice(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -77,6 +84,7 @@ class Notice(BaseModel):
         )
     )
 
+
 class FilterNotice(BaseModel):
     name: Optional[str] = None
     source_file: Optional[str] = None
@@ -99,6 +107,7 @@ class FilterNotice(BaseModel):
     submission_close_datetime_to: Optional[datetime] = None
 
     region_numbers: Optional[list[str]] = None
+
 
 class UpdateNotice(BaseModel):
     name: Optional[str] = None

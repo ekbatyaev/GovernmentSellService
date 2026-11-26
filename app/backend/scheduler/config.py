@@ -5,8 +5,9 @@ from app.backend.scheduler.tasks import daily_task
 
 scheduler: AsyncIOScheduler | None = None
 
+
 async def create_scheduler() -> AsyncIOScheduler:
-    s = AsyncIOScheduler(timezone = MOSCOW_TZ)
+    s = AsyncIOScheduler(timezone=MOSCOW_TZ)
     s.add_job(
         daily_task,
         trigger=CronTrigger(hour=settings.daily_job_hour_msk,

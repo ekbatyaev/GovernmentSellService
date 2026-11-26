@@ -43,6 +43,7 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=ENV_PATH,
@@ -97,12 +98,15 @@ class Settings(BaseSettings):
     jwt_expire_minutes: int = 60
 
     # Сколько регионов обрабатывать одновременно.
-    region_process_concurrency: int = 4
+    region_process_concurrency: int = 6
     # Сколько архивов (суммарно по всем регионам) скачивать и парсить одновременно.
     archive_process_concurrency: int = 8
     # Сколько записей (purchase/protocol, суммарно по всем архивам) одновременно
     # писать через api_datum_query.
     record_concurrency: int = 16
+
+    max_filename_bytes: int = 150
+
 
 settings = Settings()
 

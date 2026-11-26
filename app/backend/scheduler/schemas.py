@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 
+
 class ResultDailyTask(BaseModel):
     status: bool = True
 

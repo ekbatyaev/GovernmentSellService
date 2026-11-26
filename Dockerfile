@@ -9,7 +9,7 @@ RUN npm run build
 
 
 # ---------- backend runtime ----------
-FROM python:3.12-slim
+FROM python:3.12-slim-trixie
 
 WORKDIR /app
 
@@ -28,6 +28,7 @@ RUN set -eux; \
         unrar \
         libreoffice \
         libreoffice-writer \
+        libmagic1 \
         fonts-dejavu-core \
         tzdata \
         libglib2.0-0 \

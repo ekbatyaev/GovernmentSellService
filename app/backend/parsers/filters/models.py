@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 
+
 class ItmFilter(BaseModel):
     result: bool
     reason: str
@@ -8,6 +9,7 @@ class ItmFilter(BaseModel):
     brand: list
     work_patterns: list
     normalized_text: str
+
 
 class OemFilter(BaseModel):
     result: bool
@@ -20,6 +22,7 @@ class OemFilter(BaseModel):
     controlled_object: list
     exclude_hard: list
     exclude_soft: list
+
 
 class RossetiFilter(BaseModel):
     result: bool

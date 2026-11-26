@@ -7,7 +7,6 @@ from app.backend.database.settings import Base
 from typing import Literal
 
 
-
 class NoticeDatabase(Base):
     __tablename__ = "purchases"
     __table_args__ = (

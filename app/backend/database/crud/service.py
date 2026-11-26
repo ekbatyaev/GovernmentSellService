@@ -11,6 +11,7 @@ from app.backend.functions.analysis import send_email
 from app.schemas.service import AuthCode, StatusAuthCode, FilterAuthCode, UpdateAuthCode
 from typing import Literal
 
+
 async def put_auth_code(db: AsyncSession, auth_code: AuthCode) -> AuthCodeDatabase:
     new_auth_code = AuthCodeDatabase(**auth_code.model_dump())
     db.add(new_auth_code)
@@ -22,9 +23,11 @@ async def put_auth_code(db: AsyncSession, auth_code: AuthCode) -> AuthCodeDataba
     await db.refresh(new_auth_code)
     return new_auth_code
 
+
 async def get_auth_code(db: AsyncSession, guid: str) -> AuthCode | None:
     auth_code = await db.get(AuthCodeDatabase, guid)
     return auth_code
+
 
 async def delete_auth_code(db: AsyncSession, guid: str) -> bool:
     auth_code = await db.get(AuthCodeDatabase, guid)
@@ -34,7 +37,9 @@ async def delete_auth_code(db: AsyncSession, guid: str) -> bool:
     await db.commit()
     return True
 
-async def update_auth_code(db: AsyncSession, guid: str, updated_auth_code: UpdateAuthCode) -> Literal["not found", "updated"]:
+
+async def update_auth_code(db: AsyncSession, guid: str,
+                           updated_auth_code: UpdateAuthCode) -> Literal["not found", "updated"]:
     try:
         auth_code = await get_auth_code(db, guid)
     except IntegrityError as e:
@@ -57,6 +62,7 @@ async def update_auth_code(db: AsyncSession, guid: str, updated_auth_code: Updat
         raise
 
     return "updated"
+
 
 async def search_auth_codes(db: AsyncSession, filters: FilterAuthCode) -> list[AuthCode]:
     query = select(AuthCodeDatabase)
@@ -83,8 +89,10 @@ async def search_auth_codes(db: AsyncSession, filters: FilterAuthCode) -> list[A
     data = [AuthCode.model_validate(a) for a in auth_codes]
     return data
 
+
 async def check_auth_code(db: AsyncSession, guid: str, code: int, email: str) -> Literal["not found", "expired",
-"too many attempts", "invalid", "approved"]:
+                                                                                         "too many attempts",
+                                                                                         "invalid", "approved"]:
     try:
         auth_code = await get_auth_code(db, guid)
     except IntegrityError as e:
@@ -118,6 +126,7 @@ async def check_auth_code(db: AsyncSession, guid: str, code: int, email: str) ->
     if not secrets.compare_digest(str(code).encode(), str(auth_code.code).encode()):
         return "invalid"
     return "approved"
+
 
 async def send_auth_code(db: AsyncSession, email: str) -> StatusAuthCode:
     created_at_from = datetime.now(MOSCOW_TZ).replace(tzinfo=None) - timedelta(minutes=5)
@@ -162,8 +171,8 @@ async def send_auth_code(db: AsyncSession, email: str) -> StatusAuthCode:
     created_at = datetime.now(MOSCOW_TZ).replace(tzinfo=None)
 
     auth_code = AuthCode(guid=auth_code_guid, email=email,
-                                     code=code, created_at=created_at,
-                                     last_checked_at=created_at - timedelta(seconds=21))
+                         code=code, created_at=created_at,
+                         last_checked_at=created_at - timedelta(seconds=21))
     try:
         await put_auth_code(db, auth_code)
         return StatusAuthCode(status_message="created", guid=auth_code_guid)

@@ -88,7 +88,7 @@ async def daily_task() -> ResultDailyTask:
             async with db_session() as db:
                 try:
                     newsletters = await search_newsletters(db, FilterNewsLetters(list_filter_type_names=[filter_name],
-                                                                            list_district_names=[district_name]))
+                                                                                 list_district_names=[district_name]))
                     emails = [n.email for n in newsletters]
                 except IntegrityError as e:
                     logger.exception(f"Произошла ошибка получения данных подписантов: {e}")
@@ -105,13 +105,15 @@ async def daily_task() -> ResultDailyTask:
                 async with db_session() as db:
                     try:
                         purchases = await search_purchases(db, FilterNotice(registration_number=registration_number,
-                                                                                list_filter_type_name=[filter_name]))
+                                                                            list_filter_type_name=[filter_name]))
                     except IntegrityError as e:
                         logger.exception(f"Произошла ошибка получения данных поиска заявок: {e}, ")
                         raise
 
                 if not purchases:
-                    logger.warning(f"Заявка под регистрационным номером: {registration_number} и фильтром: {filter_name} не найдена.")
+                    logger.warning(
+                        f"Заявка под регистрационным номером: {registration_number} и фильтром:"
+                        f" {filter_name} не найдена.")
                     continue
 
                 purchase: Notice = purchases[0]
@@ -128,7 +130,7 @@ async def daily_task() -> ResultDailyTask:
             async with db_session() as db:
                 try:
                     extra_purchases = await search_purchases(db, FilterNotice(list_filter_type_name=[filter_name],
-                                                                        region_numbers=[district_name]))
+                                                                              region_numbers=[district_name]))
                 except IntegrityError as e:
                     logger.exception(f"Произошла ошибка получения данных поиска заявок: {e}, ")
                     raise
@@ -141,8 +143,7 @@ async def daily_task() -> ResultDailyTask:
                 extra_rows.append(await complete_row_tender(filter_name, purchase))
 
             await send_analysis(date_of_processing_notices=yesterday, rows=rows, emails=emails,
-                            created=created, updated=updated, skipped=skipped, extra_rows=extra_rows)
-
+                                created=created, updated=updated, skipped=skipped, extra_rows=extra_rows)
 
         # Высылаем информацию для OEM
 
@@ -168,7 +169,7 @@ async def daily_task() -> ResultDailyTask:
             async with db_session() as db:
                 try:
                     newsletters = await search_newsletters(db, FilterNewsLetters(list_filter_type_names=[filter_name],
-                                                                            list_district_names=[district_name]))
+                                                                                 list_district_names=[district_name]))
                     emails = [n.email for n in newsletters]
                 except IntegrityError as e:
                     logger.exception(f"Произошла ошибка получения данных подписантов: {e}")
@@ -185,13 +186,15 @@ async def daily_task() -> ResultDailyTask:
                 async with db_session() as db:
                     try:
                         purchases = await search_purchases(db, FilterNotice(registration_number=registration_number,
-                                                                                list_filter_type_name=[filter_name]))
+                                                                            list_filter_type_name=[filter_name]))
                     except IntegrityError as e:
                         logger.exception(f"Произошла ошибка получения данных поиска заявок: {e}, ")
                         raise
 
                 if not purchases:
-                    logger.warning(f"Заявка под регистрационным номером: {registration_number} и фильтром: {filter_name} не найдена.")
+                    logger.warning(
+                        f"Заявка под регистрационным номером: {registration_number} и фильтром:"
+                        f" {filter_name} не найдена.")
                     continue
 
                 purchase: Notice = purchases[0]
@@ -202,8 +205,8 @@ async def daily_task() -> ResultDailyTask:
             result.updated += updated
             result.skipped += skipped
 
-            await send_analysis(date_of_processing_notices = yesterday, rows=rows, emails=emails,
-                            created=created, updated=updated, skipped=skipped)
+            await send_analysis(date_of_processing_notices=yesterday, rows=rows, emails=emails,
+                                created=created, updated=updated, skipped=skipped)
 
         # Высылаем информацию для ITM
 
@@ -229,7 +232,7 @@ async def daily_task() -> ResultDailyTask:
             async with db_session() as db:
                 try:
                     newsletters = await search_newsletters(db, FilterNewsLetters(list_filter_type_names=[filter_name],
-                                                                            list_district_names=[district_name]))
+                                                                                 list_district_names=[district_name]))
                     emails = [n.email for n in newsletters]
                 except IntegrityError as e:
                     logger.exception(f"Произошла ошибка получения данных подписантов: {e}")
@@ -246,13 +249,15 @@ async def daily_task() -> ResultDailyTask:
                 async with db_session() as db:
                     try:
                         purchases = await search_purchases(db, FilterNotice(registration_number=registration_number,
-                                                                                list_filter_type_name=[filter_name]))
+                                                                            list_filter_type_name=[filter_name]))
                     except IntegrityError as e:
                         logger.exception(f"Произошла ошибка получения данных поиска заявок: {e}, ")
                         raise
 
                 if not purchases:
-                    logger.warning(f"Заявка под регистрационным номером: {registration_number} и фильтром: {filter_name} не найдена.")
+                    logger.warning(
+                        f"Заявка под регистрационным номером: {registration_number} и фильтром:"
+                        f" {filter_name} не найдена.")
                     continue
 
                 purchase: Notice = purchases[0]
@@ -263,8 +268,8 @@ async def daily_task() -> ResultDailyTask:
             result.updated += updated
             result.skipped += skipped
 
-            await send_analysis(date_of_processing_notices = yesterday, rows=rows, emails=emails,
-                            created=created, updated=updated, skipped=skipped)
+            await send_analysis(date_of_processing_notices=yesterday, rows=rows, emails=emails,
+                                created=created, updated=updated, skipped=skipped)
 
         logger.info(f"Scheduler: daily done at {str(moscow_datetime().isoformat())} with result: {result.model_dump()}")
 

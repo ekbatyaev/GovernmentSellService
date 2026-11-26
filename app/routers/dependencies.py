@@ -38,6 +38,7 @@ async def get_current_user(
 
     return User.model_validate(user)
 
+
 async def require_admin(user: UserDatabase = Depends(get_current_user)) -> UserDatabase:
     if user.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")

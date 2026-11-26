@@ -2,10 +2,12 @@ from typing import Any
 from pydantic import BaseModel, Field, model_validator
 from app.schemas.purchase import Notice, Document
 
+
 class ParseSoapResponse(BaseModel):
     code: int | None = None
     archive_urls: list = Field(default_factory=list)
     message: str | None = None
+
 
 class NoticeParser(Notice):
     """Notice на этапе разбора XML: guid, тип фильтра и регион проставляются позже,

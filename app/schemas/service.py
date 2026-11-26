@@ -2,6 +2,7 @@ from typing import Literal, Optional
 from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 
+
 class AuthCode(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     guid: str
@@ -12,12 +13,15 @@ class AuthCode(BaseModel):
     created_at: datetime
     last_checked_at: datetime
 
+
 class UpdateAuthCode(BaseModel):
     last_checked_at: datetime
+
 
 class StatusAuthCode(BaseModel):
     status_message: Literal["try later", "not found", "not saved", "created"]
     guid: Optional[str] = None
+
 
 class FilterAuthCode(BaseModel):
     email: Optional[str] = None

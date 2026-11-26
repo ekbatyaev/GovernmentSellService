@@ -18,6 +18,7 @@ from app.backend.parsers.docs.operations.accumulate import accumulate_attached_f
 from app.backend.parsers.docs.operations.download import download_file, download_multipart_rar
 from app.backend.parsers.docs.operations.regex.fields import pick_longest_designer
 
+
 async def process_one_attached_file_and_merge(
     item: GroupFileAnalysis,
     tmp_dir: Path,
@@ -96,6 +97,7 @@ async def process_one_attached_file_and_merge(
 
     return result
 
+
 async def process_attached_files_and_merge(
     attached_files: list,
     tmp_dir: str | Path,
@@ -147,7 +149,6 @@ async def process_attached_files_and_merge(
                 ),
             )
             logger.warning(f"ERROR: {process_stats.error}")
-
 
     logger.info(
         "ATTACHED BATCH DONE | %s",
