@@ -35,7 +35,6 @@ async def compute_fields(
         task = classify_document(filename, protocol_mode, filter_type)
 
         if task == TASK_PROTOCOL:
-            return {}
             return await _run_llm(PROTOCOL_EXTRACTORS[filter_type], text) or {}
 
         if task == TASK_DESIGNER and is_working_documentation_title_page(text):
