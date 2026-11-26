@@ -149,8 +149,16 @@ async def upsert_notice(db: AsyncSession, purchase: Notice) -> Literal["created"
                 await db.commit()
                 return "created"
 
+            protected_fields = {
+                "guid",
+                "registration_number",
+                "filter_type_name",
+                "documents_list",
+                "result_info",
+            }
+
             for field, value in incoming.items():
-                if value is None or field in ("documents_list", "result_info"):
+                if value is None or field in protected_fields:
                     continue
                 setattr(notice, field, value)
             notice.documents_list = merge_unique_list(

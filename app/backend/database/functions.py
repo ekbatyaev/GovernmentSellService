@@ -7,9 +7,7 @@ from collections import OrderedDict
 
 
 def merge_unique_list(old: list, new: list) -> list:
-    """Объединение списков с дедупом, порядок старых элементов сохраняется."""
-    seen = set(old)
-    return list(old) + [x for x in new if x not in seen]
+    return list(dict.fromkeys([*old, *new]))
 
 
 def merge_result_info(old: dict, new: dict) -> dict:
